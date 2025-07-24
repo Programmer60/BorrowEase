@@ -8,6 +8,10 @@ import LenderHistory from "./Components/LenderHistory";
 import RoleSetup from "./Components/RoleSetup";
 import AdminUsers from "./Components/AdminUsers";
 import ProtectedRoute from "./Components/ProtectedRoute";
+import ProfilePage from "./Components/ProfilePage";
+import ChatRoom from "./Components/ChatRoom";
+import SimpleChatRoom from "./Components/SimpleChatRoom";
+import AuthenticatedRoute from "./Components/AuthenticatedRoute";
 
 function App() {
   return (
@@ -21,6 +25,9 @@ function App() {
         <Route path="/lender-history" element={<ProtectedRoute element={LenderHistory} requiredRole="lender" />} />
         <Route path="/role-setup" element={<RoleSetup />} />
         <Route path="/admin/users" element={<ProtectedRoute element={AdminUsers} requiredRole="admin" />} />
+        <Route path="/profile" element={<ProfilePage/>} />
+        <Route path="/chat/:loanId" element={<AuthenticatedRoute><SimpleChatRoom /></AuthenticatedRoute>} />
+        <Route path="/chat-realtime/:loanId" element={<AuthenticatedRoute><ChatRoom /></AuthenticatedRoute>} />
       </Routes>
     </Router>
   );

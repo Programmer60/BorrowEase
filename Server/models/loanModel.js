@@ -9,8 +9,15 @@ const loanSchema = new mongoose.Schema({
   repaymentDate: { type: String, required: true },
   funded: { type: Boolean, default: false },
   lenderName: { type: String, default: "" },
+  lenderId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  borrowerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   createdAt: { type: Date, default: Date.now },
   repaid: { type: Boolean, default: false },
+  status: {
+    type: String,
+    enum: ["pending", "approved", "rejected"],
+    default: "pending",
+  },
 },{timestamps: true});
 
 

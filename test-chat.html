@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan Chat Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 3px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Loan Chat System Test</h1>
+    
+    <div class="section">
+        <h3>Step 1: Check Available Loans</h3>
+        <button onclick="checkLoans()">Check All Loans</button>
+        <div id="loans-result" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h3>Step 2: Create Test Loan (if needed)</h3>
+        <button onclick="createTestLoan()">Create Test Loan</button>
+        <div id="create-result" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h3>Step 3: Fund the Loan (Lender)</h3>
+        <input type="text" id="loanIdToFund" placeholder="Loan ID to fund">
+        <button onclick="fundLoan()">Fund Loan</button>
+        <div id="fund-result" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h3>Step 4: Test Chat Access</h3>
+        <input type="text" id="loanIdToChat" placeholder="Loan ID for chat">
+        <button onclick="testChatAccess()">Test Chat Access</button>
+        <div id="chat-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5000/api';
+        
+        // Note: This test page won't work directly due to CORS and authentication
+        // But it helps us understand the flow
+        
+        async function checkLoans() {
+            const result = document.getElementById('loans-result');
+            result.textContent = 'This test requires proper authentication. Please check the server logs and browser console when testing the actual app.';
+        }
+        
+        async function createTestLoan() {
+            const result = document.getElementById('create-result');
+            result.textContent = 'Use the actual BorrowEase app to create a loan request as a borrower.';
+        }
+        
+        async function fundLoan() {
+            const result = document.getElementById('fund-result');
+            result.textContent = 'Use the actual BorrowEase app to fund a loan as a lender.';
+        }
+        
+        async function testChatAccess() {
+            const result = document.getElementById('chat-result');
+            result.textContent = 'Click chat button in the actual app. Check server console for detailed logs.';
+        }
+    </script>
+    
+    <div class="section">
+        <h3>Instructions:</h3>
+        <ol>
+            <li><strong>Borrower:</strong> Log in and create a loan request</li>
+            <li><strong>Lender:</strong> Log in and fund the loan request</li>
+            <li><strong>Either:</strong> Go to history page and click chat button</li>
+            <li><strong>Check:</strong> Server console for detailed authorization logs</li>
+        </ol>
+        
+        <h4>Expected Flow:</h4>
+        <pre>
+1. Borrower creates loan → borrowerId is set
+2. Lender funds loan → lenderId is set, funded = true
+3. Chat access → checks if user is borrower OR lender AND loan is funded
+        </pre>
+    </div>
+</body>
+</html>

@@ -12,6 +12,9 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
+// Export admin auth for Socket.IO authentication
+export const auth = admin.auth();
+
 export const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -27,7 +30,12 @@ export const verifyToken = async (req, res, next) => {
     if (!req.path.endsWith('/setup')) {
       const user = await User.findOne({ email: decodedToken.email });
       if (!user) return res.status(404).json({ error: "User not found" });
-      req.user = { name: decodedToken.name, email: decodedToken.email, role: user.role };
+      req.user = { 
+        id: user._id,       
+        name: decodedToken.name, 
+        email: decodedToken.email, 
+        role: user.role 
+      };
     } else {
       // For /setup route, just pass the decoded token info
       req.user = { name: decodedToken.name, email: decodedToken.email };
