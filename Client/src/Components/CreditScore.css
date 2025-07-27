@@ -1,0 +1,295 @@
+/* Credit Score Component Styles */
+.credit-score-container {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  padding: 24px;
+  color: white;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.credit-score-container.small {
+  padding: 16px;
+  max-width: 280px;
+}
+
+.credit-score-container.large {
+  padding: 32px;
+  max-width: 500px;
+}
+
+/* Score Display Section */
+.score-display {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.score-circle {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  position: relative;
+  padding: 8px;
+}
+
+.small .score-circle {
+  width: 100px;
+  height: 100px;
+}
+
+.large .score-circle {
+  width: 180px;
+  height: 180px;
+}
+
+.score-inner {
+  background: white;
+  border-radius: 50%;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+}
+
+.score-number {
+  font-size: 36px;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.small .score-number {
+  font-size: 28px;
+}
+
+.large .score-number {
+  font-size: 48px;
+}
+
+.score-max {
+  font-size: 14px;
+  color: #666;
+  margin-top: -4px;
+}
+
+/* Score Badge */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.score-badge.excellent {
+  background: rgba(76, 175, 80, 0.2);
+  border: 2px solid #4CAF50;
+  color: #4CAF50;
+}
+
+.score-badge.good {
+  background: rgba(139, 195, 74, 0.2);
+  border: 2px solid #8BC34A;
+  color: #8BC34A;
+}
+
+.score-badge.average {
+  background: rgba(255, 152, 0, 0.2);
+  border: 2px solid #FF9800;
+  color: #FF9800;
+}
+
+.score-badge.risky {
+  background: rgba(244, 67, 54, 0.2);
+  border: 2px solid #F44336;
+  color: #F44336;
+}
+
+.badge-icon {
+  font-size: 16px;
+}
+
+/* Details Section */
+.score-details {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.score-details h4 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-item:last-child {
+  border-bottom: none;
+}
+
+.detail-icon {
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.detail-content {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-label {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.detail-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* Score Factors */
+.score-factors {
+  margin-top: 20px;
+}
+
+.score-factors h5 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.score-factors ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.factor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.factor-icon {
+  font-size: 14px;
+}
+
+.factor.positive .factor-icon {
+  color: #4CAF50;
+}
+
+.factor.negative .factor-icon {
+  color: #F44336;
+}
+
+.factor.neutral .factor-icon {
+  color: #FF9800;
+}
+
+/* Animations */
+.score-circle {
+  animation: fadeInScale 0.6s ease-out;
+}
+
+.score-badge {
+  animation: slideInUp 0.8s ease-out;
+}
+
+.detail-item {
+  animation: slideInLeft 0.6s ease-out;
+}
+
+.detail-item:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.detail-item:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.detail-item:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .credit-score-container {
+    max-width: 100%;
+    margin: 0 16px;
+  }
+  
+  .score-circle {
+    width: 120px;
+    height: 120px;
+  }
+  
+  .score-number {
+    font-size: 32px;
+  }
+}

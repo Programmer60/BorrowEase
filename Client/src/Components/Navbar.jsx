@@ -11,6 +11,10 @@ import {
   Shield,
   Bell,
   ChevronDown,
+  AlertTriangle,
+  Brain,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
@@ -47,6 +51,8 @@ export default function Navbar() {
           displayName: res.data.name,
           email: res.data.email,
           photoURL: auth.currentUser?.photoURL || null,
+          kyc: res.data.kyc || null,
+          kycStatus: res.data.kycStatus || 'not_submitted'
         });
         console.log('👤 User role fetched in Navbar:', res.data.role);
         setUserRole(res.data.role);
@@ -81,6 +87,16 @@ export default function Navbar() {
       show: user && userRole === "lender",
     },
     {
+      label: "KYC Verification",
+      path: "/kyc",
+      icon: <Shield className="w-4 h-4" />,
+      show: user && userRole === "borrower",
+      className: user?.kycStatus === 'verified' ? "text-green-600 hover:text-green-700 font-semibold" : 
+                 user?.kycStatus === 'pending' ? "text-yellow-600 hover:text-yellow-700 font-semibold" :
+                 user?.kycStatus === 'rejected' ? "text-red-600 hover:text-red-700 font-semibold" :
+                 "text-blue-600 hover:text-blue-700 font-semibold",
+    },
+    {
       label: "My Loans",
       path: "/borrower-history",
       icon: <CreditCard className="w-4 h-4" />,
@@ -93,11 +109,31 @@ export default function Navbar() {
       show: user && userRole === "lender",
     },
     {
-      label: "Admin Panel",
-      path: "/admin/users",
-      icon: <Settings className="w-4 h-4" />,
+      label: "Credit Score",
+      path: "/credit-score",
+      icon: <TrendingUp className="w-4 h-4" />,
+      show: user && (userRole === "borrower" || userRole === "lender"),
+    },
+    {
+      label: "AI Dashboard",
+      path: "/ai-dashboard",
+      icon: <Brain className="w-4 h-4" />,
+      show: user && (userRole === "lender" || userRole === "admin"),
+      className: "text-blue-600 hover:text-blue-700 font-semibold",
+    },
+    {
+      label: "Admin Dashboard",
+      path: "/admin",
+      icon: <Shield className="w-4 h-4" />,
       show: user && userRole === "admin",
       className: "text-red-600 hover:text-red-700 font-semibold",
+    },
+    {
+      label: "Disputes",
+      path: "/admin/disputes",
+      icon: <AlertTriangle className="w-4 h-4" />,
+      show: user && userRole === "admin",
+      className: "text-orange-600 hover:text-orange-700 font-semibold",
     },
   ];
 
@@ -173,6 +209,20 @@ export default function Navbar() {
                         {userRole === "admin" && (
                           <p className="text-xs text-red-600 font-semibold">Admin User</p>
                         )}
+                        {userRole === "borrower" && user.kycStatus && (
+                          <div className="mt-1">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              user.kycStatus === 'verified' ? 'bg-green-100 text-green-800' :
+                              user.kycStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              user.kycStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              <Shield className="w-3 h-3 mr-1" />
+                              KYC {user.kycStatus === 'not_submitted' ? 'Not Submitted' : 
+                                   user.kycStatus.charAt(0).toUpperCase() + user.kycStatus.slice(1)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <button
                         onClick={() => navigate("/profile")}
@@ -180,14 +230,51 @@ export default function Navbar() {
                       >
                         Profile Settings
                       </button>
-                      {userRole === "admin" && (
+                      {userRole === "borrower" && (
                         <button
-                          onClick={() => navigate("/admin/users")}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-semibold flex items-center"
+                          onClick={() => navigate("/kyc")}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center ${
+                            user.kycStatus === 'verified' ? 'text-green-600' :
+                            user.kycStatus === 'pending' ? 'text-yellow-600' :
+                            user.kycStatus === 'rejected' ? 'text-red-600' :
+                            'text-blue-600'
+                          }`}
                         >
                           <Shield className="w-4 h-4 mr-2" />
-                          Admin Panel
+                          KYC Verification
                         </button>
+                      )}
+                      {userRole === "admin" && (
+                        <>
+                          <button
+                            onClick={() => navigate("/admin")}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-semibold flex items-center"
+                          >
+                            <Shield className="w-4 h-4 mr-2" />
+                            Admin Dashboard
+                          </button>
+                          <button
+                            onClick={() => navigate("/admin/loans")}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                          >
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Loan Moderation
+                          </button>
+                          <button
+                            onClick={() => navigate("/admin/kyc")}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                          >
+                            <User className="w-4 h-4 mr-2" />
+                            KYC Management
+                          </button>
+                          <button
+                            onClick={() => navigate("/admin/users")}
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center"
+                          >
+                            <Settings className="w-4 h-4 mr-2" />
+                            User Management
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={handleLogout}
@@ -232,10 +319,21 @@ export default function Navbar() {
                   navigate(link.path);
                   setIsMenuOpen(false);
                 }}
-                className="block w-full px-4 py-3 text-left text-sm hover:bg-gray-50"
+                className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center ${
+                  link.className || "text-gray-700"
+                }`}
               >
                 {link.icon}
                 <span className="ml-2">{link.label}</span>
+                {link.label === "KYC Verification" && user?.kycStatus === 'verified' && (
+                  <CheckCircle className="w-4 h-4 ml-auto text-green-600" />
+                )}
+                {link.label === "KYC Verification" && user?.kycStatus === 'pending' && (
+                  <Clock className="w-4 h-4 ml-auto text-yellow-600" />
+                )}
+                {link.label === "KYC Verification" && user?.kycStatus === 'rejected' && (
+                  <X className="w-4 h-4 ml-auto text-red-600" />
+                )}
               </button>
             ))}
           {/* Admin Panel only in profile dropdown for admin users */}

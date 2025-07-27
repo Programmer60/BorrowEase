@@ -5,30 +5,11 @@ import { verifyToken } from "../firebase.js";
 
 const router = express.Router();
 
-// Middleware to log all incoming requests
-router.use((req, res, next) => {
-  console.log(`📬 Incoming ${req.method} request to ${req.originalUrl}`);
-  console.log(`📬 Headers:`, {
-    authorization: req.headers.authorization ? 'Bearer ***' : 'None',
-    'content-type': req.headers['content-type']
-  });
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log(`📬 Body:`, req.body);
-  }
-  next();
-});
-
 // Get chat messages for a specific loan
 router.get("/loan/:loanId", verifyToken, async (req, res) => {
   try {
     const { loanId } = req.params;
-    const userId = req.user.id;
-
-    console.log("🔍 Chat access attempt:");
-    console.log("- LoanId:", loanId);
-    console.log("- UserId:", userId);
-    console.log("- UserId type:", typeof userId);
-    console.log("- User:", req.user);
+    const userId = req.user.id.toString();
 
     // Verify user is part of this loan (either borrower or lender)
     const loan = await Loan.findById(loanId)
@@ -36,43 +17,35 @@ router.get("/loan/:loanId", verifyToken, async (req, res) => {
       .populate('lenderId', 'name email _id');
       
     if (!loan) {
-      console.log("❌ Loan not found");
       return res.status(404).json({ error: "Loan not found" });
     }
 
-    console.log("📋 Loan details:");
-    console.log("- Loan ID:", loan._id);
-    console.log("- Borrower:", loan.borrowerId);
-    console.log("- Lender:", loan.lenderId);
-    console.log("- Funded:", loan.funded);
-
-    // Check if user is borrower or lender
-    const borrowerIdStr = loan.borrowerId ? loan.borrowerId._id.toString() : null;
-    const lenderIdStr = loan.lenderId ? loan.lenderId._id.toString() : null;
-    const userIdStr = userId.toString();
+    const borrowerId = loan.borrowerId._id.toString();
+    const lenderId = loan.lenderId?._id?.toString();
     
-    const isBorrower = borrowerIdStr === userIdStr;
-    const isLender = lenderIdStr === userIdStr;
-    
-    console.log("🔐 Authorization check:");
-    console.log("- User ID (string):", userIdStr);
-    console.log("- Borrower ID (string):", borrowerIdStr);
-    console.log("- Lender ID (string):", lenderIdStr);
-    console.log("- Is Borrower:", isBorrower);
-    console.log("- Is Lender:", isLender);
+    console.log('Chat authorization check:', {
+      userId,
+      borrowerId,
+      lenderId,
+      userRole: req.user.role
+    });
 
-    if (!isBorrower && !isLender) {
-      console.log("❌ User not authorized for this loan");
-      return res.status(403).json({ error: "Unauthorized to access this chat" });
+    // Allow access if user is borrower, lender, or admin
+    const isAuthorized = userId === borrowerId || 
+                        (lenderId && userId === lenderId) || 
+                        req.user.role === 'admin';
+
+    if (!isAuthorized) {
+      return res.status(403).json({ 
+        error: "Unauthorized to access this chat",
+        details: "You can only access chats for loans where you are the borrower or lender"
+      });
     }
 
     // Only allow chat if loan is funded
     if (!loan.funded) {
-      console.log("❌ Loan not funded");
       return res.status(403).json({ error: "Chat is only available for funded loans" });
     }
-
-    console.log("✅ Authorization successful, fetching messages");
 
     const messages = await ChatMessage.find({ loanId })
       .populate("senderId", "name email")
@@ -95,56 +68,37 @@ router.get("/loan/:loanId", verifyToken, async (req, res) => {
 // Send a new message
 router.post("/send", verifyToken, async (req, res) => {
   try {
-    console.log("💬 Message send attempt:");
-    console.log("- Request body:", req.body);
-    console.log("- User:", req.user);
-    
     const { loanId, message, receiverId } = req.body;
-    const senderId = req.user.id.toString(); // Convert ObjectId to string!
-    
-    console.log("- LoanId:", loanId);
-    console.log("- Message:", message);
-    console.log("- ReceiverId:", receiverId);
-    console.log("- SenderId:", senderId);
+    const senderId = req.user.id.toString();
 
     // Verify loan exists and user is authorized
-    console.log("🔍 Verifying loan and authorization...");
-    const loan = await Loan.findById(loanId);
+    const loan = await Loan.findById(loanId)
+      .populate('borrowerId', 'name email _id')
+      .populate('lenderId', 'name email _id');
+      
     if (!loan) {
-      console.log("❌ Loan not found for ID:", loanId);
       return res.status(404).json({ error: "Loan not found" });
     }
 
-    console.log("📋 Loan found:", {
-      id: loan._id,
-      borrowerId: loan.borrowerId,
-      lenderId: loan.lenderId,
-      funded: loan.funded
-    });
+    const borrowerId = loan.borrowerId._id.toString();
+    const lenderId = loan.lenderId?._id?.toString();
+    
+    // Allow access if user is borrower, lender, or admin
+    const isAuthorized = senderId === borrowerId || 
+                        (lenderId && senderId === lenderId) || 
+                        req.user.role === 'admin';
 
-    // Debug the authorization check in detail
-    const borrowerIdStr = loan.borrowerId.toString();
-    const lenderIdStr = loan.lenderId?.toString();
-    console.log("🔍 Authorization check details:");
-    console.log("- SenderId:", senderId);
-    console.log("- BorrowerId (string):", borrowerIdStr);
-    console.log("- LenderId (string):", lenderIdStr);
-    console.log("- Is sender the borrower?", borrowerIdStr === senderId);
-    console.log("- Is sender the lender?", lenderIdStr === senderId);
-    console.log("- Authorization check (should be false to pass):", loan.borrowerId.toString() !== senderId && loan.lenderId?.toString() !== senderId);
-
-    if (loan.borrowerId.toString() !== senderId && loan.lenderId?.toString() !== senderId) {
-      console.log("❌ User not authorized for this loan");
-      return res.status(403).json({ error: "Unauthorized to send message" });
+    if (!isAuthorized) {
+      return res.status(403).json({ 
+        error: "Unauthorized to send message",
+        details: "You can only send messages for loans where you are the borrower or lender"
+      });
     }
 
     // Only allow chat if loan is funded
     if (!loan.funded) {
-      console.log("❌ Loan not funded");
       return res.status(403).json({ error: "Chat is only available for funded loans" });
     }
-
-    console.log("✅ Authorization passed, creating message...");
 
     const newMessage = new ChatMessage({
       loanId,
@@ -154,20 +108,15 @@ router.post("/send", verifyToken, async (req, res) => {
       messageType: "text"
     });
 
-    console.log("💾 Saving message to database...");
     await newMessage.save();
-    console.log("✅ Message saved with ID:", newMessage._id);
     
-    console.log("🔄 Populating message data...");
     const populatedMessage = await ChatMessage.findById(newMessage._id)
       .populate("senderId", "name email")
       .populate("receiverId", "name email");
 
-    console.log("✅ Message sent successfully:", populatedMessage);
     res.status(201).json(populatedMessage);
   } catch (error) {
-    console.error("❌ Error sending message:", error);
-    console.error("❌ Error stack:", error.stack);
+    console.error("Error sending message:", error);
     res.status(500).json({ error: "Failed to send message" });
   }
 });

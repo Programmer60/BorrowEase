@@ -30,17 +30,57 @@ router.post("/setup", verifyToken, async (req, res) => {
 
 // Get my user profile
 router.get("/me", verifyToken, async (req, res) => {
-  const user = await User.findOne({ email: req.user.email });
-  if (!user) return res.status(404).json({ error: "User not found" });
-  res.json({
-    _id: user._id,  // Add the _id field
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    createdAt: user.createdAt,
-    profilePicture: user.profilePicture, // <-- Add this line
-    // add other fields as needed
-  });
+  try {
+    console.log('👤 /users/me endpoint hit');
+    console.log('🔍 Looking for user with email:', req.user?.email);
+    console.log('👤 Request user object:', req.user);
+    
+    const user = await User.findOne({ email: req.user.email });
+    if (!user) {
+      console.log('❌ User not found in database');
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    console.log('✅ User found:', user.email, 'Role:', user.role);
+    
+    // Get KYC status from KYC collection if it exists
+    let kycData = null;
+    let kycStatus = user.kycStatus || 'not_submitted';
+    
+    try {
+      const KYC = await import("../models/kycModel.js").then(module => module.default);
+      kycData = await KYC.findOne({ userId: user._id });
+      if (kycData) {
+        kycStatus = kycData.status;
+        console.log('📋 KYC status found:', kycStatus);
+      } else {
+        console.log('📋 No KYC data found');
+      }
+    } catch (kycError) {
+      console.log("⚠️ KYC data not available:", kycError.message);
+    }
+    
+    const responseData = {
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt,
+      profilePicture: user.profilePicture,
+      kycStatus: kycStatus,
+      kyc: kycData ? {
+        status: kycData.status,
+        submittedAt: kycData.submittedAt,
+        verifiedAt: kycData.verifiedAt,
+        reason: kycData.reason
+      } : null
+    };
+    
+    console.log('✅ Sending user data:', responseData);
+    res.json(responseData);
+  } catch (error) {
+    console.error('❌ Error in /users/me:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Update role (and now profile picture too)
@@ -181,6 +221,51 @@ router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
       totalPages: Math.ceil(total / limit),
       currentPage: page,
       total
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get KYC status for a specific user (for lenders to see borrower KYC status)
+router.get("/kyc-status/:userId", verifyToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Only allow lenders and admins to view KYC status of others
+    const requestingUser = await User.findOne({ email: req.user.email });
+    if (!requestingUser || !['lender', 'admin'].includes(requestingUser.role)) {
+      return res.status(403).json({ error: "Access denied. Only lenders and admins can view KYC status." });
+    }
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    // Get KYC status from KYC collection if it exists
+    let kycStatus = user.kycStatus || 'not_submitted';
+    let kycData = null;
+    
+    try {
+      const KYC = await import("../models/kycModel.js").then(module => module.default);
+      kycData = await KYC.findOne({ userId: user._id });
+      if (kycData) {
+        kycStatus = kycData.status;
+      }
+    } catch (kycError) {
+      console.log("KYC data not available:", kycError.message);
+    }
+    
+    res.json({
+      userId: user._id,
+      userName: user.name,
+      kycStatus: kycStatus,
+      kyc: kycData ? {
+        status: kycData.status,
+        submittedAt: kycData.submittedAt,
+        verifiedAt: kycData.verifiedAt
+      } : null
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

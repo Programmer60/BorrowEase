@@ -1,0 +1,368 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Brain,
+  User,
+  CreditCard,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Calculator,
+  Clock,
+  Shield,
+  TrendingUp,
+  Target
+} from 'lucide-react';
+import Navbar from './Navbar';
+import API from '../api/api';
+
+const BorrowerAssessment = () => {
+  const [borrowerData, setBorrowerData] = useState({
+    borrowerId: '',
+    loanAmount: '',
+    loanPurpose: '',
+    repaymentPeriod: 90
+  });
+  const [assessment, setAssessment] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [availableBorrowers, setAvailableBorrowers] = useState([]);
+
+  useEffect(() => {
+    fetchAvailableBorrowers();
+  }, []);
+
+  const fetchAvailableBorrowers = async () => {
+    try {
+      // Get pending loan applications or all borrowers
+      const response = await API.get('/loans/pending-applications');
+      setAvailableBorrowers(response.data);
+    } catch (error) {
+      console.error('Error fetching borrowers:', error);
+      // Fallback to get all users
+      try {
+        const response = await API.get('/users/all-borrowers');
+        setAvailableBorrowers(response.data);
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
+    }
+  };
+
+  const handleAssessment = async () => {
+    if (!borrowerData.borrowerId || !borrowerData.loanAmount) {
+      alert('Please select a borrower and enter loan amount');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await API.post('/ai/assess-borrower', borrowerData);
+      setAssessment(response.data);
+    } catch (error) {
+      console.error('Error assessing borrower:', error);
+      alert('Failed to assess borrower. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getRiskColor = (score) => {
+    if (score >= 70) return 'bg-green-100 text-green-800 border-green-200';
+    if (score >= 50) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    if (score >= 30) return 'bg-orange-100 text-orange-800 border-orange-200';
+    return 'bg-red-100 text-red-800 border-red-200';
+  };
+
+  const getRiskIcon = (score) => {
+    if (score >= 70) return <CheckCircle className="w-5 h-5" />;
+    if (score >= 50) return <AlertTriangle className="w-5 h-5" />;
+    return <XCircle className="w-5 h-5" />;
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center mb-4">
+            <Brain className="w-8 h-8 text-purple-600 mr-3" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Individual Borrower Assessment</h1>
+              <p className="text-gray-600">AI-powered risk evaluation for specific loan applications</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Input Form */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Loan Application Details</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Borrower
+                  </label>
+                  <select
+                    value={borrowerData.borrowerId}
+                    onChange={(e) => setBorrowerData({...borrowerData, borrowerId: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="">Choose a borrower...</option>
+                    {availableBorrowers.map((borrower) => (
+                      <option key={borrower._id || borrower.id} value={borrower._id || borrower.id}>
+                        {borrower.name} ({borrower.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Loan Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={borrowerData.loanAmount}
+                    onChange={(e) => setBorrowerData({...borrowerData, loanAmount: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="Enter loan amount"
+                    min="1000"
+                    max="1000000"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Loan Purpose
+                  </label>
+                  <select
+                    value={borrowerData.loanPurpose}
+                    onChange={(e) => setBorrowerData({...borrowerData, loanPurpose: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="">Select purpose...</option>
+                    <option value="business">Business Expansion</option>
+                    <option value="education">Education</option>
+                    <option value="medical">Medical Emergency</option>
+                    <option value="home">Home Improvement</option>
+                    <option value="personal">Personal Use</option>
+                    <option value="debt-consolidation">Debt Consolidation</option>
+                    <option value="vehicle">Vehicle Purchase</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Repayment Period (days)
+                  </label>
+                  <input
+                    type="number"
+                    value={borrowerData.repaymentPeriod}
+                    onChange={(e) => setBorrowerData({...borrowerData, repaymentPeriod: parseInt(e.target.value)})}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    min="7"
+                    max="365"
+                  />
+                </div>
+
+                <button
+                  onClick={handleAssessment}
+                  disabled={loading || !borrowerData.borrowerId || !borrowerData.loanAmount}
+                  className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Calculator className="w-4 h-4 mr-2" />
+                      Assess Risk
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Assessment Results */}
+          <div className="lg:col-span-2">
+            {loading && (
+              <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+                <Brain className="w-12 h-12 text-purple-600 animate-pulse mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">AI is analyzing...</h3>
+                <p className="text-gray-600">Evaluating borrower profile and loan specifics</p>
+              </div>
+            )}
+
+            {assessment && (
+              <div className="space-y-6">
+                {/* Overall Assessment */}
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold text-gray-900">Assessment Results</h3>
+                    <span className="text-sm text-gray-500">{assessment.assessmentId}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className={`p-4 rounded-lg border ${getRiskColor(assessment.assessment.loanSpecificScore)}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          {getRiskIcon(assessment.assessment.loanSpecificScore)}
+                          <span className="ml-2 font-semibold">Final Risk Score</span>
+                        </div>
+                        <span className="text-xl font-bold">{assessment.assessment.loanSpecificScore}/100</span>
+                      </div>
+                    </div>
+
+                    <div className={`p-4 rounded-lg border ${
+                      assessment.assessment.finalDecision === 'approve' 
+                        ? 'bg-green-100 text-green-800 border-green-200'
+                        : 'bg-red-100 text-red-800 border-red-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          {assessment.assessment.finalDecision === 'approve' ? 
+                            <CheckCircle className="w-5 h-5" /> : 
+                            <XCircle className="w-5 h-5" />
+                          }
+                          <span className="ml-2 font-semibold">Decision</span>
+                        </div>
+                        <span className="text-lg font-bold uppercase">
+                          {assessment.assessment.finalDecision}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-sm text-gray-600">Suggested Rate</div>
+                      <div className="text-xl font-bold text-gray-900">
+                        {assessment.assessment.suggestedRate?.toFixed(1)}%
+                      </div>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-sm text-gray-600">Confidence</div>
+                      <div className="text-xl font-bold text-gray-900">
+                        {assessment.assessment.confidence}%
+                      </div>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <div className="text-sm text-gray-600">Max Amount</div>
+                      <div className="text-xl font-bold text-gray-900">
+                        ₹{assessment.assessment.maxRecommendedAmount?.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Risk Factors */}
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Risk Factor Analysis</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="font-medium text-gray-700 mb-3">Borrower Profile Score</h4>
+                      <div className="text-2xl font-bold text-gray-900 mb-2">
+                        {assessment.assessment.baseRiskScore}/100
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Trust Score Impact:</span>
+                          <span>{assessment.riskFactors.borrowerFactors.trustScore}/100</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>KYC Status:</span>
+                          <span>{assessment.riskFactors.borrowerFactors.kycScore}/100</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Payment History:</span>
+                          <span>{assessment.riskFactors.borrowerFactors.paymentHistory}/100</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-medium text-gray-700 mb-3">Loan-Specific Adjustments</h4>
+                      {assessment.riskFactors.loanSpecificFactors.length > 0 ? (
+                        <div className="space-y-2">
+                          {assessment.riskFactors.loanSpecificFactors.map((factor, index) => (
+                            <div key={index} className="p-2 bg-orange-50 rounded border-l-4 border-orange-400">
+                              <div className="flex justify-between items-start">
+                                <span className="text-sm font-medium">{factor.factor}</span>
+                                <span className="text-sm font-bold text-red-600">{factor.impact}</span>
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1">{factor.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-green-600 text-sm">No additional risk factors detected for this loan</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Recommendations</h3>
+                  <div className="space-y-3">
+                    {assessment.recommendations.map((rec, index) => (
+                      <div key={index} className="flex items-start p-3 rounded-lg border-l-4 border-gray-300 bg-gray-50">
+                        <div className={`w-2 h-2 rounded-full mt-2 mr-3 ${
+                          rec.priority === 'high' ? 'bg-red-500' :
+                          rec.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                        }`}></div>
+                        <div>
+                          <p className="font-medium text-gray-900">{rec.title}</p>
+                          <p className="text-sm text-gray-600">{rec.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Suggested Modifications */}
+                {assessment.suggestedModifications && (
+                  <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-6">
+                    <h3 className="text-lg font-semibold text-yellow-800 mb-4">Suggested Loan Modifications</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-sm text-yellow-700">Recommended Max Amount:</span>
+                        <p className="text-lg font-bold text-yellow-800">
+                          ₹{assessment.suggestedModifications.maxAmount?.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-yellow-700">Adjusted Interest Rate:</span>
+                        <p className="text-lg font-bold text-yellow-800">
+                          {assessment.suggestedModifications.suggestedRate}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!assessment && !loading && (
+              <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+                <Target className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready for Assessment</h3>
+                <p className="text-gray-600">Fill in the loan details and click "Assess Risk" to get AI-powered evaluation</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default BorrowerAssessment;

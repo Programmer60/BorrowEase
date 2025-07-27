@@ -16,6 +16,7 @@ export default function ChatRoom() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingUser, setTypingUser] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
@@ -24,31 +25,18 @@ export default function ChatRoom() {
   useEffect(() => {
     const initializeChat = async () => {
       try {
-        // Wait for Firebase auth to be ready
-        await new Promise((resolve) => {
-          const unsubscribe = auth.onAuthStateChanged((user) => {
-            unsubscribe();
-            resolve(user);
-          });
-        });
-
-        // Check if user is authenticated
-        const user = auth.currentUser;
-        if (!user) {
-          console.log("No authenticated user, redirecting to login");
-          navigate("/login");
-          return;
-        }
-
-        console.log("User authenticated:", user.email);
-
-        // Get current user data from API
+        // Get current user first
         const userRes = await API.get("/users/me");
         setCurrentUser(userRes.data);
 
         // Get Firebase auth token for socket authentication
+        const user = auth.currentUser;
+        if (!user) {
+          navigate("/login");
+          return;
+        }
+
         const token = await user.getIdToken();
-        console.log("Got Firebase token");
 
         // Initialize socket connection with proper authentication
         socketRef.current = io("http://localhost:5000", {
@@ -77,12 +65,7 @@ export default function ChatRoom() {
 
       } catch (error) {
         console.error("Error initializing chat:", error);
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          console.log("Authentication error, redirecting to login");
-          navigate("/login");
-        } else {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
@@ -100,6 +83,7 @@ export default function ChatRoom() {
   const fetchChatData = async (user) => {
     try {
       setLoading(true);
+      setError(null);
       
       // Fetch loan details
       const loanRes = await API.get(`/loans/${loanId}`);
@@ -119,6 +103,15 @@ export default function ChatRoom() {
     } catch (error) {
       console.error("Error fetching chat data:", error);
       setLoading(false);
+      
+      // Handle specific error cases
+      if (error.response?.status === 403) {
+        setError(error.response.data.details || "You don't have permission to access this chat. Only borrowers and lenders can access loan chats.");
+      } else if (error.response?.status === 404) {
+        setError("Loan not found. The loan may have been deleted or you don't have access to it.");
+      } else {
+        setError("Failed to load chat. Please try again later.");
+      }
     }
   };
 
@@ -226,6 +219,30 @@ export default function ChatRoom() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-2xl mx-auto p-6 text-center">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <strong className="font-bold">Access Denied!</strong>
+          <p className="block sm:inline"> {error}</p>
+        </div>
+        <button
+          onClick={() => navigate(-1)}
+          className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 mr-4"
+        >
+          <ArrowLeft className="w-4 h-4 inline mr-2" />
+          Go Back
+        </button>
+        <button
+          onClick={() => navigate('/borrower')}
+          className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700"
+        >
+          Dashboard
+        </button>
       </div>
     );
   }

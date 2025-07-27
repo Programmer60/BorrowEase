@@ -9,9 +9,14 @@ import userRoutes from "./routes/userRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import kycRoutes from "./routes/kycRoutes.js";
+import creditRoutes from "./routes/creditRoutes.js";
+import disputeRoutes from "./routes/disputeRoutes.js";
 import ChatMessage from "./models/chatModel.js";
 import Loan from "./models/loanModel.js";
+import User from "./models/userModel.js";
 import { auth } from "./firebase.js";
+
 
 dotenv.config();
 const app = express();
@@ -29,20 +34,6 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// Global request logger - Log ALL incoming requests
-app.use((req, res, next) => {
-  console.log(`🌐 GLOBAL: ${req.method} ${req.originalUrl} from ${req.ip}`);
-  console.log(`🌐 Headers:`, {
-    authorization: req.headers.authorization ? 'Bearer ***' : 'None',
-    'content-type': req.headers['content-type'],
-    'user-agent': req.headers['user-agent']?.substring(0, 50) + '...'
-  });
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log(`🌐 Body:`, req.body);
-  }
-  next();
-});
-
 // Connect DB
 connectDB();
 
@@ -52,6 +43,9 @@ app.use("/api/users", userRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/kyc", kycRoutes);
+app.use("/api/credit", creditRoutes);
+app.use("/api/disputes", disputeRoutes);
 
 // Store user-socket mapping to handle multiple tabs per user
 const userSockets = new Map(); // userId -> Set of socketIds
@@ -67,13 +61,22 @@ io.use(async (socket, next) => {
 
     // Verify Firebase token
     const decodedToken = await auth.verifyIdToken(token);
-    const userId = decodedToken.uid;
+    const firebaseUid = decodedToken.uid;
     const userName = decodedToken.name || decodedToken.email;
     const email = decodedToken.email;
 
-    socket.userId = userId;
+    // Find the MongoDB user by email to get the ObjectId
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(new Error("User not found in database"));
+    }
+
+    socket.firebaseUid = firebaseUid;
+    socket.userId = user._id.toString(); // Use MongoDB ObjectId
     socket.userName = userName;
     socket.email = email;
+    
+    console.log(`Socket auth mapping - Firebase UID: ${firebaseUid} -> MongoDB ID: ${user._id}`);
     
     next();
   } catch (error) {
@@ -103,13 +106,26 @@ io.on("connection", (socket) => {
   socket.on("joinLoanChat", async ({ loanId }) => {
     try {
       // Verify the loan exists and user is authorized
-      const loan = await Loan.findById(loanId);
+      const loan = await Loan.findById(loanId)
+        .populate('borrowerId', '_id')
+        .populate('lenderId', '_id');
+        
       if (!loan || !loan.funded) {
         socket.emit("error", { message: "Unauthorized or loan not funded" });
         return;
       }
 
-      if (loan.borrowerId.toString() !== userId && loan.lenderId?.toString() !== userId) {
+      const borrowerId = loan.borrowerId?._id?.toString();
+      const lenderId = loan.lenderId?._id?.toString();
+
+      console.log('Socket joinLoanChat authorization check:', {
+        userId,
+        borrowerId,
+        lenderId,
+        funded: loan.funded
+      });
+
+      if (borrowerId !== userId && lenderId !== userId) {
         socket.emit("error", { message: "Unauthorized to join this chat" });
         return;
       }
@@ -128,13 +144,19 @@ io.on("connection", (socket) => {
   socket.on("sendMessage", async ({ loanId, message, receiverId }) => {
     try {
       // Verify the loan exists and user is authorized
-      const loan = await Loan.findById(loanId);
+      const loan = await Loan.findById(loanId)
+        .populate('borrowerId', '_id')
+        .populate('lenderId', '_id');
+        
       if (!loan || !loan.funded) {
         socket.emit("error", { message: "Unauthorized or loan not funded" });
         return;
       }
 
-      if (loan.borrowerId.toString() !== userId && loan.lenderId?.toString() !== userId) {
+      const borrowerId = loan.borrowerId?._id?.toString();
+      const lenderId = loan.lenderId?._id?.toString();
+
+      if (borrowerId !== userId && lenderId !== userId) {
         socket.emit("error", { message: "Unauthorized to send message" });
         return;
       }

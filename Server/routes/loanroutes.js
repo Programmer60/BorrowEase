@@ -2,8 +2,10 @@ import express from "express";
 import Loan from "../models/loanModel.js";
 import Notification from "../models/notificationModel.js";
 import { verifyToken } from "../firebase.js";
+import InterestCalculator from "../utils/enhancedInterestCalculator.js";
 
 const router = express.Router();
+const interestCalculator = new InterestCalculator();
 
 // router.post("/",verifyToken, async (req, res) => {
 //   try {
@@ -25,10 +27,22 @@ const router = express.Router();
 
 router.post("/", verifyToken, async (req, res) => {
   try {
-    const { phoneNumber, amount, purpose, repaymentDate } = req.body;
+    const { phoneNumber, amount, purpose, repaymentDate, tenureMonths, interestRate } = req.body;
 
     // Extract user info from Firebase Auth Token
     const { name, email, id } = req.user;
+
+    // Validate loan parameters
+    const validation = interestCalculator.validateLoan(amount, tenureMonths);
+    if (!validation.isValid) {
+      return res.status(400).json({ 
+        error: "Invalid loan parameters", 
+        details: validation.errors 
+      });
+    }
+
+    // Calculate interest and loan details
+    const calculation = interestCalculator.calculateInterest(amount, tenureMonths, interestRate);
 
     const newLoan = new Loan({
       name,
@@ -38,27 +52,31 @@ router.post("/", verifyToken, async (req, res) => {
       purpose,
       repaymentDate,
       borrowerId: id,
-      status: "pending", // Default status
+      status: "pending",
+      // Enhanced interest fields
+      interestRate: calculation.details.rate || null,
+      tenureMonths,
+      totalRepayable: calculation.totalRepayable,
+      emi: calculation.emi,
+      interestAmount: calculation.interest,
+      calculationMethod: calculation.calculationMethod,
+      tier: calculation.tier,
+      breakdown: calculation.breakdown
     });
 
     await newLoan.save();
-    res.status(201).json(newLoan);
+    
+    // Return loan with calculation details for frontend preview
+    res.status(201).json({
+      loan: newLoan,
+      calculation,
+      explanation: interestCalculator.getExplanation(calculation)
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-
-// Get all loans (for lenders - only show approved loans)
-router.get("/", verifyToken, async (req, res) => {
-  try {
-    // Only show approved loans to regular users (lenders)
-    const loans = await Loan.find({ status: "approved" }).populate('borrowerId', 'name email');
-    res.json(loans);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Get all loans for a specific user
 router.get("/user", verifyToken, async (req, res) => {
@@ -107,6 +125,17 @@ router.get("/funded", verifyToken, async (req, res) => {
   }
 });
 
+// Get all loans (for lenders - only show approved loans)
+router.get("/", verifyToken, async (req, res) => {
+  try {
+    // Only show approved loans to regular users (lenders)
+    const loans = await Loan.find({ status: "approved" }).populate('borrowerId', 'name email');
+    res.json(loans);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Lender funds a loan to verifyToken
 router.patch("/:id/fund", verifyToken, async (req, res) => {
   try {
@@ -140,41 +169,6 @@ router.patch("/:id/repay", verifyToken, async (req, res) => {
 
     loan.repaid = true;
     await loan.save();
-
-    res.json(loan);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get single loan by ID (for chat access verification) - MOVED TO END
-router.get("/:id", verifyToken, async (req, res) => {
-  try {
-    const loan = await Loan.findById(req.params.id)
-      .populate('borrowerId', 'name email _id')
-      .populate('lenderId', 'name email _id');
-    
-    if (!loan) {
-      return res.status(404).json({ error: "Loan not found" });
-    }
-
-    // Check if user is authorized to view this loan
-    const userId = req.user.id;
-    const borrowerIdStr = loan.borrowerId ? loan.borrowerId._id.toString() : null;
-    const lenderIdStr = loan.lenderId ? loan.lenderId._id.toString() : null;
-    const userIdStr = userId.toString();
-    
-    console.log("🔐 Loan authorization check:");
-    console.log("- User ID (string):", userIdStr);
-    console.log("- Borrower ID (string):", borrowerIdStr);
-    console.log("- Lender ID (string):", lenderIdStr);
-    
-    if (borrowerIdStr !== userIdStr && lenderIdStr !== userIdStr) {
-      console.log("❌ User not authorized to view this loan");
-      return res.status(403).json({ error: "Unauthorized to view this loan" });
-    }
-
-    console.log("✅ User authorized to view loan");
 
     res.json(loan);
   } catch (error) {
@@ -305,6 +299,78 @@ router.patch("/admin/reject/:id", verifyToken, async (req, res) => {
   }
 });
 
+// Admin: Moderate a loan (flag/unflag/suspend)
+router.patch("/admin/:id/moderate", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Access denied. Admin only." });
+    }
+
+    const { action, reason } = req.body;
+    const loanId = req.params.id;
+
+    // Validate action
+    if (!['flag', 'unflag', 'suspend'].includes(action)) {
+      return res.status(400).json({ error: "Invalid action. Must be 'flag', 'unflag', or 'suspend'" });
+    }
+
+    // Find the loan
+    const loan = await Loan.findById(loanId).populate('borrowerId', 'name email');
+    if (!loan) {
+      return res.status(404).json({ error: "Loan not found" });
+    }
+
+    // Update loan based on action
+    let updateData = {};
+    let notificationMessage = '';
+    let notificationType = '';
+
+    switch (action) {
+      case 'flag':
+        updateData = { flagged: true, flagReason: reason };
+        notificationMessage = `Your loan request for ₹${loan.amount} has been flagged for review. ${reason ? `Reason: ${reason}` : ''}`;
+        notificationType = 'loan_flagged';
+        break;
+      case 'unflag':
+        updateData = { flagged: false, $unset: { flagReason: 1 } };
+        notificationMessage = `Your loan request for ₹${loan.amount} has been unflagged and is now under normal review.`;
+        notificationType = 'loan_unflagged';
+        break;
+      case 'suspend':
+        updateData = { suspended: true, suspendReason: reason, status: 'suspended' };
+        notificationMessage = `Your loan request for ₹${loan.amount} has been suspended. ${reason ? `Reason: ${reason}` : ''}`;
+        notificationType = 'loan_suspended';
+        break;
+    }
+
+    // Update the loan
+    const updatedLoan = await Loan.findByIdAndUpdate(
+      loanId,
+      updateData,
+      { new: true }
+    ).populate('borrowerId', 'name email');
+
+    // Create notification for borrower
+    if (updatedLoan.borrowerId) {
+      await Notification.create({
+        userId: updatedLoan.borrowerId._id,
+        type: notificationType,
+        message: notificationMessage,
+        isRead: false
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Loan ${action}ed successfully`,
+      loan: updatedLoan
+    });
+  } catch (error) {
+    console.error('Error moderating loan:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Admin: Get loan statistics
 router.get("/admin/stats", verifyToken, async (req, res) => {
   try {
@@ -351,6 +417,146 @@ router.get("/admin/stats", verifyToken, async (req, res) => {
     res.json(stats);
   } catch (error) {
     console.error('❌ Error in admin/stats endpoint:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enhanced Interest Calculation Routes
+
+// Preview interest calculation before loan submission
+router.post("/preview-interest", verifyToken, async (req, res) => {
+  try {
+    const { amount, tenureMonths, interestRate } = req.body;
+
+    // Validate loan parameters
+    const validation = interestCalculator.validateLoan(amount, tenureMonths);
+    if (!validation.isValid) {
+      return res.status(400).json({ 
+        error: "Invalid loan parameters", 
+        details: validation.errors 
+      });
+    }
+
+    // Calculate interest details
+    const calculation = interestCalculator.calculateInterest(amount, tenureMonths, interestRate);
+    const explanation = interestCalculator.getExplanation(calculation);
+
+    res.json({
+      calculation,
+      explanation,
+      validation,
+      availableTenures: interestCalculator.getAvailableTenures(amount)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get available tenure options for a specific amount
+router.get("/tenure-options/:amount", verifyToken, async (req, res) => {
+  try {
+    const amount = parseFloat(req.params.amount);
+    
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    const tenures = interestCalculator.getAvailableTenures(amount);
+    const tier = interestCalculator.getTierForAmount(amount);
+
+    res.json({
+      tenures,
+      tier,
+      minimumAmount: 100,
+      maximumAmount: 100000
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get investment recommendations for lenders
+router.get("/investment-recommendations/:amount", verifyToken, async (req, res) => {
+  try {
+    const investmentAmount = parseFloat(req.params.amount);
+    
+    if (isNaN(investmentAmount) || investmentAmount <= 0) {
+      return res.status(400).json({ error: "Invalid investment amount" });
+    }
+
+    const recommendations = interestCalculator.getRecommendationsForLenders(investmentAmount);
+
+    res.json({
+      investmentAmount,
+      recommendations,
+      totalStrategies: recommendations.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get interest tiers and configuration
+router.get("/interest-tiers", verifyToken, async (req, res) => {
+  try {
+    const tiers = interestCalculator.tiers.map(tier => ({
+      minAmount: tier.minAmount,
+      maxAmount: tier.maxAmount === Infinity ? 'No limit' : tier.maxAmount,
+      type: tier.type,
+      flatFee: tier.flatFee,
+      annualRate: tier.annualRate,
+      effectiveRate: tier.effectiveRate,
+      maxTenure: tier.maxTenure
+    }));
+
+    res.json({
+      tiers,
+      minimumInterest: interestCalculator.minimumInterest,
+      description: "BorrowEase interest calculation tiers"
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get single loan by ID (for chat access verification) - MUST BE LAST
+router.get("/:id", verifyToken, async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.id)
+      .populate('borrowerId', 'name email _id')
+      .populate('lenderId', 'name email _id');
+    
+    if (!loan) {
+      return res.status(404).json({ error: "Loan not found" });
+    }
+
+    // Check if user is authorized to view this loan
+    const userId = req.user.id.toString();
+    const borrowerId = loan.borrowerId._id.toString();
+    const lenderId = loan.lenderId?._id?.toString();
+    
+    console.log('Authorization check:', {
+      userId,
+      borrowerId,
+      lenderId,
+      userRole: req.user.role
+    });
+
+    // Allow access if user is borrower, lender, or admin
+    const isAuthorized = userId === borrowerId || 
+                        (lenderId && userId === lenderId) || 
+                        req.user.role === 'admin';
+
+    if (!isAuthorized) {
+      return res.status(403).json({ 
+        error: "Unauthorized to view this loan",
+        details: "You can only access loans where you are the borrower or lender"
+      });
+    }
+
+    res.json(loan);
+  } catch (error) {
+    console.error("Error fetching loan:", error);
     res.status(500).json({ error: error.message });
   }
 });

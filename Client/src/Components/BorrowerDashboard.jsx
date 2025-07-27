@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User,
   Mail,
@@ -16,11 +17,19 @@ import {
   Shield,
   Zap,
   AlertCircle,
+  Star,
+  AlertTriangle,
+  Calculator,
+  Plus,
 } from "lucide-react";
 import Navbar from "./Navbar";
 import API from "../api/api";
 import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import EnhancedLoanRequestForm from "./EnhancedLoanRequestForm";
+import InteractiveInterestCalculator from "./InteractiveInterestCalculator";
+import DisputesManagement from "./DisputesManagement";
+import EnhancedDisputeForm from "./EnhancedDisputeForm";
 
 
 const Toast = ({ message, type, onClose }) => {
@@ -53,6 +62,7 @@ const Toast = ({ message, type, onClose }) => {
 };
 
 export default function BorrowerDashboard() {
+  const navigate = useNavigate();
   const [loanRequests, setLoanRequests] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
@@ -61,13 +71,21 @@ export default function BorrowerDashboard() {
     amount: "",
     purpose: "",
     repaymentDate: "",
+    tenureMonths: 1,
+    customInterestRate: ""
   });
   const [authorized, setAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [showAllLoans, setShowAllLoans] = useState(false);
-  const LOANS_TO_SHOW = 4; // Show only 3 loans initially
+  const [creditScore, setCreditScore] = useState(null);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeLoan, setDisputeLoan] = useState(null);
+  const [showLoanForm, setShowLoanForm] = useState(false);
+  const [showInterestCalculator, setShowInterestCalculator] = useState(false);
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'newLoan', 'calculator', 'disputes'
+  const LOANS_TO_SHOW = 4; // Show only 4 loans initially
   
 
   useEffect(() => {
@@ -113,6 +131,14 @@ export default function BorrowerDashboard() {
       const res = await API.get("/loans/my-loans");
       console.log("Loaded loans:", res.data);
       setLoanRequests(res.data);
+      
+      // Fetch credit score
+      try {
+        const creditRes = await API.get("/credit/score");
+        setCreditScore(creditRes.data);
+      } catch (creditError) {
+        console.log("Credit score not available");
+      }
     } catch (error) {
       showToast("Error fetching loans", "error");
     }
@@ -122,23 +148,17 @@ export default function BorrowerDashboard() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (loanData) => {
     setIsSubmitting(true);
 
     try {
-      await API.post("/loans", formData);
+      await API.post("/loans", loanData);
       showToast("Loan request submitted successfully!", "success");
-      setFormData((prev) => ({
-        ...prev,
-        phoneNumber: "",
-        amount: "",
-        purpose: "",
-        repaymentDate: "",
-      }));
+      setCurrentView('dashboard');
       loadLoans();
     } catch (error) {
       showToast("Error submitting loan request", "error");
+      throw error; // Re-throw to let the form handle it
     } finally {
       setIsSubmitting(false);
     }
@@ -209,8 +229,8 @@ export default function BorrowerDashboard() {
   const getStatusText = (loan) => {
     if (loan.repaid) return "Repaid";
     if (loan.funded && loan.status === "approved") return "Funded, Pending Repayment";
-    if (loan.status === "approved" && !loan.funded) return "Approved, Awaiting Lender";
-    if (loan.status === "rejected") return "Rejected";
+    if (loan.status === "approved" && !loan.funded) return "Approved by Admin";
+    if (loan.status === "rejected") return "Rejected by Admin";
     if (loan.status === "pending") return "Pending Admin Review";
     return "Unknown Status";
   };
@@ -267,7 +287,7 @@ export default function BorrowerDashboard() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mt-6">
             <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-6 text-white">
               <div className="flex items-center">
                 <TrendingUp className="w-8 h-8 mr-3" />
@@ -278,6 +298,20 @@ export default function BorrowerDashboard() {
                     {loanRequests
                       .reduce((sum, loan) => sum + loan.amount, 0)
                       .toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-6 text-white">
+              <div className="flex items-center">
+                <Clock className="w-8 h-8 mr-3" />
+                <div>
+                  <p className="text-orange-100">Pending Approval</p>
+                  <p className="text-2xl font-bold">
+                    {
+                      loanRequests.filter((loan) => loan.status === 'pending').length
+                    }
                   </p>
                 </div>
               </div>
@@ -309,217 +343,293 @@ export default function BorrowerDashboard() {
                 </div>
               </div>
             </div>
+
+            <div 
+              className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl p-6 text-white cursor-pointer hover:from-yellow-600 hover:to-orange-600 transition-all duration-200"
+              onClick={() => navigate('/credit-score')}
+            >
+              <div className="flex items-center">
+                <Star className="w-8 h-8 mr-3" />
+                <div>
+                  <p className="text-yellow-100">Credit Score</p>
+                  <p className="text-2xl font-bold">
+                    {creditScore ? creditScore.score : 'N/A'}
+                  </p>
+                  {creditScore && (
+                    <p className="text-xs text-yellow-100 mt-1">
+                      {creditScore.score >= 750 ? 'Excellent' : 
+                       creditScore.score >= 650 ? 'Good' : 
+                       creditScore.score >= 550 ? 'Fair' : 'Poor'} • Click for details
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Loan Request Form */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex items-center mb-6">
-              <div className="bg-indigo-100 rounded-full p-3 mr-4">
-                <Send className="w-6 h-6 text-indigo-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">
-                Request New Loan
-              </h3>
-            </div>
-
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <User className="w-4 h-4 inline mr-2" />
-                    Full Name
-                  </label>
-                  <input
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-gray-50"
-                    placeholder="Enter your full name"
-                    disabled
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Mail className="w-4 h-4 inline mr-2" />
-                    College Email
-                  </label>
-                  <input
-                    name="collegeEmail"
-                    value={formData.collegeEmail}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-gray-50"
-                    placeholder="Enter your college email"
-                    disabled
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Phone className="w-4 h-4 inline mr-2" />
-                  Phone Number
-                </label>
-                <input
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                  placeholder="Enter your phone number"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <DollarSign className="w-4 h-4 inline mr-2" />
-                    Amount (₹)
-                  </label>
-                  <input
-                    name="amount"
-                    type="number"
-                    value={formData.amount}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                    placeholder="Enter loan amount"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Calendar className="w-4 h-4 inline mr-2" />
-                    Repayment Date
-                  </label>
-                  <input
-                    name="repaymentDate"
-                    type="date"
-                    value={formData.repaymentDate}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <FileText className="w-4 h-4 inline mr-2" />
-                  Purpose
-                </label>
-                <input
-                  name="purpose"
-                  value={formData.purpose}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                  placeholder="Enter loan purpose"
-                  required
-                />
-              </div>
-
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-indigo-700 hover:to-purple-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                {isSubmitting ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                ) : (
-                  <Send className="w-5 h-5 mr-2" />
-                )}
-                {isSubmitting ? "Submitting..." : "Request Loan"}
-              </button>
-            </div>
+        {/* Navigation Buttons */}
+        <div className="mb-8">
+          <div className="flex flex-wrap gap-4">
+            <button
+              onClick={() => setCurrentView('dashboard')}
+              className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
+                currentView === 'dashboard'
+                  ? 'bg-indigo-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <DollarSign className="w-5 h-5 mr-2" />
+              Dashboard
+            </button>
+            
+            <button
+              onClick={() => setCurrentView('newLoan')}
+              className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
+                currentView === 'newLoan'
+                  ? 'bg-green-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Request New Loan
+            </button>
+            
+            <button
+              onClick={() => setCurrentView('calculator')}
+              className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
+                currentView === 'calculator'
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <Calculator className="w-5 h-5 mr-2" />
+              Interest Calculator
+            </button>
+            
+            <button
+              onClick={() => setCurrentView('disputes')}
+              className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
+                currentView === 'disputes'
+                  ? 'bg-red-600 text-white shadow-lg'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <AlertTriangle className="w-5 h-5 mr-2" />
+              Manage Disputes
+            </button>
           </div>
+        </div>
 
-          {/* Loan Requests List */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <div className="bg-blue-100 rounded-full p-3 mr-4">
-                  <FileText className="w-6 h-6 text-blue-600" />
+        {/* Conditional Content Rendering */}
+        {currentView === 'newLoan' && (
+          <EnhancedLoanRequestForm
+            onSubmit={handleSubmit}
+            onCancel={() => setCurrentView('dashboard')}
+          />
+        )}
+
+        {currentView === 'calculator' && (
+          <InteractiveInterestCalculator />
+        )}
+
+        {currentView === 'disputes' && (
+          <DisputesManagement />
+        )}
+
+        {currentView === 'dashboard' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Quick Actions Card */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <div className="flex items-center mb-6">
+                <div className="bg-indigo-100 rounded-full p-3 mr-4">
+                  <Zap className="w-6 h-6 text-indigo-600" />
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">
-                    Your Loan Requests
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {loanRequests.length} total requests
-                  </p>
-                </div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  Quick Actions
+                </h3>
               </div>
-              {hasMoreLoans && (
+
+              <div className="space-y-4">
                 <button
-                  onClick={() => setShowAllLoans(!showAllLoans)}
-                  className="text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-colors"
+                  onClick={() => setCurrentView('newLoan')}
+                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg hover:from-green-100 hover:to-emerald-100 transition-all"
                 >
-                  {showAllLoans ? "Show Less" : `Show All (${loanRequests.length})`}
+                  <div className="flex items-center">
+                    <Plus className="w-5 h-5 text-green-600 mr-3" />
+                    <div className="text-left">
+                      <p className="font-medium text-gray-900">Request New Loan</p>
+                      <p className="text-sm text-gray-600">Quick application with interest preview</p>
+                    </div>
+                  </div>
+                  <div className="text-green-600">→</div>
                 </button>
-              )}
+
+                <button
+                  onClick={() => setCurrentView('calculator')}
+                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 rounded-lg hover:from-purple-100 hover:to-violet-100 transition-all"
+                >
+                  <div className="flex items-center">
+                    <Calculator className="w-5 h-5 text-purple-600 mr-3" />
+                    <div className="text-left">
+                      <p className="font-medium text-gray-900">Interest Calculator</p>
+                      <p className="text-sm text-gray-600">Explore loan scenarios and compare options</p>
+                    </div>
+                  </div>
+                  <div className="text-purple-600">→</div>
+                </button>
+
+                <button
+                  onClick={() => setCurrentView('disputes')}
+                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg hover:from-red-100 hover:to-pink-100 transition-all"
+                >
+                  <div className="flex items-center">
+                    <AlertTriangle className="w-5 h-5 text-red-600 mr-3" />
+                    <div className="text-left">
+                      <p className="font-medium text-gray-900">Manage Disputes</p>
+                      <p className="text-sm text-gray-600">Report issues and track resolutions</p>
+                    </div>
+                  </div>
+                  <div className="text-red-600">→</div>
+                </button>
+
+                <button
+                  onClick={() => navigate('/credit-score')}
+                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg hover:from-yellow-100 hover:to-orange-100 transition-all"
+                >
+                  <div className="flex items-center">
+                    <Star className="w-5 h-5 text-yellow-600 mr-3" />
+                    <div className="text-left">
+                      <p className="font-medium text-gray-900">Check Credit Score</p>
+                      <p className="text-sm text-gray-600">View detailed credit analysis</p>
+                    </div>
+                  </div>
+                  <div className="text-yellow-600">→</div>
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4 max-h-96 overflow-y-auto">
+            {/* Loan History */}
+            <div className="bg-white rounded-2xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <div className="bg-blue-100 rounded-full p-3 mr-4">
+                    <FileText className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Recent Loan Requests ({loanRequests.length})
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
               {loanRequests.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No loan requests yet</p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    Create your first loan request using the form on the left
+                <div className="text-center py-12">
+                  <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">
+                    No loans yet
+                  </h4>
+                  <p className="text-gray-600 mb-4">
+                    Start by requesting your first loan
                   </p>
+                  <button
+                    onClick={() => setCurrentView('newLoan')}
+                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Request Loan
+                  </button>
                 </div>
               ) : (
                 <>
-                  {loansToDisplay.map((loan) => (
-                    <div
-                      key={loan._id}
-                      className="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow bg-gradient-to-r from-white to-gray-50"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          {getStatusIcon(loan)}
-                          <div className="ml-3">
-                            <h4 className="font-semibold text-gray-900">
-                              {loan.purpose}
-                            </h4>
-                            <p className="text-sm text-gray-500">
-                              ₹{loan.amount.toLocaleString()}
-                            </p>
+                  <div className="space-y-4">
+                    {loansToDisplay.map((loan) => (
+                      <div
+                        key={loan._id}
+                        className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center">
+                            {getStatusIcon(loan)}
+                            <span
+                              className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                                loan
+                              )}`}
+                            >
+                              {getStatusText(loan)}
+                            </span>
                           </div>
+                          <span className="text-lg font-bold text-gray-900">
+                            ₹{loan.amount?.toLocaleString()}
+                          </span>
                         </div>
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                            loan
-                          )} bg-gray-100`}
-                        >
-                          {getStatusText(loan)}
-                        </span>
-                      </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-gray-500">
-                          <Calendar className="w-4 h-4 inline mr-1" />
-                          Due: {new Date(loan.repaymentDate).toLocaleDateString()}
+                        <div className="space-y-2 text-sm text-gray-600">
+                          <div className="flex justify-between">
+                            <span>Purpose:</span>
+                            <span className="font-medium text-gray-900">
+                              {loan.purpose}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Phone:</span>
+                            <span className="font-medium text-gray-900">
+                              {loan.phoneNumber}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Repayment Date:</span>
+                            <span className="font-medium text-gray-900">
+                              {new Date(loan.repaymentDate).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {loan.interest && (
+                            <div className="flex justify-between">
+                              <span>Interest:</span>
+                              <span className="font-medium text-purple-600">
+                                ₹{loan.interest.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {loan.totalRepayable && (
+                            <div className="flex justify-between">
+                              <span>Total Repayable:</span>
+                              <span className="font-medium text-green-600">
+                                ₹{loan.totalRepayable.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {loan.funded && !loan.repaid && (
-                          <button
-                            onClick={() => handlePayment(loan.amount, loan)}
-                            className="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-green-700 transition-all transform hover:scale-105 flex items-center"
-                          >
-                            <CreditCard className="w-4 h-4 mr-2" />
-                            Pay Now
-                          </button>
+                          <div className="mt-4 flex space-x-2">
+                            <button
+                              onClick={() => handlePayment(loan.totalRepayable || loan.amount, loan)}
+                              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
+                            >
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Pay ₹{(loan.totalRepayable || loan.amount)?.toLocaleString()}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDisputeLoan(loan);
+                                setShowDisputeForm(true);
+                              }}
+                              className="bg-red-100 text-red-700 py-2 px-4 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center"
+                            >
+                              <AlertTriangle className="w-4 h-4" />
+                            </button>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  ))}
-                  
-                  {/* Show More/Less Button at bottom */}
+                    ))}
+                  </div>
+
                   {hasMoreLoans && (
-                    <div className="text-center pt-4 border-t border-gray-100">
+                    <div className="mt-6 text-center">
                       <button
                         onClick={() => setShowAllLoans(!showAllLoans)}
                         className="inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
@@ -542,8 +652,23 @@ export default function BorrowerDashboard() {
               )}
             </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {/* Enhanced Dispute Form */}
+      {showDisputeForm && disputeLoan && (
+        <EnhancedDisputeForm
+          loanDetails={disputeLoan}
+          onClose={() => {
+            setShowDisputeForm(false);
+            setDisputeLoan(null);
+          }}
+          onSubmitted={() => {
+            showToast('Dispute submitted successfully!', 'success');
+            loadLoans(); // Refresh loans if needed
+          }}
+        />
+      )}
     </div>
   );
 }

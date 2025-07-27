@@ -15,9 +15,45 @@ const loanSchema = new mongoose.Schema({
   repaid: { type: Boolean, default: false },
   status: {
     type: String,
-    enum: ["pending", "approved", "rejected"],
+    enum: ["pending", "approved", "rejected", "suspended"],
     default: "pending",
   },
+  // Moderation fields
+  flagged: { type: Boolean, default: false },
+  flagReason: { type: String },
+  suspended: { type: Boolean, default: false },
+  suspendReason: { type: String },
+  // Enhanced Interest Calculation Fields
+  interestRate: { type: Number }, // % per annum for percentage-based loans
+  tenureMonths: { type: Number, required: true }, // Tenure in months
+  totalRepayable: { type: Number }, // Principal + Interest
+  emi: { type: Number }, // Monthly installment amount
+  interestAmount: { type: Number }, // Total interest amount
+  calculationMethod: { 
+    type: String, 
+    enum: ["flat_fee", "percentage"],
+    default: "percentage"
+  },
+  tier: {
+    minAmount: { type: Number },
+    maxAmount: { type: Number },
+    type: { type: String },
+    flatFee: { type: Number },
+    effectiveRate: { type: Number }
+  },
+  breakdown: {
+    principal: {
+      amount: { type: Number },
+      percentage: { type: Number }
+    },
+    interest: {
+      amount: { type: Number },
+      percentage: { type: Number }
+    },
+    monthlyPayment: { type: Number },
+    effectiveRate: { type: Number },
+    totalCost: { type: Number }
+  }
 },{timestamps: true});
 
 

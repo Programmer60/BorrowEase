@@ -5,12 +5,16 @@ import crypto from "crypto";
 import Loan from "../models/loanModel.js";
 import Notification from "../models/notificationModel.js";
 import { verifyToken } from "../firebase.js";
+
+// Load environment variables first
 dotenv.config();
+
 const router = express.Router();
 
+// Initialize Razorpay with environment variables
 const instance = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
+  key_id: process.env.RAZORPAY_KEY_ID || "rzp_test_pBgIF99r7ZIsb7",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "OpkPKasxawRNSCPHCBY1u66J",
 });
 
 router.post("/create-order", async (req, res) => {

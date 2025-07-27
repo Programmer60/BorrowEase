@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../api/api";
 import { useNavigate } from "react-router-dom";
-import Navbar from "./Navbar";
-import AdminLoanModeration from "./AdminLoanModeration";
 import { 
   Users, 
   Search, 
@@ -17,6 +15,7 @@ import {
   FileText,
   CreditCard
 } from "lucide-react";
+import Navbar from "./Navbar";
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -225,17 +224,6 @@ export default function AdminUsers() {
               >
                 <Users className="w-5 h-5 inline-block mr-2" />
                 User Management
-              </button>
-              <button
-                onClick={() => setActiveTab("loans")}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === "loans"
-                    ? "border-indigo-500 text-indigo-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <FileText className="w-5 h-5 inline-block mr-2" />
-                Loan Moderation
               </button>
             </nav>
           </div>
