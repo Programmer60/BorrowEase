@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KYC Review Test</title>
+</head>
+<body>
+    <h1>KYC Review Test</h1>
+    <button onclick="testKYCReview()">Test KYC Review API</button>
+    <div id="results"></div>
+
+    <script>
+        async function testKYCReview() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                // First, let's get all KYCs to find one to test
+                const listResponse = await fetch('http://localhost:3000/api/kyc/submissions', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (!listResponse.ok) {
+                    throw new Error(`HTTP ${listResponse.status}: ${listResponse.statusText}`);
+                }
+                
+                const listData = await listResponse.json();
+                console.log('KYC List Response:', listData);
+                
+                if (listData.kycs && listData.kycs.length > 0) {
+                    const kycToTest = listData.kycs[0];
+                    resultsDiv.innerHTML += `<p>Found KYC to test: ${kycToTest._id}</p>`;
+                    
+                    // Now test the review endpoint
+                    const reviewResponse = await fetch(`http://localhost:3000/api/kyc/${kycToTest._id}/review`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            status: 'verified',
+                            comments: 'Test review from HTML page'
+                        })
+                    });
+                    
+                    console.log('Review Response Status:', reviewResponse.status);
+                    console.log('Review Response Headers:', [...reviewResponse.headers.entries()]);
+                    
+                    const reviewData = await reviewResponse.text(); // Get as text first
+                    console.log('Review Response Text:', reviewData);
+                    
+                    try {
+                        const parsedData = JSON.parse(reviewData);
+                        resultsDiv.innerHTML += `<pre>Review Response: ${JSON.stringify(parsedData, null, 2)}</pre>`;
+                        
+                        if (parsedData.success) {
+                            resultsDiv.innerHTML += '<p style="color: green;">✅ Review submitted successfully!</p>';
+                        } else {
+                            resultsDiv.innerHTML += '<p style="color: red;">❌ Review failed (success: false)</p>';
+                        }
+                    } catch (parseError) {
+                        resultsDiv.innerHTML += `<p style="color: red;">❌ Failed to parse response: ${parseError.message}</p>`;
+                        resultsDiv.innerHTML += `<pre>Raw Response: ${reviewData}</pre>`;
+                    }
+                    
+                } else {
+                    resultsDiv.innerHTML += '<p>No KYCs found to test</p>';
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultsDiv.innerHTML += `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

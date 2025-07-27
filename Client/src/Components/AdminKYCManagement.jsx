@@ -161,6 +161,57 @@ const AdminKYCManagement = () => {
     }
   };
 
+  const resetAttempts = async (submissionId) => {
+    if (!confirm('Are you sure you want to reset this user\'s KYC submission attempts? This will allow them to resubmit their documents.')) {
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      
+      const response = await API.put(`/kyc/${submissionId}/reset-attempts`);
+      
+      if (response.data.success) {
+        await loadKYCSubmissions();
+        alert('KYC submission attempts reset successfully. User can now resubmit their documents.');
+      }
+    } catch (error) {
+      console.error('Error resetting attempts:', error);
+      alert('Failed to reset attempts: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAddressVerificationReview = async (kycId, status) => {
+    const rejectionReason = status === 'rejected' 
+      ? prompt('Please provide a reason for rejection:')
+      : null;
+
+    if (status === 'rejected' && !rejectionReason) {
+      return; // User cancelled
+    }
+
+    try {
+      setActionLoading(true);
+      
+      const response = await API.post(`/kyc/admin/address-verification/${kycId}`, {
+        status,
+        rejectionReason
+      });
+      
+      if (response.data.success) {
+        await loadKYCSubmissions();
+        alert(`Address verification ${status} successfully`);
+      }
+    } catch (error) {
+      console.error('Error reviewing address verification:', error);
+      alert('Failed to review address verification: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const toggleCardExpansion = (submissionId) => {
     setExpandedCards(prev => ({
       ...prev,
@@ -171,6 +222,24 @@ const AdminKYCManagement = () => {
   const DocumentViewer = ({ document, title }) => {
     if (!document) return null;
 
+    const openDocument = (url) => {
+      console.log('Opening document:', url); // Debug log
+      if (!url) {
+        alert('Document URL is not available');
+        return;
+      }
+      
+      try {
+        const newWindow = window.open(url, '_blank');
+        if (!newWindow) {
+          alert('Pop-up blocked. Please allow pop-ups for this site and try again.');
+        }
+      } catch (error) {
+        console.error('Error opening document:', error);
+        alert('Failed to open document. Please try again.');
+      }
+    };
+
     return (
       <div className="border rounded-lg p-3 bg-gray-50">
         <h4 className="font-medium text-gray-900 mb-2">{title}</h4>
@@ -178,7 +247,16 @@ const AdminKYCManagement = () => {
           <div className="flex items-center space-x-2">
             <FileText className="w-4 h-4 text-gray-500" />
             <span className="text-sm text-gray-600">Document uploaded</span>
-            <button className="text-blue-600 hover:text-blue-800">
+            <button 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openDocument(document);
+              }}
+              className="text-blue-600 hover:text-blue-800 cursor-pointer"
+              title="View document"
+              type="button"
+            >
               <ExternalLink className="w-4 h-4" />
             </button>
           </div>
@@ -187,12 +265,24 @@ const AdminKYCManagement = () => {
             {document.number && (
               <p className="text-sm"><strong>Number:</strong> {document.number}</p>
             )}
+            {document.docType && (
+              <p className="text-sm"><strong>Type:</strong> {document.docType.replace('_', ' ').toUpperCase()}</p>
+            )}
             <div className="flex space-x-2">
               {document.frontImage && (
                 <div className="flex items-center space-x-1">
                   <FileText className="w-4 h-4 text-gray-500" />
                   <span className="text-xs text-gray-600">Front</span>
-                  <button className="text-blue-600 hover:text-blue-800">
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openDocument(document.frontImage);
+                    }}
+                    className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                    title="View front image"
+                    type="button"
+                  >
                     <ExternalLink className="w-3 h-3" />
                   </button>
                 </div>
@@ -201,7 +291,16 @@ const AdminKYCManagement = () => {
                 <div className="flex items-center space-x-1">
                   <FileText className="w-4 h-4 text-gray-500" />
                   <span className="text-xs text-gray-600">Back</span>
-                  <button className="text-blue-600 hover:text-blue-800">
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openDocument(document.backImage);
+                    }}
+                    className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                    title="View back image"
+                    type="button"
+                  >
                     <ExternalLink className="w-3 h-3" />
                   </button>
                 </div>
@@ -210,7 +309,16 @@ const AdminKYCManagement = () => {
                 <div className="flex items-center space-x-1">
                   <FileText className="w-4 h-4 text-gray-500" />
                   <span className="text-xs text-gray-600">Image</span>
-                  <button className="text-blue-600 hover:text-blue-800">
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openDocument(document.image);
+                    }}
+                    className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                    title="View image"
+                    type="button"
+                  >
                     <ExternalLink className="w-3 h-3" />
                   </button>
                 </div>
@@ -386,7 +494,7 @@ const AdminKYCManagement = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                   <div className="flex items-center space-x-2">
                     <Calendar className="w-4 h-4 text-gray-400" />
                     <div>
@@ -417,6 +525,18 @@ const AdminKYCManagement = () => {
                       <p className="text-sm font-medium">{submission.documents?.pan?.number || 'N/A'}</p>
                     </div>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">Attempts</p>
+                      <p className="text-sm font-medium">
+                        {submission.submissionAttempts || 1}/3
+                        {submission.maxAttemptsReached && (
+                          <span className="ml-1 text-red-600 font-bold">MAX</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {expandedCards[submission._id] && (
@@ -434,7 +554,13 @@ const AdminKYCManagement = () => {
                             <span className="text-gray-600">Date of Birth:</span>
                             <span className="font-medium">
                               {submission.personalInfo?.dateOfBirth ? 
-                                new Date(submission.personalInfo.dateOfBirth).toLocaleDateString() : 'N/A'}
+                                (() => {
+                                  try {
+                                    return new Date(submission.personalInfo.dateOfBirth).toLocaleDateString();
+                                  } catch (e) {
+                                    return submission.personalInfo.dateOfBirth;
+                                  }
+                                })() : 'N/A'}
                             </span>
                           </div>
                           <div className="flex justify-between">
@@ -462,8 +588,111 @@ const AdminKYCManagement = () => {
                           <DocumentViewer document={submission.documents?.aadhar} title="Aadhar Card" />
                           <DocumentViewer document={submission.documents?.pan} title="PAN Card" />
                           <DocumentViewer document={submission.documents?.selfie} title="Selfie" />
+                          {submission.documents?.addressProof && (
+                            <DocumentViewer document={submission.documents.addressProof} title="Address Proof" />
+                          )}
+                          {submission.documents?.incomeProof && (
+                            <DocumentViewer document={submission.documents.incomeProof} title="Income Proof" />
+                          )}
                         </div>
                       </div>
+
+                      {/* Verification Status */}
+                      {submission.verificationStatus && (
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-3">Verification Status</h4>
+                          <div className="space-y-3">
+                            
+                            {/* Phone Verification */}
+                            {submission.verificationStatus.phoneVerification && (
+                              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div className="flex items-center">
+                                  <Phone className="w-4 h-4 text-blue-600 mr-2" />
+                                  <span className="text-sm font-medium">Phone Verification</span>
+                                </div>
+                                <div className="flex items-center">
+                                  {submission.verificationStatus.phoneVerification.status === 'verified' ? (
+                                    <div className="flex items-center text-green-600">
+                                      <CheckCircle className="w-4 h-4 mr-1" />
+                                      <span className="text-sm">Verified</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center text-yellow-600">
+                                      <Clock className="w-4 h-4 mr-1" />
+                                      <span className="text-sm">Pending</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Address Verification */}
+                            {submission.verificationStatus.addressVerification && (
+                              <div className="p-3 bg-gray-50 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center">
+                                    <MapPin className="w-4 h-4 text-green-600 mr-2" />
+                                    <span className="text-sm font-medium">Address Verification</span>
+                                  </div>
+                                  <div className="flex items-center">
+                                    {submission.verificationStatus.addressVerification.status === 'verified' ? (
+                                      <div className="flex items-center text-green-600">
+                                        <CheckCircle className="w-4 h-4 mr-1" />
+                                        <span className="text-sm">Verified</span>
+                                      </div>
+                                    ) : submission.verificationStatus.addressVerification.status === 'submitted' ? (
+                                      <div className="flex items-center text-yellow-600">
+                                        <Clock className="w-4 h-4 mr-1" />
+                                        <span className="text-sm">Under Review</span>
+                                      </div>
+                                    ) : submission.verificationStatus.addressVerification.status === 'rejected' ? (
+                                      <div className="flex items-center text-red-600">
+                                        <XCircle className="w-4 h-4 mr-1" />
+                                        <span className="text-sm">Rejected</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center text-gray-500">
+                                        <Clock className="w-4 h-4 mr-1" />
+                                        <span className="text-sm">Pending</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {submission.verificationStatus.addressVerification.documentType && (
+                                  <p className="text-xs text-gray-600 mb-2">
+                                    Document: {submission.verificationStatus.addressVerification.documentType.replace('_', ' ')}
+                                  </p>
+                                )}
+                                
+                                {submission.verificationStatus.addressVerification.status === 'submitted' && (
+                                  <div className="flex space-x-2 mt-2">
+                                    <button
+                                      onClick={() => handleAddressVerificationReview(submission._id, 'verified')}
+                                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={() => handleAddressVerificationReview(submission._id, 'rejected')}
+                                      className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+                                
+                                {submission.verificationStatus.addressVerification.rejectionReason && (
+                                  <p className="text-xs text-red-600 mt-2">
+                                    Rejection Reason: {submission.verificationStatus.addressVerification.rejectionReason}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Comments */}
@@ -471,9 +700,27 @@ const AdminKYCManagement = () => {
                       <div className="mt-6">
                         <h4 className="font-semibold text-gray-900 mb-3">Review Comments</h4>
                         <div className="space-y-2">
-                          {submission.comments.map((comment, index) => (
+                          {submission.comments.map((commentObj, index) => (
                             <div key={index} className="bg-gray-50 rounded-lg p-3">
-                              <p className="text-sm text-gray-700">{comment}</p>
+                              {typeof commentObj === 'string' ? (
+                                <p className="text-sm text-gray-700">{commentObj}</p>
+                              ) : (
+                                <div>
+                                  <p className="text-sm text-gray-700">{commentObj.comment}</p>
+                                  <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                                    <span>By: {commentObj.addedBy}</span>
+                                    <span>
+                                      {(() => {
+                                        try {
+                                          return new Date(commentObj.addedAt).toLocaleDateString();
+                                        } catch (e) {
+                                          return 'Invalid date';
+                                        }
+                                      })()}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -496,6 +743,24 @@ const AdminKYCManagement = () => {
                         >
                           <XCircle className="w-4 h-4 mr-2" />
                           Reject
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Reset Attempts for rejected KYC with max attempts reached */}
+                    {submission.status === 'rejected' && submission.maxAttemptsReached && (
+                      <div className="flex items-center justify-between mt-6 pt-4 border-t bg-red-50 p-4 rounded-lg">
+                        <div>
+                          <h4 className="text-sm font-medium text-red-800">Maximum Attempts Reached</h4>
+                          <p className="text-xs text-red-600">This user has exhausted all 3 submission attempts.</p>
+                        </div>
+                        <button
+                          onClick={() => resetAttempts(submission._id)}
+                          disabled={actionLoading}
+                          className="flex items-center px-3 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Reset Attempts
                         </button>
                       </div>
                     )}

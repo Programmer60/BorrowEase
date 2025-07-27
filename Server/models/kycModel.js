@@ -15,6 +15,9 @@ const kycSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  userPhone: {
+    type: String
+  },
   personalInfo: {
     fullName: { type: String, required: true },
     dateOfBirth: { type: String, required: true },
@@ -40,18 +43,47 @@ const kycSchema = new mongoose.Schema({
     },
     selfie: { type: String, required: true },
     addressProof: {
-      type: String, // utility bill, bank statement, etc.
+      docType: String, // utility bill, bank statement, etc.
       image: String
     },
     incomeProof: {
-      type: String, // salary slip, bank statement, etc.
+      docType: String, // salary slip, bank statement, etc.
       image: String
+    }
+  },
+  verificationStatus: {
+    phoneVerification: {
+      status: { type: String, enum: ["pending", "verified"], default: "pending" },
+      verifiedAt: Date,
+      phoneNumber: String
+    },
+    addressVerification: {
+      status: { type: String, enum: ["pending", "submitted", "verified", "rejected"], default: "pending" },
+      documentType: String, // utility_bill, bank_statement, aadhar
+      documentUrl: String,
+      submittedAt: Date,
+      verifiedAt: Date,
+      rejectionReason: String
+    },
+    biometricVerification: {
+      status: { type: String, enum: ["pending", "verified"], default: "pending" },
+      verifiedAt: Date
     }
   },
   status: {
     type: String,
     enum: ["pending", "verified", "rejected"],
     default: "pending"
+  },
+  submissionAttempts: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 3
+  },
+  maxAttemptsReached: {
+    type: Boolean,
+    default: false
   },
   submittedAt: {
     type: Date,
