@@ -176,6 +176,67 @@ router.patch("/:id/repay", verifyToken, async (req, res) => {
   }
 });
 
+// Get pending loan applications with borrower details (for assessment)
+router.get("/pending-applications", verifyToken, async (req, res) => {
+  try {
+    console.log('🔍 Fetching pending loan applications for assessment');
+    
+    const applications = await Loan.find({ status: "pending" })
+      .select('_id name collegeEmail amount purpose repaymentDate submittedAt')
+      .sort({ submittedAt: -1 });
+    
+    console.log(`📊 Found ${applications.length} total pending applications`);
+    
+    // Get unique borrowers from pending applications
+    const uniqueBorrowers = new Map();
+    
+    // Also get user data to check roles
+    const User = await import("../models/userModel.js").then(module => module.default);
+    
+    for (const app of applications) {
+      const key = app.collegeEmail; // Use email as unique identifier
+      console.log(`🔍 Processing application from: ${app.name} (${app.collegeEmail})`);
+      
+      if (!uniqueBorrowers.has(key)) {
+        // Check if this user is an admin (exclude admins from borrower assessment)
+        const user = await User.findOne({ email: app.collegeEmail });
+        console.log(`👤 User found: ${user?.name} with role: ${user?.role}`);
+        
+        if (user && user.role === 'admin') {
+          console.log(`⚠️ Excluding admin user from assessment: ${app.name} (${app.collegeEmail})`);
+          continue; // Skip admin users
+        }
+        
+        console.log(`✅ Including borrower: ${app.name} (${app.collegeEmail})`);
+        uniqueBorrowers.set(key, {
+          _id: app._id, // Use the most recent application ID
+          name: app.name,
+          email: app.collegeEmail,
+          loanAmount: app.amount,
+          purpose: app.purpose,
+          submittedAt: app.submittedAt
+        });
+      } else {
+        console.log(`🔄 Skipping duplicate borrower: ${app.name} (${app.collegeEmail})`);
+      }
+    }
+    
+    // Convert Map to Array
+    const borrowers = Array.from(uniqueBorrowers.values());
+    
+    console.log(`✅ Found ${applications.length} pending applications from ${borrowers.length} unique non-admin borrowers`);
+    console.log('📋 Final borrower list:');
+    borrowers.forEach((borrower, index) => {
+      console.log(`  ${index + 1}. ${borrower.name} (${borrower.email}) - ID: ${borrower._id}`);
+    });
+    
+    res.json(borrowers);
+  } catch (error) {
+    console.error('❌ Error fetching pending applications:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Admin: Get all loans (including pending, approved, rejected)
 router.get("/admin/all", verifyToken, async (req, res) => {
   try {

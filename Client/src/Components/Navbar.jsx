@@ -15,6 +15,7 @@ import {
   Brain,
   CheckCircle,
   Clock,
+  Calculator,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
@@ -109,10 +110,17 @@ export default function Navbar() {
       show: user && userRole === "lender",
     },
     {
+      label: "Borrower Assessment",
+      path: "/borrower-assessment",
+      icon: <Calculator className="w-4 h-4" />,
+      show: user && userRole === "lender",
+      className: "text-purple-600 hover:text-purple-700 font-semibold",
+    },
+    {
       label: "Credit Score",
       path: "/credit-score",
       icon: <TrendingUp className="w-4 h-4" />,
-      show: user && (userRole === "borrower" || userRole === "lender"),
+      show: user && userRole === "borrower",
     },
     {
       label: "AI Dashboard",

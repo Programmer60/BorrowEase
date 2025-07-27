@@ -27,22 +27,63 @@ const BorrowerAssessment = () => {
   const [availableBorrowers, setAvailableBorrowers] = useState([]);
 
   useEffect(() => {
+    console.log('🚀 BorrowerAssessment component mounted, fetching borrowers...');
     fetchAvailableBorrowers();
   }, []);
 
+  useEffect(() => {
+    console.log('📊 Available borrowers state updated:', availableBorrowers);
+    console.log('📈 Number of borrowers:', availableBorrowers.length);
+    console.log('🔍 Is array?', Array.isArray(availableBorrowers));
+    console.log('🔍 Type of availableBorrowers:', typeof availableBorrowers);
+    if (availableBorrowers.length > 0) {
+      console.log('👥 First borrower details:', availableBorrowers[0]);
+      console.log('🏷️ First borrower ID field:', availableBorrowers[0]._id || availableBorrowers[0].id);
+    }
+  }, [availableBorrowers]);
+
   const fetchAvailableBorrowers = async () => {
     try {
-      // Get pending loan applications or all borrowers
+      console.log('🔍 Fetching borrowers for assessment...');
+      
+      // Try to get pending loan applications first
       const response = await API.get('/loans/pending-applications');
+      console.log('✅ Fetched pending applications:', response.data);
       setAvailableBorrowers(response.data);
+      
+      if (response.data.length === 0) {
+        console.log('ℹ️ No pending applications found, trying to fetch all borrowers...');
+        // Fallback to get all borrowers if no pending applications
+        const fallbackResponse = await API.get('/users/all-borrowers');
+        console.log('✅ Fetched all borrowers:', fallbackResponse.data);
+        setAvailableBorrowers(fallbackResponse.data);
+      }
     } catch (error) {
-      console.error('Error fetching borrowers:', error);
-      // Fallback to get all users
+      console.error('❌ Error fetching pending applications:', error);
+      
+      // Check if it's an authentication error
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        alert('Authentication error. Please make sure you are logged in as a lender.');
+        return;
+      }
+      
+      console.log('🔄 Falling back to all borrowers...');
+      
+      // Fallback to get all borrowers
       try {
         const response = await API.get('/users/all-borrowers');
+        console.log('✅ Fallback successful, fetched borrowers:', response.data);
         setAvailableBorrowers(response.data);
       } catch (fallbackError) {
-        console.error('Fallback error:', fallbackError);
+        console.error('❌ Fallback error:', fallbackError);
+        
+        if (fallbackError.response?.status === 401 || fallbackError.response?.status === 403) {
+          alert('You need to be logged in as a lender to access borrower assessment.');
+        } else if (fallbackError.response?.status === 404) {
+          alert('Borrower data endpoint not found. Please check if the server is running.');
+        } else {
+          alert('Failed to load borrowers. Please check your connection and try again.');
+        }
       }
     }
   };
@@ -111,12 +152,26 @@ const BorrowerAssessment = () => {
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="">Choose a borrower...</option>
-                    {availableBorrowers.map((borrower) => (
-                      <option key={borrower._id || borrower.id} value={borrower._id || borrower.id}>
-                        {borrower.name} ({borrower.email})
-                      </option>
-                    ))}
+                    {availableBorrowers.length === 0 ? (
+                      <option disabled>Loading borrowers...</option>
+                    ) : (
+                      availableBorrowers.map((borrower, index) => {
+                        console.log(`🔧 Mapping borrower ${index + 1}:`, borrower);
+                        const borrowerId = borrower._id || borrower.id;
+                        console.log(`🔧 Using ID: ${borrowerId}`);
+                        return (
+                          <option key={borrowerId || index} value={borrowerId}>
+                            {borrower.name} ({borrower.email})
+                          </option>
+                        );
+                      })
+                    )}
                   </select>
+                  {availableBorrowers.length === 0 && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      No borrowers found. Make sure some users are registered as borrowers.
+                    </p>
+                  )}
                 </div>
 
                 <div>

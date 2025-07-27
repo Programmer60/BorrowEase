@@ -5,6 +5,7 @@ import BorrowerDashboard from "./Components/BorrowerDashBoard";
 import LenderDashboard from "./Components/LenderDashboard";
 import BorrowerHistory from "./Components/BorrowerHistory";
 import LenderHistory from "./Components/LenderHistory";
+import BorrowerAssessment from "./Components/BorrowerAssessment";
 import RoleSetup from "./Components/RoleSetup";
 import AdminUsers from "./Components/AdminUsers";
 import AdminDashboard from "./Components/AdminDashboard";
@@ -30,6 +31,7 @@ function App() {
         <Route path="/kyc" element={<ProtectedRoute element={EnhancedKYCPage} requiredRole="borrower" />} />
         <Route path="/borrower-history" element={<ProtectedRoute element={BorrowerHistory} requiredRole="borrower" />} />
         <Route path="/lender-history" element={<ProtectedRoute element={LenderHistory} requiredRole="lender" />} />
+        <Route path="/borrower-assessment" element={<ProtectedRoute element={BorrowerAssessment} requiredRole="lender" />} />
         <Route path="/role-setup" element={<RoleSetup />} />
         <Route path="/admin" element={<ProtectedRoute element={AdminDashboard} requiredRole="admin" />} />
         <Route path="/admin/users" element={<ProtectedRoute element={AdminUsers} requiredRole="admin" />} />

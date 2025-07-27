@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { User, Phone, Calendar, DollarSign, Target, CheckCircle, Clock, Search, TrendingUp, Users, Star, Brain, BarChart3, Calculator, AlertTriangle } from "lucide-react";
+import { CheckCircle, Clock, Search, TrendingUp, Users, BarChart3, Calculator, AlertTriangle,Brain } from "lucide-react";
 import Navbar from "./Navbar";
 import API from "../api/api";
 import { getLoanRequests, fundLoan } from "../api/loanApi"; // Import loan API 
@@ -8,68 +8,6 @@ import EnhancedLoanCard from './EnhancedLoanCard';
 import AILoanRecommendationEngine from './AILoanRecommendationEngine';
 import LenderInvestmentDashboard from './LenderInvestmentDashboard';
 import DisputesOverview from './DisputesOverview';
-
-// Credit Score Display Component
-const CreditScoreDisplay = ({ borrowerId }) => {
-  const [creditScore, setCreditScore] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchCreditScore = async () => {
-      try {
-        const response = await API.get(`/credit/score/${borrowerId}`);
-        setCreditScore(response.data);
-      } catch (error) {
-        console.log('Credit score not available for this user');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCreditScore();
-  }, [borrowerId]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center space-x-2">
-        <Star className="h-4 w-4 text-gray-400" />
-        <span className="text-sm text-gray-500">Loading...</span>
-      </div>
-    );
-  }
-
-  if (!creditScore) {
-    return (
-      <div className="flex items-center space-x-2">
-        <Star className="h-4 w-4 text-gray-400" />
-        <span className="text-sm text-gray-500">No credit history</span>
-      </div>
-    );
-  }
-
-  const getScoreColor = (score) => {
-    if (score >= 750) return 'text-green-600';
-    if (score >= 650) return 'text-blue-600';
-    if (score >= 550) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getScoreLabel = (score) => {
-    if (score >= 750) return 'Excellent';
-    if (score >= 650) return 'Good';
-    if (score >= 550) return 'Fair';
-    return 'Poor';
-  };
-
-  return (
-    <div className="flex items-center space-x-2">
-      <Star className={`h-4 w-4 ${getScoreColor(creditScore.score)}`} />
-      <span className={`text-sm font-medium ${getScoreColor(creditScore.score)}`}>
-        {creditScore.score} ({getScoreLabel(creditScore.score)})
-      </span>
-    </div>
-  );
-};
 
 export default function LenderDashboard() {
   const [loanRequests, setLoanRequests] = useState([]);

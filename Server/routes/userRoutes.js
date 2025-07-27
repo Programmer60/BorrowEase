@@ -198,6 +198,30 @@ router.get("/admin/stats", requireAdmin, async (req, res) => {
   }
 });
 
+// Get all borrowers (for lender assessment)
+router.get("/all-borrowers", verifyToken, async (req, res) => {
+  try {
+    console.log('🔍 Fetching all borrowers for assessment');
+    console.log('👤 Request from user:', req.user?.email, 'Role:', req.user?.role);
+    
+    const borrowers = await User.find({ role: 'borrower' })
+      .select('_id name email kycStatus createdAt')
+      .sort({ createdAt: -1 });
+    
+    console.log(`✅ Found ${borrowers.length} borrowers`);
+    console.log('📋 Borrower details:');
+    borrowers.forEach((borrower, index) => {
+      console.log(`  ${index + 1}. ${borrower.name} (${borrower.email}) - ID: ${borrower._id}`);
+    });
+    
+    console.log('📤 Sending response to frontend...');
+    res.json(borrowers);
+  } catch (error) {
+    console.error('❌ Error fetching borrowers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get audit logs (Admin only)
 router.get("/admin/audit-logs", requireAdmin, async (req, res) => {
   try {
