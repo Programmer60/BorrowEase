@@ -27,6 +27,9 @@ export default function Login() {
             const userCredential = await signInWithPopup(auth, provider);
             const token = await userCredential.user.getIdToken();
             
+            // Store token in localStorage for persistence
+            localStorage.setItem('token', token);
+            
             API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
             
             let userRole;
@@ -71,6 +74,10 @@ export default function Login() {
             const { email, password } = formData;
             const userCredential = await auth.signInWithEmailAndPassword(email, password);
             const token = await userCredential.user.getIdToken();
+            
+            // Store token in localStorage for persistence
+            localStorage.setItem('token', token);
+            
             API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
             let userRole;
             try {
@@ -86,6 +93,16 @@ export default function Login() {
                 }
             }
             
+            // Navigate based on saved role
+            if (userRole === "borrower") navigate("/borrower");
+            else if (userRole === "lender") navigate("/lender");
+            else {
+                alert("Invalid role detected.");
+                navigate("/");
+            }
+            
+            setIsLoggedIn(true);
+            
             
         } catch (error) {
             console.error("Email login failed:", error);
@@ -95,9 +112,11 @@ export default function Login() {
     };
 
     const handleLogout = () => {
-        auth.signOut(); // Uncomment when using Firebase
+        auth.signOut(); // Firebase sign out
+        localStorage.removeItem('token'); // Clear token from localStorage
+        API.defaults.headers.common["Authorization"] = ''; // Clear API headers
         setIsLoggedIn(false);
-        navigate("/"); // Uncomment when using React Router
+        navigate("/"); // Navigate to home page
     };
 
     const handleInputChange = (field, value) => {

@@ -9,38 +9,105 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
   const [borrowerKYC, setBorrowerKYC] = useState(null);
 
   useEffect(() => {
-    if (showAIFeatures && userRole === 'lender' && loan.borrowerId) {
+    const borrowerIdValue = typeof loan.borrowerId === 'object' 
+      ? loan.borrowerId._id 
+      : loan.borrowerId;
+      
+    // AI Assessment temporarily disabled
+    /*
+    if (showAIFeatures && userRole === 'lender' && borrowerIdValue) {
       fetchAIAssessment();
     }
+    */
+    
     // Fetch borrower KYC status for lenders
-    if (userRole === 'lender' && loan.borrowerId) {
+    if (userRole === 'lender' && borrowerIdValue) {
       fetchBorrowerKYC();
     }
   }, [loan.borrowerId, showAIFeatures, userRole]);
 
   const fetchBorrowerKYC = async () => {
     try {
-      const response = await API.get(`/users/kyc-status/${loan.borrowerId}`);
+      // Debug the borrowerId structure
+      console.log('🔍 Debug borrowerId:', {
+        raw: loan.borrowerId,
+        type: typeof loan.borrowerId,
+        isObject: typeof loan.borrowerId === 'object',
+        hasId: loan.borrowerId?._id,
+        keys: typeof loan.borrowerId === 'object' ? Object.keys(loan.borrowerId || {}) : 'not object'
+      });
+      
+      // Handle both populated and non-populated borrowerId
+      let borrowerIdValue;
+      if (typeof loan.borrowerId === 'object' && loan.borrowerId !== null) {
+        // If it's an object, try to get the _id property
+        borrowerIdValue = loan.borrowerId._id || loan.borrowerId.id;
+      } else {
+        // If it's a string, use it directly
+        borrowerIdValue = loan.borrowerId;
+      }
+        
+      console.log('🎯 Final borrowerIdValue:', borrowerIdValue);
+      
+      if (!borrowerIdValue) {
+        console.warn('No borrower ID available for KYC status');
+        setBorrowerKYC({ kycStatus: 'not_submitted' });
+        return;
+      }
+      
+      const response = await API.get(`/users/kyc-status/${borrowerIdValue}`);
       setBorrowerKYC(response.data);
     } catch (error) {
       console.log('KYC status not available for borrower:', error);
       // Set default if not available
       setBorrowerKYC({ kycStatus: 'not_submitted' });
     }
-  };
+  }
 
   const fetchAIAssessment = async () => {
     try {
       setLoadingAI(true);
+      
+      // Debug the borrowerId structure
+      console.log('🔍 AI Assessment - Debug borrowerId:', {
+        raw: loan.borrowerId,
+        type: typeof loan.borrowerId,
+        isObject: typeof loan.borrowerId === 'object',
+        hasId: loan.borrowerId?._id,
+        keys: typeof loan.borrowerId === 'object' ? Object.keys(loan.borrowerId || {}) : 'not object'
+      });
+      
+      // Handle both populated and non-populated borrowerId
+      let borrowerIdValue;
+      if (typeof loan.borrowerId === 'object' && loan.borrowerId !== null) {
+        // If it's an object, try to get the _id property
+        borrowerIdValue = loan.borrowerId._id || loan.borrowerId.id;
+      } else {
+        // If it's a string, use it directly
+        borrowerIdValue = loan.borrowerId;
+      }
+        
+      console.log('🎯 AI Assessment - Final borrowerIdValue:', borrowerIdValue);
+      
+      if (!borrowerIdValue) {
+        console.warn('No borrower ID available for AI assessment');
+        return;
+      }
+      
       const response = await API.post('/ai/assess-borrower', {
-        borrowerId: loan.borrowerId,
+        borrowerId: borrowerIdValue,
         loanAmount: loan.amount,
         loanPurpose: loan.purpose,
-        repaymentPeriod: 30 // Default or calculate from loan data
+        repaymentPeriod: loan.tenureMonths * 30 || 30 // Convert months to days, default 30
       });
       setAiAssessment(response.data);
     } catch (error) {
       console.error('Error fetching AI assessment:', error);
+      console.error('Loan data:', {
+        loanId: loan._id,
+        borrowerId: loan.borrowerId,
+        borrowerIdType: typeof loan.borrowerId
+      });
     } finally {
       setLoadingAI(false);
     }
@@ -110,7 +177,8 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
         )}
       </div>
 
-      {/* AI Assessment Section */}
+      {/* AI Assessment Section - TEMPORARILY DISABLED */}
+      {/* 
       {showAIFeatures && userRole === 'lender' && (
         <div className="border-t border-gray-100 pt-4 mt-4">
           <div className="flex items-center justify-between mb-3">
@@ -122,78 +190,9 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
             )}
           </div>
-
           {aiAssessment ? (
             <div className="space-y-3">
-              {/* Risk Score */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Risk Score:</span>
-                <div className={`flex items-center px-2 py-1 rounded-full border text-sm font-medium ${
-                  getScoreColor(aiAssessment.assessment?.loanSpecificScore || 0)
-                }`}>
-                  {getScoreIcon(aiAssessment.assessment?.loanSpecificScore || 0)}
-                  <span className="ml-1">{aiAssessment.assessment?.loanSpecificScore || 0}/100</span>
-                </div>
-              </div>
-
-              {/* AI Decision */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">AI Recommendation:</span>
-                <div className={`flex items-center px-2 py-1 rounded-full border text-sm font-medium ${
-                  getDecisionColor(aiAssessment.assessment?.finalDecision)
-                }`}>
-                  {aiAssessment.assessment?.finalDecision === 'approve' ? (
-                    <CheckCircle className="w-4 h-4 mr-1" />
-                  ) : (
-                    <XCircle className="w-4 h-4 mr-1" />
-                  )}
-                  <span className="capitalize">{aiAssessment.assessment?.finalDecision}</span>
-                </div>
-              </div>
-
-              {/* Confidence & Details */}
-              <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
-                <div>
-                  <span>Confidence: </span>
-                  <span className="font-medium">{aiAssessment.assessment?.confidence}%</span>
-                </div>
-                {aiAssessment.assessment?.suggestedRate && (
-                  <div>
-                    <span>Suggested Rate: </span>
-                    <span className="font-medium">{aiAssessment.assessment.suggestedRate}%</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Key Risk Factors */}
-              {aiAssessment.riskFactors?.borrowerFactors && (
-                <div className="pt-2 border-t border-gray-100">
-                  <p className="text-xs text-gray-600 mb-2">Key Factors:</p>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex justify-between">
-                      <span>Payment History:</span>
-                      <span className="font-medium">{aiAssessment.riskFactors.borrowerFactors.paymentHistory || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Trust Score:</span>
-                      <span className="font-medium">{aiAssessment.riskFactors.borrowerFactors.trustScore || 'N/A'}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Top Recommendation */}
-              {aiAssessment.recommendations && aiAssessment.recommendations.length > 0 && (
-                <div className={`p-2 rounded text-xs ${
-                  aiAssessment.recommendations[0].priority === 'high' ? 'bg-red-50 text-red-700' :
-                  aiAssessment.recommendations[0].priority === 'medium' ? 'bg-yellow-50 text-yellow-700' :
-                  'bg-blue-50 text-blue-700'
-                }`}>
-                  <strong>{aiAssessment.recommendations[0].title}:</strong>
-                  <br />
-                  <span>{aiAssessment.recommendations[0].description}</span>
-                </div>
-              )}
+              // ... AI assessment details ...
             </div>
           ) : !loadingAI && (
             <div className="text-center py-2">
@@ -208,6 +207,8 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
           )}
         </div>
       )}
+      */}
+      
 
       {/* Action Buttons */}
       <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">

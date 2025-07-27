@@ -1,4 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { auth } from "./firebase";
+import API from "./api/api";
 import Home from "./Components/Home";
 import Login from "./Components/Login";
 import BorrowerDashboard from "./Components/BorrowerDashBoard";
@@ -21,6 +24,20 @@ import ComprehensiveAIDashboard from "./Components/ComprehensiveAIDashboard";
 import EnhancedKYCPage from "./Components/EnhancedKYCPage";
 
 function App() {
+  useEffect(() => {
+    // Initialize authentication state
+    const initializeAuth = () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Set token in API headers on app startup
+        API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        console.log('🔑 Token loaded from localStorage on app startup');
+      }
+    };
+
+    initializeAuth();
+  }, []);
+
   return (
     <Router>
       <Routes>
