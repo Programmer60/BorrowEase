@@ -33,6 +33,7 @@ export default function EnhancedChatRoom() {
   const [connected, setConnected] = useState(false);
   const [typing, setTyping] = useState(false);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const [typingUserName, setTypingUserName] = useState(""); // Store the actual typing user's name
   const [otherUserOnline, setOtherUserOnline] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -76,14 +77,25 @@ export default function EnhancedChatRoom() {
         const token = await user.getIdToken();
         
         // Get current user data from API
+        console.log("👤 Fetching current user data...");
         const userRes = await API.get("/users/me");
+        console.log("👤 Current user data:", userRes.data);
         setCurrentUser(userRes.data);
 
         // Fetch initial chat data
-        await fetchChatData(userRes.data);
+        console.log("💬 Starting fetchChatData...");
+        try {
+          await fetchChatData(userRes.data);
+          console.log("💬 fetchChatData completed successfully");
+        } catch (fetchError) {
+          console.error("💬 fetchChatData failed:", fetchError);
+          throw fetchError;
+        }
 
         // Initialize Socket.IO connection
+        console.log("🔌 Starting socket initialization...");
         await initializeSocket(token, userRes.data);
+        console.log("🔌 Socket initialization completed");
 
         setLoading(false);
 
@@ -102,6 +114,21 @@ export default function EnhancedChatRoom() {
     };
   }, [loanId]);
 
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      console.log("🔧 Component unmounting, cleaning up...");
+      
+      // Stop typing if currently typing
+      if (typing && socketRef.current) {
+        socketRef.current.emit("stopTyping", { loanId });
+      }
+      
+      // Cleanup socket and timers
+      cleanup();
+    };
+  }, []);
+
   // Cleanup function
   const cleanup = () => {
     if (socketRef.current) {
@@ -114,6 +141,10 @@ export default function EnhancedChatRoom() {
     if (typingDebounceRef.current) {
       clearTimeout(typingDebounceRef.current);
     }
+    // Clear typing indicators
+    setOtherUserTyping(false);
+    setTypingUserName("");
+    setTyping(false);
   };
 
   // Initialize Socket.IO connection
@@ -156,14 +187,21 @@ export default function EnhancedChatRoom() {
       socketRef.current.on("receiveMessage", (message) => {
         console.log("📨 Received message:", message);
         setMessages(prev => {
-          // Check if message already exists to prevent duplicates
-          const exists = prev.some(msg => msg._id === message._id);
-          if (exists) return prev;
+          // Enhanced duplicate check
+          const exists = prev.some(msg => 
+            msg._id === message._id || 
+            (msg.message === message.message && 
+             msg.senderId._id === message.senderId._id && 
+             Math.abs(new Date(msg.timestamp) - new Date(message.timestamp)) < 2000) // 2 seconds tolerance
+          );
           
-          // Update unread count if message is from other user
-          if (message.senderId._id !== user._id) {
-            setUnreadCount(prev => prev + 1);
+          if (exists) {
+            console.log("🔄 Duplicate message detected, skipping:", message._id);
+            return prev;
           }
+          
+          // Don't increment unread count when user is actively in the chat
+          // The unread count should only show for other chats, not the current active chat
           
           return [...prev, message].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         });
@@ -171,9 +209,26 @@ export default function EnhancedChatRoom() {
 
       // Typing indicators
       socketRef.current.on("userTyping", ({ userId, userName, loanId: typingLoanId }) => {
-        if (typingLoanId === loanId && userId !== user._id) {
-          console.log("⌨️ User typing:", userName);
+        // Use the user data passed to this function, which has the correct MongoDB _id
+        const currentUserId = user._id || user.id;
+        console.log("⌨️ Typing event received:", { 
+          userId, 
+          userName, 
+          currentUserId, 
+          typingLoanId, 
+          loanId,
+          userObject: user,
+          userFields: Object.keys(user),
+          userIdField: user._id,
+          userIdField2: user.id,
+          allUserData: JSON.stringify(user, null, 2),
+          comparison: `${userId} !== ${currentUserId}`,
+          result: userId !== currentUserId
+        });
+        if (typingLoanId === loanId && userId !== currentUserId) {
+          console.log("⌨️ Setting other user typing to true for:", userName);
           setOtherUserTyping(true);
+          setTypingUserName(userName); // Store the actual typing user's name
           
           // Clear existing timeout
           if (typingTimeoutRef.current) {
@@ -182,39 +237,60 @@ export default function EnhancedChatRoom() {
           
           // Set timeout to hide typing indicator
           typingTimeoutRef.current = setTimeout(() => {
+            console.log("⌨️ Typing timeout - hiding indicator");
             setOtherUserTyping(false);
+            setTypingUserName("");
           }, 3000);
+        } else {
+          console.log("⌨️ Ignoring typing event - same user or different loan");
         }
       });
 
       socketRef.current.on("userStopTyping", ({ userId, loanId: typingLoanId }) => {
-        if (typingLoanId === loanId && userId !== user._id) {
-          console.log("⌨️ User stopped typing");
+        // Use the user data passed to this function, which has the correct MongoDB _id
+        const currentUserId = user._id || user.id;
+        console.log("⌨️ Stop typing event received:", { 
+          userId, 
+          currentUserId, 
+          typingLoanId, 
+          loanId,
+          userFields: Object.keys(user),
+          comparison: `${userId} !== ${currentUserId}`,
+          result: userId !== currentUserId
+        });
+        if (typingLoanId === loanId && userId !== currentUserId) {
+          console.log("⌨️ Setting other user typing to false");
           setOtherUserTyping(false);
+          setTypingUserName("");
           if (typingTimeoutRef.current) {
             clearTimeout(typingTimeoutRef.current);
           }
+        } else {
+          console.log("⌨️ Ignoring stop typing event - same user or different loan");
         }
       });
 
       // User online status
       socketRef.current.on("userOnline", ({ userId, loanId: onlineLoanId }) => {
-        if (onlineLoanId === loanId && userId !== user._id) {
+        const currentUserId = user._id || user.id;
+        if (onlineLoanId === loanId && userId !== currentUserId) {
           setOtherUserOnline(true);
         }
       });
 
       socketRef.current.on("userOffline", ({ userId, loanId: offlineLoanId }) => {
-        if (offlineLoanId === loanId && userId !== user._id) {
+        const currentUserId = user._id || user.id;
+        if (offlineLoanId === loanId && userId !== currentUserId) {
           setOtherUserOnline(false);
         }
       });
 
       // Message read status
       socketRef.current.on("messagesRead", ({ loanId: readLoanId, userId: readUserId }) => {
-        if (readLoanId === loanId && readUserId !== user._id) {
+        const currentUserId = user._id || user.id;
+        if (readLoanId === loanId && readUserId !== currentUserId) {
           setMessages(prev => prev.map(msg => 
-            msg.senderId._id === user._id ? { ...msg, isRead: true } : msg
+            msg.senderId._id === currentUserId ? { ...msg, isRead: true } : msg
           ));
         }
       });
@@ -237,22 +313,28 @@ export default function EnhancedChatRoom() {
       
       // Fetch loan details
       const loanRes = await API.get(`/loans/${loanId}`);
+      console.log("📋 Loan data received for:", loanRes.data.purpose);
       setLoan(loanRes.data);
 
-      // Determine other party
-      const other = loanRes.data.borrowerId._id === user._id 
+      // Determine other party using email fallback for user identification
+      const userId = currentUser?._id || user._id || user.id || user.uid || user.firebaseUid;
+      
+      const other = (loanRes.data.borrowerId._id === userId || loanRes.data.borrowerId.email === user.email)
         ? loanRes.data.lenderId 
         : loanRes.data.borrowerId;
+      
+      console.log("🤝 Other party determined:", other?.name);
       setOtherParty(other);
 
       // Fetch existing messages
       const messagesRes = await API.get(`/chat/loan/${loanId}`);
       const sortedMessages = messagesRes.data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      console.log("📨 Messages loaded:", sortedMessages.length, "messages");
       setMessages(sortedMessages);
 
       // Count unread messages
       const unread = sortedMessages.filter(msg => 
-        msg.receiverId._id === user._id && !msg.isRead
+        msg.receiverId._id === userId && !msg.isRead
       ).length;
       setUnreadCount(unread);
 
@@ -290,14 +372,9 @@ export default function EnhancedChatRoom() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     
-    // Clear unread count when messages are visible
-    if (unreadCount > 0) {
-      setTimeout(() => {
-        setUnreadCount(0);
-        if (socketRef.current) {
-          socketRef.current.emit("markAsRead", { loanId });
-        }
-      }, 1000);
+    // Mark messages as read when user is actively viewing the chat
+    if (socketRef.current) {
+      socketRef.current.emit("markAsRead", { loanId });
     }
   }, [messages]);
 
@@ -311,21 +388,23 @@ export default function EnhancedChatRoom() {
       const messageText = newMessage.trim();
       setNewMessage("");
 
-      // Send message via Socket.IO for real-time delivery
+      // Send message via Socket.IO only to prevent duplicates
       if (socketRef.current && connected) {
         socketRef.current.emit("sendMessage", {
           loanId,
           message: messageText,
           receiverId: otherParty._id
         });
+        console.log("📤 Message sent via socket:", { loanId, message: messageText, receiverId: otherParty._id });
+      } else {
+        // Fallback to API only if socket is disconnected
+        await API.post("/chat/send", {
+          loanId,
+          message: messageText,
+          receiverId: otherParty._id
+        });
+        console.log("📤 Message sent via API (fallback)");
       }
-
-      // Also send via API as backup
-      const response = await API.post("/chat/send", {
-        loanId,
-        message: messageText,
-        receiverId: otherParty._id
-      });
       
       // Stop typing indicator
       handleStopTyping();
@@ -333,7 +412,7 @@ export default function EnhancedChatRoom() {
     } catch (error) {
       console.error("❌ Error sending message:", error);
       alert("Failed to send message. Please try again.");
-      setNewMessage(newMessage); // Restore message
+      setNewMessage(messageText); // Restore message
     } finally {
       setSending(false);
     }
@@ -344,6 +423,7 @@ export default function EnhancedChatRoom() {
     if (!connected || !socketRef.current) return;
 
     if (!typing) {
+      console.log("🎯 Emitting typing event for loan:", loanId);
       setTyping(true);
       socketRef.current.emit("typing", { loanId });
     }
@@ -360,6 +440,7 @@ export default function EnhancedChatRoom() {
 
   const handleStopTyping = () => {
     if (typing && socketRef.current && connected) {
+      console.log("🎯 Emitting stop typing event for loan:", loanId);
       setTyping(false);
       socketRef.current.emit("stopTyping", { loanId });
     }
@@ -546,7 +627,8 @@ export default function EnhancedChatRoom() {
               
               {/* Messages for this date */}
               {dayMessages.map((message, index) => {
-                const isCurrentUser = message.senderId._id === currentUser._id;
+                const currentUserId = currentUser._id || currentUser.id || currentUser.uid || currentUser.firebaseUid;
+                const isCurrentUser = message.senderId._id === currentUserId;
                 const nextMessage = dayMessages[index + 1];
                 const isLastFromSender = !nextMessage || nextMessage.senderId._id !== message.senderId._id;
 
@@ -596,7 +678,7 @@ export default function EnhancedChatRoom() {
                   <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                   <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                 </div>
-                <span className="text-xs text-gray-500 ml-2">{otherParty?.name} is typing...</span>
+                <span className="text-xs text-gray-500 ml-2">{typingUserName} is typing...</span>
               </div>
             </div>
           </div>
@@ -676,13 +758,12 @@ export default function EnhancedChatRoom() {
                 You are typing...
               </p>
             )}
+            {otherUserTyping && (
+              <p className="text-xs text-gray-500">
+                {typingUserName} is typing...
+              </p>
+            )}
           </div>
-          
-          {unreadCount > 0 && (
-            <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-              {unreadCount} new
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -107,8 +107,29 @@ router.get("/loan", verifyToken, async (req, res) => {
 router.get("/my-loans", verifyToken, async (req, res) => {
   try {
     const { email } = req.user;
-    const loans = await Loan.find({ collegeEmail: email });
-    res.json(loans);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20; // Default 20 loans per page
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination info
+    const totalLoans = await Loan.countDocuments({ collegeEmail: email });
+    
+    // Get paginated loans with proper sorting (newest first)
+    const loans = await Loan.find({ collegeEmail: email })
+      .sort({ submittedAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      loans,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalLoans / limit),
+        totalLoans,
+        hasNext: page < Math.ceil(totalLoans / limit),
+        hasPrev: page > 1
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -118,8 +139,29 @@ router.get("/my-loans", verifyToken, async (req, res) => {
 router.get("/funded", verifyToken, async (req, res) => {
   try {
     const { id } = req.user;
-    const loans = await Loan.find({ lenderId: id });
-    res.json(loans);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20; // Default 20 loans per page
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination info
+    const totalLoans = await Loan.countDocuments({ lenderId: id });
+    
+    // Get paginated loans with proper sorting (newest first)
+    const loans = await Loan.find({ lenderId: id })
+      .sort({ fundedAt: -1, submittedAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({
+      loans,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalLoans / limit),
+        totalLoans,
+        hasNext: page < Math.ceil(totalLoans / limit),
+        hasPrev: page > 1
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

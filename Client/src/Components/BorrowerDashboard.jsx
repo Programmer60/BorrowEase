@@ -21,9 +21,11 @@ import {
   AlertTriangle,
   Calculator,
   Plus,
+  MessageCircle,
 } from "lucide-react";
 import Navbar from "./Navbar";
 import API from "../api/api";
+import { loadChatUnreadCounts } from "../api/chatApi";
 import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import EnhancedLoanRequestForm from "./EnhancedLoanRequestForm";
@@ -85,6 +87,7 @@ export default function BorrowerDashboard() {
   const [showLoanForm, setShowLoanForm] = useState(false);
   const [showInterestCalculator, setShowInterestCalculator] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'newLoan', 'calculator', 'disputes'
+  const [chatUnreadCounts, setChatUnreadCounts] = useState({});
   const LOANS_TO_SHOW = 4; // Show only 4 loans initially
   
 
@@ -130,7 +133,10 @@ export default function BorrowerDashboard() {
     try {
       const res = await API.get("/loans/my-loans");
       console.log("Loaded loans:", res.data);
-      setLoanRequests(res.data);
+      
+      // Handle both old format (array) and new format (object with loans and pagination)
+      const loans = res.data.loans || res.data;
+      setLoanRequests(loans);
       
       // Fetch credit score
       try {
@@ -139,10 +145,19 @@ export default function BorrowerDashboard() {
       } catch (creditError) {
         console.log("Credit score not available");
       }
+
+      // Fetch chat unread counts for funded loans (optimized bulk call)
+      const fundedLoans = loans.filter(loan => loan.funded);
+      if (fundedLoans.length > 0) {
+        const unreadCounts = await loadChatUnreadCounts(fundedLoans);
+        setChatUnreadCounts(unreadCounts);
+      }
     } catch (error) {
       showToast("Error fetching loans", "error");
     }
   };
+
+  // Remove the old sequential loadChatUnreadCounts function since we're using the optimized one from chatApi
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -606,6 +621,18 @@ export default function BorrowerDashboard() {
 
                         {loan.funded && !loan.repaid && (
                           <div className="mt-4 flex space-x-2">
+                            <button
+                              onClick={() => navigate(`/chat/${loan._id}`)}
+                              className="relative bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                            >
+                              <MessageCircle className="w-4 h-4 mr-2" />
+                              Chat
+                              {chatUnreadCounts[loan._id] > 0 && (
+                                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                                  {chatUnreadCounts[loan._id] > 99 ? '99+' : chatUnreadCounts[loan._id]}
+                                </span>
+                              )}
+                            </button>
                             <button
                               onClick={() => handlePayment(loan.totalRepayable || loan.amount, loan)}
                               className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"

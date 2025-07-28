@@ -64,10 +64,9 @@ io.use(async (socket, next) => {
     // Verify Firebase token
     const decodedToken = await auth.verifyIdToken(token);
     const firebaseUid = decodedToken.uid;
-    const userName = decodedToken.name || decodedToken.email;
     const email = decodedToken.email;
 
-    // Find the MongoDB user by email to get the ObjectId
+    // Find the MongoDB user by email to get the ObjectId and proper name
     const user = await User.findOne({ email });
     if (!user) {
       return next(new Error("User not found in database"));
@@ -75,7 +74,7 @@ io.use(async (socket, next) => {
 
     socket.firebaseUid = firebaseUid;
     socket.userId = user._id.toString(); // Use MongoDB ObjectId
-    socket.userName = userName;
+    socket.userName = user.name; // Use MongoDB user name instead of Firebase name
     socket.email = email;
     
     console.log(`Socket auth mapping - Firebase UID: ${firebaseUid} -> MongoDB ID: ${user._id}`);
@@ -132,8 +131,21 @@ io.on("connection", (socket) => {
         return;
       }
 
+      // Leave any previous loan chat rooms to prevent being in multiple rooms
+      const rooms = Array.from(socket.rooms);
+      rooms.forEach(room => {
+        if (room.startsWith('loan_') && room !== `loan_${loanId}`) {
+          socket.leave(room);
+          console.log(`User ${userName} left previous chat room ${room}`);
+        }
+      });
+
+      // Join the loan chat room
       socket.join(`loan_${loanId}`);
       console.log(`User ${userName} joined chat for loan ${loanId}`);
+      
+      // Notify others in the room that user is online
+      socket.to(`loan_${loanId}`).emit("userOnline", { userId, userName });
       
       socket.emit("joinedLoanChat", { loanId });
     } catch (error) {
@@ -181,12 +193,19 @@ io.on("connection", (socket) => {
       // Send to all users in the loan chat room (only the participants)
       io.to(`loan_${loanId}`).emit("receiveMessage", populatedMessage);
       
-      // Also notify the receiver if they're not in the chat room
-      io.to(`user_${receiverId}`).emit("newMessage", {
-        loanId,
-        message: populatedMessage,
-        from: userName
-      });
+      // Only notify the receiver via user room if they're not currently in the chat room
+      const receiverSockets = await io.in(`user_${receiverId}`).fetchSockets();
+      const receiverInChatRoom = receiverSockets.some(socket => 
+        Array.from(socket.rooms).includes(`loan_${loanId}`)
+      );
+      
+      if (!receiverInChatRoom) {
+        io.to(`user_${receiverId}`).emit("newMessage", {
+          loanId,
+          message: populatedMessage,
+          from: userName
+        });
+      }
       
     } catch (error) {
       console.error("Error sending message:", error);
@@ -228,6 +247,17 @@ io.on("connection", (socket) => {
   // Handle disconnection
   socket.on("disconnect", () => {
     console.log(`User ${userName} (${userId}) disconnected socket ${socket.id}`);
+    
+    // Get all rooms this socket was in to notify other users
+    const rooms = Array.from(socket.rooms);
+    
+    // Notify other users in loan chat rooms that this user went offline
+    rooms.forEach(room => {
+      if (room.startsWith('loan_')) {
+        socket.to(room).emit("userOffline", { userId, userName });
+        socket.to(room).emit("stopTyping", { userId, userName }); // Clear typing indicators
+      }
+    });
     
     // Clean up user-socket mapping
     if (userSockets.has(userId)) {

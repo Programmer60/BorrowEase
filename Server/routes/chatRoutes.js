@@ -170,6 +170,126 @@ router.get("/active", verifyToken, async (req, res) => {
   }
 });
 
+// Get unread message summary for global notifications
+router.get("/unread-summary", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Find all loans where user is borrower or lender and has unread messages
+    const loans = await Loan.find({
+      $or: [{ borrowerId: userId }, { lenderId: userId }],
+      funded: true
+    }).populate("borrowerId lenderId", "name email");
+
+    const unreadSummary = await Promise.all(
+      loans.map(async (loan) => {
+        const unreadCount = await ChatMessage.countDocuments({
+          loanId: loan._id,
+          receiverId: userId,
+          isRead: false
+        });
+
+        if (unreadCount === 0) return null;
+
+        const latestMessage = await ChatMessage.findOne({ 
+          loanId: loan._id,
+          receiverId: userId,
+          isRead: false
+        })
+        .sort({ timestamp: -1 })
+        .populate("senderId", "name email");
+
+        const otherParty = loan.borrowerId._id.toString() === userId 
+          ? loan.lenderId 
+          : loan.borrowerId;
+
+        return {
+          loanId: loan._id,
+          count: unreadCount,
+          lastMessage: latestMessage?.message || '',
+          timestamp: latestMessage?.timestamp || new Date(),
+          from: latestMessage?.senderId?.name || otherParty.name,
+          loanAmount: loan.amount,
+          loanPurpose: loan.purpose,
+          otherPartyName: otherParty.name
+        };
+      })
+    );
+
+    // Filter out null values (loans with no unread messages)
+    const filteredSummary = unreadSummary.filter(item => item !== null);
+    
+    res.json(filteredSummary);
+  } catch (error) {
+    console.error("Error fetching unread summary:", error);
+    res.status(500).json({ error: "Failed to fetch unread summary" });
+  }
+});
+
+// Get unread count for a specific loan
+router.get('/unread-count/:loanId', verifyToken, async (req, res) => {
+  try {
+    const { loanId } = req.params;
+    const userId = req.user.uid;
+
+    // Count unread messages for this loan from other party
+    const unreadCount = await ChatMessage.countDocuments({
+      loanId: loanId,
+      senderId: { $ne: userId },
+      isRead: false
+    });
+
+    res.json({ count: unreadCount });
+  } catch (error) {
+    console.error('Error getting unread count for loan:', error);
+    res.status(500).json({ error: 'Failed to get unread count' });
+  }
+});
+
+// Get unread counts for multiple loans (bulk operation)
+router.post('/unread-counts/bulk', verifyToken, async (req, res) => {
+  try {
+    const { loanIds } = req.body;
+    const userId = req.user.uid || req.user.id; // Support both Firebase UID and user ID
+
+    if (!loanIds || !Array.isArray(loanIds)) {
+      return res.status(400).json({ error: 'loanIds array is required' });
+    }
+
+    // Use aggregation to get unread counts for all loans in one query
+    const unreadCounts = await ChatMessage.aggregate([
+      {
+        $match: {
+          loanId: { $in: loanIds },
+          senderId: { $ne: userId },
+          isRead: false
+        }
+      },
+      {
+        $group: {
+          _id: '$loanId',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Convert to object format with all loan IDs (including those with 0 unread)
+    const result = {};
+    loanIds.forEach(loanId => {
+      result[loanId] = 0; // Default to 0
+    });
+    
+    unreadCounts.forEach(item => {
+      result[item._id] = item.count;
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting bulk unread counts:', error);
+    res.status(500).json({ error: 'Failed to get unread counts' });
+  }
+});
+
 // Mark messages as read
 router.put("/mark-read/:loanId", verifyToken, async (req, res) => {
   try {

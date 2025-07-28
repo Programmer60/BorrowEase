@@ -58,6 +58,7 @@ function App() {
         <Route path="/ai-dashboard" element={<ProtectedRoute element={ComprehensiveAIDashboard} />} />
         <Route path="/credit-score" element={<AuthenticatedRoute><CreditScore /></AuthenticatedRoute>} />
         <Route path="/profile" element={<ProfilePage/>} />
+        <Route path="/chats" element={<div className="p-8 text-center"><h2 className="text-xl">Chat List - Coming Soon</h2><p>Individual chat rooms are available via loan funding.</p></div>} />
         <Route path="/chat/:loanId" element={<ProtectedRoute element={EnhancedChatRoom} />} />
       </Routes>
     </Router>

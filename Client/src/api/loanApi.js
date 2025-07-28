@@ -18,9 +18,9 @@ export const getLoanRequests = async () => {
 export const fundLoan = (loanId) => API.patch(`/loans/${loanId}/fund`);
 
 // Get loans for the logged-in user
-export const getMyLoans = async () => {
+export const getMyLoans = async (page = 1, limit = 20) => {
   try {
-    const response = await API.get("/loans/my-loans");
+    const response = await API.get(`/loans/my-loans?page=${page}&limit=${limit}`);
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.error || "Failed to fetch my loans");
@@ -28,9 +28,9 @@ export const getMyLoans = async () => {
 };
 
 // Get funded loans by the lender
-export const getFundedLoans = async () => {
+export const getFundedLoans = async (page = 1, limit = 20) => {
   try {
-    const response = await API.get("/loans/funded");
+    const response = await API.get(`/loans/funded?page=${page}&limit=${limit}`);
     return response.data;
   } catch (error) {
     throw new Error(error.response?.data?.error || "Failed to fetch funded loans");

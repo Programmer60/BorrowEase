@@ -17,12 +17,14 @@ const ProtectedRoute = ({ element: Component, requiredRole }) => {
           return;
         }
 
-        // Check user role
-        const res = await API.get('/users/me');
-        if (res.data.role !== requiredRole) {
-          alert(`Access denied. You are not a ${requiredRole}.`);
-          navigate('/');
-          return;
+        // Check user role if required
+        if (requiredRole) {
+          const res = await API.get('/users/me');
+          if (res.data.role !== requiredRole) {
+            alert(`Access denied. You are not a ${requiredRole}.`);
+            navigate('/');
+            return;
+          }
         }
 
         setIsAuthorized(true);

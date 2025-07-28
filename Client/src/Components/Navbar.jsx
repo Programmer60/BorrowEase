@@ -32,6 +32,20 @@ export default function Navbar() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const res = await API.get("/notifications");
+        setNotifications(res.data);
+        setUnreadCount(res.data.filter(n => !n.read).length);
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
+      }
+    };
+
+    fetchNotifications();
+  }, []);
+
+  useEffect(() => {
   const fetchNotifications = async () => {
     try {
       const res = await API.get("/notifications");
@@ -170,12 +184,17 @@ export default function Navbar() {
                 <button
                   key={link.path}
                   onClick={() => navigate(link.path)}
-                  className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all hover:bg-gray-100 ${
+                  className={`relative flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all hover:bg-gray-100 ${
                     link.className || "text-gray-700 hover:text-indigo-600"
                   }`}
                 >
                   {link.icon}
                   <span className="ml-2">{link.label}</span>
+                  {link.badge && (
+                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                      {link.badge > 99 ? '99+' : link.badge}
+                    </span>
+                  )}
                 </button>
               ))}
           </nav>
@@ -327,12 +346,17 @@ export default function Navbar() {
                   navigate(link.path);
                   setIsMenuOpen(false);
                 }}
-                className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center ${
+                className={`relative w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center ${
                   link.className || "text-gray-700"
                 }`}
               >
                 {link.icon}
                 <span className="ml-2">{link.label}</span>
+                {link.badge && (
+                  <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                    {link.badge > 99 ? '99+' : link.badge}
+                  </span>
+                )}
                 {link.label === "KYC Verification" && user?.kycStatus === 'verified' && (
                   <CheckCircle className="w-4 h-4 ml-auto text-green-600" />
                 )}

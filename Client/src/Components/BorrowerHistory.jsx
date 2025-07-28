@@ -3,19 +3,37 @@ import { useNavigate } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import Navbar from "./Navbar";
 import { getMyLoans } from "../api/loanApi";
+import { loadChatUnreadCounts } from "../api/chatApi";
+import API from "../api/api";
 
 export default function BorrowerHistory () {
     const [loans, setLoans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [chatUnreadCounts, setChatUnreadCounts] = useState({});
+    const [pagination, setPagination] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
     const navigate = useNavigate();
 
     useEffect(() => {
         const loadMyLoans = async () => {
             try {
                 setLoading(true);
-                const myLoans = await getMyLoans();
+                const response = await getMyLoans(currentPage, 20);
+                
+                // Handle both old format (array) and new format (object with loans and pagination)
+                const myLoans = response.loans || response;
+                const paginationData = response.pagination || null;
+                
                 setLoans(myLoans);
+                setPagination(paginationData);
+                
+                // Load chat unread counts for funded loans (optimized bulk call)
+                const fundedLoans = myLoans.filter(loan => loan.funded);
+                if (fundedLoans.length > 0) {
+                    const unreadCounts = await loadChatUnreadCounts(fundedLoans);
+                    setChatUnreadCounts(unreadCounts);
+                }
             } catch (error) {
                 console.error("Error loading my loans:", error.message);
                 setError(error.message);
@@ -25,7 +43,9 @@ export default function BorrowerHistory () {
         };
 
         loadMyLoans();
-    }, []);
+    }, [currentPage]);
+
+    // Remove the old sequential loadChatUnreadCounts function since we're using the optimized one from chatApi
 
     const totalRequested = loans.reduce((sum, loan) => sum + loan.amount, 0);
     const fundedLoans = loans.filter(loan => loan.funded);
@@ -214,10 +234,15 @@ export default function BorrowerHistory () {
                                                     {loan.funded && (
                                                         <button
                                                             onClick={() => navigate(`/chat/${loan._id}`)}
-                                                            className="inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
+                                                            className="relative inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
                                                         >
                                                             <MessageCircle className="w-4 h-4 mr-1" />
                                                             Chat
+                                                            {chatUnreadCounts[loan._id] > 0 && (
+                                                                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                                                                    {chatUnreadCounts[loan._id] > 99 ? '99+' : chatUnreadCounts[loan._id]}
+                                                                </span>
+                                                            )}
                                                         </button>
                                                     )}
                                                     <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
@@ -247,6 +272,39 @@ export default function BorrowerHistory () {
                                         </div>
                                     );
                                 })}
+                            </div>
+                        )}
+                        
+                        {/* Pagination Controls */}
+                        {pagination && pagination.totalPages > 1 && (
+                            <div className="mt-8 flex justify-center items-center space-x-4">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={!pagination.hasPrev}
+                                    className={`px-4 py-2 rounded-lg ${
+                                        pagination.hasPrev
+                                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    }`}
+                                >
+                                    Previous
+                                </button>
+                                
+                                <span className="text-gray-600">
+                                    Page {pagination.currentPage} of {pagination.totalPages}
+                                </span>
+                                
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                                    disabled={!pagination.hasNext}
+                                    className={`px-4 py-2 rounded-lg ${
+                                        pagination.hasNext
+                                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    }`}
+                                >
+                                    Next
+                                </button>
                             </div>
                         )}
                     </div>

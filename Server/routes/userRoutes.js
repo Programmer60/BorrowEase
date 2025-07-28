@@ -18,9 +18,16 @@ router.post("/setup", verifyToken, async (req, res) => {
 
   let user = await User.findOne({ email });
   if (!user) {
+    // Use a better name fallback - if Firebase name is generic, use email prefix
+    let userName = name;
+    if (!name || name === 'Gamer' || name.toLowerCase().includes('user')) {
+      // Extract name from email (everything before @)
+      userName = email.split('@')[0];
+    }
+    
     // If it's the first user, make them admin regardless of requested role
     const assignedRole = isFirstUser ? "admin" : role;
-    user = await User.create({ name, email, role: assignedRole });
+    user = await User.create({ name: userName, email, role: assignedRole });
     return res.json(user);
   }
 
