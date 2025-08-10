@@ -209,7 +209,7 @@ export default function LenderDashboard() {
                 <Search className="w-4 h-4 mr-2 inline" />
                 Browse All Loans
               </button>
-              <button
+              {/* <button
                 onClick={() => setActiveTab('recommendations')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'recommendations'
@@ -219,7 +219,7 @@ export default function LenderDashboard() {
               >
                 <Brain className="w-4 h-4 mr-2 inline" />
                 AI Recommendations
-              </button>
+              </button> */}
               <button
                 onClick={() => setActiveTab('investment')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${

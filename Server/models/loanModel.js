@@ -8,6 +8,7 @@ const loanSchema = new mongoose.Schema({
   purpose: { type: String, required: true },
   repaymentDate: { type: String, required: true },
   funded: { type: Boolean, default: false },
+  fundedAt: { type: Date },
   lenderName: { type: String, default: "" },
   lenderId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   borrowerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

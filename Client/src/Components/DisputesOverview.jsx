@@ -46,8 +46,9 @@ const DisputesOverview = ({ embedded = false }) => {
   const checkUserAccess = async () => {
     try {
       const res = await API.get("/users/me");
-      setUserRole(res.data.role);
-      loadDisputes();
+    const role = res.data.role;
+    setUserRole(role);
+    await loadDisputes(role);
     } catch (error) {
       console.error("Error checking user role:", error);
     } finally {
@@ -55,16 +56,29 @@ const DisputesOverview = ({ embedded = false }) => {
     }
   };
 
-  const loadDisputes = async () => {
+  const loadDisputes = async (roleParam) => {
     try {
-      const response = await API.get('/disputes');
-      setDisputes(response.data);
+    const isAdmin = (roleParam || userRole) === 'admin';
+    const endpoint = isAdmin ? '/disputes' : '/disputes/my-disputes';
+    const response = await API.get(endpoint);
+      const payload = response.data;
+      // Normalize to an array; backend returns { success, disputes: [] }
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.disputes)
+          ? payload.disputes
+          : [];
+      setDisputes(list);
     } catch (error) {
       console.error('Error loading disputes:', error);
     }
   };
 
   const filterDisputes = () => {
+    if (!Array.isArray(disputes)) {
+      setFilteredDisputes([]);
+      return;
+    }
     let filtered = [...disputes];
 
     // Filter by status
@@ -82,13 +96,14 @@ const DisputesOverview = ({ embedded = false }) => {
       filtered = filtered.filter(dispute => dispute.priority === filters.priority);
     }
 
-    // Filter by search
+  // Filter by search (subject/message/role/loan purpose)
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       filtered = filtered.filter(dispute =>
-        dispute.subject.toLowerCase().includes(searchLower) ||
-        dispute.message.toLowerCase().includes(searchLower) ||
-        dispute.raisedBy?.name.toLowerCase().includes(searchLower)
+    (dispute.subject || '').toLowerCase().includes(searchLower) ||
+    (dispute.message || '').toLowerCase().includes(searchLower) ||
+    (dispute.role || '').toLowerCase().includes(searchLower) ||
+    (dispute.loanId?.purpose || '').toLowerCase().includes(searchLower)
       );
     }
 
@@ -132,11 +147,12 @@ const DisputesOverview = ({ embedded = false }) => {
 
   const handleResolveDispute = async () => {
     try {
-      const response = await API.patch(`/disputes/${selectedDispute._id}/resolve`, resolveData);
+      // Backend expects PATCH /disputes/:id/status with { status, adminResponse }
+      const response = await API.patch(`/disputes/${selectedDispute._id}/status`, resolveData);
       
       // Update the disputes list
       setDisputes(disputes.map(dispute => 
-        dispute._id === selectedDispute._id ? response.data : dispute
+        dispute._id === selectedDispute._id ? (response.data?.dispute || dispute) : dispute
       ));
       
       setShowResolveModal(false);
@@ -173,7 +189,7 @@ const DisputesOverview = ({ embedded = false }) => {
       <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
         <div className="flex items-center">
           <User className="w-4 h-4 mr-1" />
-          {dispute.raisedBy?.name} ({dispute.role})
+          {dispute.role ? dispute.role.charAt(0).toUpperCase() + dispute.role.slice(1) : 'User'}
         </div>
         <div className="flex items-center">
           <Calendar className="w-4 h-4 mr-1" />

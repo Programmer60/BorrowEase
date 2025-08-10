@@ -27,6 +27,7 @@ const DisputesManagement = () => {
   const [authorized, setAuthorized] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [selectedDispute, setSelectedDispute] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showResolveModal, setShowResolveModal] = useState(false);
   const [resolveData, setResolveData] = useState({
     status: 'resolved',
@@ -69,14 +70,19 @@ const DisputesManagement = () => {
   const loadDisputes = async () => {
     try {
       const response = await API.get('/disputes');
-      setDisputes(response.data);
+      // Support both legacy array and new { success, disputes } shapes
+      const list = Array.isArray(response.data)
+        ? response.data
+        : (response.data?.disputes || []);
+      setDisputes(list);
     } catch (error) {
       console.error('Error loading disputes:', error);
     }
   };
 
   const filterDisputes = () => {
-    let filtered = [...disputes];
+    const base = Array.isArray(disputes) ? disputes : [];
+    let filtered = [...base];
 
     // Filter by status
     if (filters.status !== 'all') {
@@ -96,11 +102,20 @@ const DisputesManagement = () => {
     // Filter by search
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      filtered = filtered.filter(dispute =>
-        dispute.subject.toLowerCase().includes(searchLower) ||
-        dispute.message.toLowerCase().includes(searchLower) ||
-        dispute.raisedBy?.name.toLowerCase().includes(searchLower)
-      );
+      filtered = filtered.filter(dispute => {
+        const subjectStr = dispute.subject || '';
+        const messageStr = dispute.message || '';
+        const roleStr = dispute.role || '';
+        const loanPurpose = dispute.loanId?.purpose || '';
+        const borrowerEmail = dispute.loanId?.collegeEmail || '';
+        return (
+          subjectStr.toLowerCase().includes(searchLower) ||
+          messageStr.toLowerCase().includes(searchLower) ||
+          roleStr.toLowerCase().includes(searchLower) ||
+          loanPurpose.toLowerCase().includes(searchLower) ||
+          borrowerEmail.toLowerCase().includes(searchLower)
+        );
+      });
     }
 
     setFilteredDisputes(filtered);
@@ -143,12 +158,16 @@ const DisputesManagement = () => {
 
   const handleResolveDispute = async () => {
     try {
-      const response = await API.patch(`/disputes/${selectedDispute._id}/resolve`, resolveData);
+      // Updated route per server: PATCH /disputes/:disputeId/status
+      const response = await API.patch(`/disputes/${selectedDispute._id}/status`, resolveData);
       
       // Update the disputes list
-      setDisputes(disputes.map(dispute => 
-        dispute._id === selectedDispute._id ? response.data : dispute
-      ));
+      const updated = response?.data?.dispute || response?.data || null;
+      if (updated) {
+        setDisputes(disputes.map(dispute => 
+          dispute._id === selectedDispute._id ? updated : dispute
+        ));
+      }
       
       setShowResolveModal(false);
       setSelectedDispute(null);
@@ -184,7 +203,7 @@ const DisputesManagement = () => {
       <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
         <div className="flex items-center">
           <User className="w-4 h-4 mr-1" />
-          {dispute.raisedBy?.name} ({dispute.role})
+          {dispute.role ? dispute.role.charAt(0).toUpperCase() + dispute.role.slice(1) : 'User'}
         </div>
         <div className="flex items-center">
           <Calendar className="w-4 h-4 mr-1" />
@@ -212,8 +231,8 @@ const DisputesManagement = () => {
 
       <div className="flex justify-between items-center">
         <button
-          onClick={() => setSelectedDispute(dispute)}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+          onClick={() => { setSelectedDispute(dispute); setShowDetailsModal(true); }}
+          className="text-blue-600 hover:text-blue-800 cursor-pointer text-sm font-medium flex items-center"
         >
           <Eye className="w-4 h-4 mr-1" />
           View Details
@@ -346,6 +365,90 @@ const DisputesManagement = () => {
             {filteredDisputes.map((dispute) => (
               <DisputeCard key={dispute._id} dispute={dispute} />
             ))}
+          </div>
+        )}
+
+        {/* Details Modal */}
+        {showDetailsModal && selectedDispute && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-6 border-b">
+                <h2 className="text-xl font-bold text-gray-900">Dispute Details</h2>
+                <button
+                  onClick={() => { setShowDetailsModal(false); setSelectedDispute(null); }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{selectedDispute.subject}</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {formatCategory(selectedDispute.category)} • {selectedDispute.priority} priority
+                    </p>
+                  </div>
+                  <span className={`px-2 py-1 h-fit rounded-full text-xs font-medium ${getStatusColor(selectedDispute.status)}`}>
+                    {selectedDispute.status.charAt(0).toUpperCase() + selectedDispute.status.slice(1)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
+                  <div className="flex items-center"><User className="w-4 h-4 mr-2" />
+                    Role: {selectedDispute.role ? selectedDispute.role.charAt(0).toUpperCase() + selectedDispute.role.slice(1) : 'User'}
+                  </div>
+                  <div className="flex items-center"><Calendar className="w-4 h-4 mr-2" />
+                    Created: {new Date(selectedDispute.createdAt).toLocaleString()}
+                  </div>
+                  {selectedDispute.loanId && (
+                    <>
+                      <div className="flex items-center"><DollarSign className="w-4 h-4 mr-2" />
+                        Amount: ₹{selectedDispute.loanId.amount?.toLocaleString()}
+                      </div>
+                      <div>Purpose: {selectedDispute.loanId.purpose}</div>
+                    </>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-gray-800 mb-1">Message</h4>
+                  <p className="text-gray-700 text-sm whitespace-pre-wrap">{selectedDispute.message}</p>
+                </div>
+
+                {selectedDispute.expectedResolution && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-gray-800 mb-1">Expected Resolution</h4>
+                    <p className="text-gray-700 text-sm whitespace-pre-wrap">{selectedDispute.expectedResolution}</p>
+                  </div>
+                )}
+
+                {selectedDispute.adminResponse && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-blue-900 mb-1">Admin Response</h4>
+                    <p className="text-blue-900 text-sm whitespace-pre-wrap">{selectedDispute.adminResponse}</p>
+                  </div>
+                )}
+
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button
+                    onClick={() => { setShowDetailsModal(false); setSelectedDispute(null); }}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                  >
+                    Close
+                  </button>
+                  {userRole === 'admin' && (
+                    <button
+                      onClick={() => { setShowDetailsModal(false); setShowResolveModal(true); }}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      Resolve
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

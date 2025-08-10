@@ -44,15 +44,15 @@ const EnhancedDisputeForm = ({ loanDetails, onClose, onSubmitted }) => {
       const disputeData = {
         ...formData,
         loanId: loanDetails._id,
-        role: 'borrower'
       };
 
       await API.post('/disputes', disputeData);
       onSubmitted?.();
       onClose();
     } catch (error) {
-      console.error('Error submitting dispute:', error);
-      alert('Failed to submit dispute. Please try again.');
+      const serverMsg = error?.response?.data?.error || error?.response?.data?.message;
+      console.error('Error submitting dispute:', error?.response?.data || error?.message || error);
+      alert(`Failed to submit dispute${serverMsg ? `: ${serverMsg}` : ''}. Please try again.`);
     } finally {
       setIsSubmitting(false);
     }

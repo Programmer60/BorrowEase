@@ -181,55 +181,73 @@ export default function BorrowerDashboard() {
 
   const handlePayment = async (amount, loan) => {
     try {
-      const res = await API.post("/payment/create-order", { amount });
+      // Basic validation
+      const amt = Number(amount);
+      if (!Number.isFinite(amt) || amt <= 0) {
+        showToast("Invalid amount for payment", "error");
+        return;
+      }
+
+      // Ensure Razorpay script is available
+      if (typeof window === 'undefined' || !window.Razorpay) {
+        showToast("Payment service not loaded. Please refresh the page.", "error");
+        return;
+      }
+
+      const res = await API.post("/payment/create-order", { amount: amt });
       const order = res.data;
 
+      if (!order || !order.id) {
+        showToast("Failed to initialize payment. Try again.", "error");
+        return;
+      }
+
       const options = {
-        key: "rzp_test_pBgIF99r7ZIsb7",
+        key: "rzp_test_pBgIF99r7ZIsb7", // dev key; server validates signature
         amount: order.amount,
         currency: order.currency,
         name: "BorrowEase",
         description: "Loan Repayment",
         order_id: order.id,
         handler: async function (response) {
-        try {
-          const verificationResponse = await API.post("/payment/verify", {
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-            loanId: loan._id,
-            isRepayment: true // Explicitly mark as repayment
-          });
-          
-          if (verificationResponse.data.status === "success") {
-            showToast("Payment successful!", "success");
-            await loadLoans();
-          } else {
-            showToast("Payment verification failed", "error");
+          try {
+            const verificationResponse = await API.post("/payment/verify", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              loanId: loan._id,
+              isRepayment: true
+            });
+
+            if (verificationResponse.data.status === "success") {
+              showToast("Payment successful!", "success");
+              await loadLoans();
+            } else {
+              showToast("Payment verification failed", "error");
+            }
+          } catch (error) {
+            console.error("Payment verification failed:", error);
+            const msg = error?.response?.data?.error || error?.message || "Payment verification failed";
+            showToast(msg, "error");
           }
-        } catch (error) {
-          console.error("Payment verification failed:", error);
-          showToast("Payment verification failed", "error");
-        }
-      },
+        },
         prefill: {
           name: auth.currentUser?.displayName,
           email: auth.currentUser?.email,
         },
-        theme: {
-          color: "#3399cc",
-        },
+        theme: { color: "#3399cc" },
       };
 
       const rzp = new window.Razorpay(options);
       rzp.on("payment.failed", function (response) {
         console.error("Payment failed:", response.error);
-        alert("Payment failed: " + response.error.description);
+        showToast(response?.error?.description || "Payment failed", "error");
       });
       rzp.open();
     } catch (err) {
       console.error("Payment error", err);
-      alert("Payment failed");
+      const msg = err?.response?.data?.error || err?.message || "Payment failed";
+      showToast(msg, "error");
     }
   };
   const getStatusIcon = (loan) => {
@@ -259,8 +277,17 @@ export default function BorrowerDashboard() {
     return "text-gray-600 bg-gray-100";
   };
 
-  // Get loans to display based on showAllLoans state
-  const loansToDisplay = showAllLoans ? loanRequests : loanRequests.slice(0, LOANS_TO_SHOW);
+  // Order loans newest-first (by createdAt or submittedAt) and then slice for display
+  const orderedLoanRequests = [...loanRequests].sort((a, b) => {
+    const aDate = new Date(a.createdAt || a.submittedAt || 0).getTime();
+    const bDate = new Date(b.createdAt || b.submittedAt || 0).getTime();
+    return bDate - aDate; // Descending: newest first
+  });
+
+  // Get loans to display based on showAllLoans state, using the ordered list
+  const loansToDisplay = showAllLoans
+    ? orderedLoanRequests
+    : orderedLoanRequests.slice(0, LOANS_TO_SHOW);
   const hasMoreLoans = loanRequests.length > LOANS_TO_SHOW;
 
   if (isLoading) {
@@ -422,17 +449,7 @@ export default function BorrowerDashboard() {
               Interest Calculator
             </button>
             
-            <button
-              onClick={() => setCurrentView('disputes')}
-              className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
-                currentView === 'disputes'
-                  ? 'bg-red-600 text-white shadow-lg'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <AlertTriangle className="w-5 h-5 mr-2" />
-              Manage Disputes
-            </button>
+        
           </div>
         </div>
 
@@ -494,7 +511,7 @@ export default function BorrowerDashboard() {
                   <div className="text-purple-600">→</div>
                 </button>
 
-                <button
+                {/* <button
                   onClick={() => setCurrentView('disputes')}
                   className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-lg hover:from-red-100 hover:to-pink-100 transition-all"
                 >
@@ -506,7 +523,7 @@ export default function BorrowerDashboard() {
                     </div>
                   </div>
                   <div className="text-red-600">→</div>
-                </button>
+                </button> */}
 
                 <button
                   onClick={() => navigate('/credit-score')}
@@ -560,7 +577,8 @@ export default function BorrowerDashboard() {
                 </div>
               ) : (
                 <>
-                  <div className="space-y-4">
+                  {/* Make the loans list scrollable to avoid growing the whole page and increasing empty space */}
+                  <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
                     {loansToDisplay.map((loan) => (
                       <div
                         key={loan._id}

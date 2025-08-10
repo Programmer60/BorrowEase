@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Brain, Target, TrendingUp, AlertTriangle, CheckCircle, XCircle, Star, Activity } from 'lucide-react';
 import API from '../api/api';
 import KYCBadge from './KYCBadge';
+import EnhancedDisputeForm from './EnhancedDisputeForm';
 
 const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'lender' }) => {
   const [aiAssessment, setAiAssessment] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [borrowerKYC, setBorrowerKYC] = useState(null);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
 
   useEffect(() => {
     const borrowerIdValue = typeof loan.borrowerId === 'object' 
@@ -230,10 +232,23 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
         )}
         
         {loan.funded && (
-          <span className="text-green-600 font-medium flex items-center">
-            <CheckCircle className="w-4 h-4 mr-1" />
-            Successfully Funded
-          </span>
+          <div className="flex items-center gap-4 md:gap-6">
+            <span className="text-green-600 font-medium hidden sm:flex items-center">
+              <CheckCircle className="w-4 h-4 mr-1" />
+              Successfully Funded
+            </span>
+            {/* Lender can report a dispute for funded, not yet repaid loans */}
+            {userRole === 'lender' && !loan.repaid && (
+              <button
+                onClick={() => setShowDisputeForm(true)}
+                className="inline-flex items-center px-3 py-2 rounded-lg font-medium border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-colors"
+                title="Report an issue with this loan"
+              >
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                Report Issue
+              </button>
+            )}
+          </div>
         )}
 
         {/* Performance Indicator */}
@@ -244,6 +259,19 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
           </div>
         )}
       </div>
+
+      {/* Dispute Modal */}
+      {showDisputeForm && (
+        <EnhancedDisputeForm
+          loanDetails={loan}
+          onClose={() => setShowDisputeForm(false)}
+          onSubmitted={() => {
+            setShowDisputeForm(false);
+            // lightweight success feedback for lenders
+            try { window?.alert?.('Dispute submitted successfully.'); } catch {}
+          }}
+        />
+      )}
     </div>
   );
 };

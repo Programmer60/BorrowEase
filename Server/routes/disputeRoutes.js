@@ -1,188 +1,354 @@
 import express from "express";
 import Dispute from "../models/disputeModel.js";
 import Loan from "../models/loanModel.js";
+import User from "../models/userModel.js";
+import Notification from "../models/notificationModel.js";
 import { verifyToken } from "../firebase.js";
 
 const router = express.Router();
 
-// POST /disputes → borrower/lender raises a dispute
+// Create a new dispute
 router.post("/", verifyToken, async (req, res) => {
   try {
-    const { loanId, category, subject, message, priority } = req.body;
+    console.log("=== DISPUTE CREATION START ===");
+    console.log("Request body:", req.body);
+  console.log("User from token:", req.user);
+  console.log("User ID:", req.user?.id);
 
+  const { loanId, category, subject, message, priority, expectedResolution, evidence } = req.body;
+
+    // Validate required fields
     if (!loanId || !category || !subject || !message) {
-      return res.status(400).json({ error: "All required fields must be provided" });
+      console.log("Missing required fields");
+      return res.status(400).json({ 
+        error: "All required fields must be provided",
+        missing: {
+          loanId: !loanId,
+          category: !category,
+          subject: !subject,
+          message: !message
+        }
+      });
     }
 
-    // Verify loan exists and user is involved
-    const loan = await Loan.findById(loanId);
+    // Ensure we have a requester id (fallback via uid/email if missing)
+    if (!req.user || !req.user.id) {
+      if (req.user?.uid && !req.user.id) {
+        req.user.id = req.user.uid; // accept uid alias
+        console.log("ℹ️ Using req.user.uid as id:", req.user.id);
+      }
+      console.log("⚠️ req.user.id missing, attempting fallback lookup by email...");
+      if (req.user?.email) {
+        const fallbackUser = await User.findOne({ email: req.user.email });
+        if (fallbackUser) {
+          req.user.id = fallbackUser._id; // set for downstream
+          console.log("✅ Fallback user resolved:", { id: fallbackUser._id, email: fallbackUser.email });
+        }
+      }
+    }
+  if (!req.user?.id) {
+      console.log("❌ User ID could not be resolved even after fallback", { reqUser: req.user });
+      return res.status(401).json({ 
+        error: "User authentication failed",
+        details: "No user ID found in request after fallback"
+      });
+    }
+
+    // Find the user in database by id set by verifyToken
+  const user = await User.findById(req.user.id);
+    if (!user) {
+      console.log("User not found in database for ID:", req.user.id);
+      return res.status(404).json({ 
+        error: "User not found in database",
+        id: req.user.id
+      });
+    }
+    console.log("User found:", { id: user._id, name: user.name, role: user.role });
+
+    // Find the loan
+    const loan = await Loan.findById(loanId).populate('borrowerId').populate('lenderId');
     if (!loan) {
-      return res.status(404).json({ error: "Loan not found" });
+      console.log("Loan not found for ID:", loanId);
+      return res.status(404).json({ 
+        error: "Loan not found",
+        loanId: loanId
+      });
     }
-
-    // Check if user is involved in this loan
-    const userRole = req.user.email === loan.collegeEmail ? "borrower" : "lender";
-    if (userRole === "lender" && loan.lenderId?.toString() !== req.user.uid) {
-      return res.status(403).json({ error: "You are not authorized to create a dispute for this loan" });
-    }
-
-    const dispute = new Dispute({
-      loanId,
-      raisedBy: req.user.uid,
-      role: userRole,
-      category: category || "other",
-      subject,
-      message,
-      priority: priority || "medium"
+    console.log("Loan found:", { 
+      id: loan._id, 
+      borrowerId: loan.borrowerId?._id, 
+      lenderId: loan.lenderId?._id 
     });
 
-    await dispute.save();
-    
-    const populatedDispute = await Dispute.findById(dispute._id)
-      .populate('raisedBy', 'name email')
-      .populate('loanId', 'amount purpose collegeEmail');
-
-    res.status(201).json(populatedDispute);
-  } catch (error) {
-    console.error("Error creating dispute:", error);
-    res.status(500).json({ error: "Failed to create dispute" });
-  }
-});
-
-// GET /disputes → get user's disputes or all disputes (admin)
-router.get("/", verifyToken, async (req, res) => {
-  try {
-    let disputes;
-    
-    if (req.user.role === "admin") {
-      // Admin can see all disputes
-      disputes = await Dispute.find()
-        .populate('raisedBy', 'name email')
-        .populate('loanId', 'amount purpose collegeEmail')
-        .populate('adminId', 'name email')
-        .sort({ createdAt: -1 });
+  // Determine user role based on loan relationship
+    let userRole = "borrower";
+    if (loan.lenderId && loan.lenderId._id.toString() === user._id.toString()) {
+      userRole = "lender";
+    } else if (loan.borrowerId && loan.borrowerId._id.toString() === user._id.toString()) {
+      userRole = "borrower";
     } else {
-      // Users can only see their own disputes
-      disputes = await Dispute.find({ raisedBy: req.user.uid })
-        .populate('loanId', 'amount purpose collegeEmail')
-        .populate('adminId', 'name email')
-        .sort({ createdAt: -1 });
+      console.log("User is not associated with this loan");
+      return res.status(403).json({ 
+        error: "You are not associated with this loan",
+        userId: user._id,
+        loanBorrowerId: loan.borrowerId?._id,
+        loanLenderId: loan.lenderId?._id
+      });
     }
-
-    res.json(disputes);
-  } catch (error) {
-    console.error("Error fetching disputes:", error);
-    res.status(500).json({ error: "Failed to fetch disputes" });
-  }
-});
-
-// GET /disputes/:loanId → get all disputes for a specific loan
-router.get("/loan/:loanId", verifyToken, async (req, res) => {
-  try {
-    const { loanId } = req.params;
     
-    // Verify loan exists and user is involved
-    const loan = await Loan.findById(loanId);
-    if (!loan) {
-      return res.status(404).json({ error: "Loan not found" });
+    console.log("User role determined:", userRole);
+
+    // Optional: enforce lender report window after funding
+    try {
+      const windowHours = Number(process.env.LENDER_DISPUTE_WINDOW_HOURS || 48);
+      if (userRole === 'lender' && loan.fundedAt && !isNaN(new Date(loan.fundedAt))) {
+        const msSinceFund = Date.now() - new Date(loan.fundedAt).getTime();
+        const allowedMs = windowHours * 60 * 60 * 1000;
+        if (msSinceFund > allowedMs) {
+          return res.status(400).json({
+            error: `Reporting window closed. Disputes by lenders are allowed within ${windowHours} hours of funding.`
+          });
+        }
+      }
+    } catch (twErr) {
+      console.warn('Time-window check skipped due to error:', twErr?.message);
     }
 
-    // Check if user is involved in this loan or is admin
-    const userRole = req.user.email === loan.collegeEmail ? "borrower" : "lender";
-    if (req.user.role !== "admin" && 
-        userRole === "lender" && loan.lenderId?.toString() !== req.user.uid) {
-      return res.status(403).json({ error: "You are not authorized to view disputes for this loan" });
-    }
-
-    const disputes = await Dispute.find({ loanId })
-      .populate('raisedBy', 'name email')
-      .populate('adminId', 'name email')
-      .sort({ createdAt: -1 });
-
-    res.json(disputes);
-  } catch (error) {
-    console.error("Error fetching loan disputes:", error);
-    res.status(500).json({ error: "Failed to fetch disputes" });
-  }
-});
-
-// PATCH /disputes/:id/resolve → admin resolves or replies
-router.patch("/:id/resolve", verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, adminResponse } = req.body;
-
-    // Check if user is admin
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Access denied. Admins only." });
-    }
-
-    if (!status || !adminResponse) {
-      return res.status(400).json({ error: "Status and admin response are required" });
-    }
-
-    const updateData = {
-      status,
-      adminResponse,
-      adminId: req.user.uid
+    // Create dispute data
+    const disputeData = {
+      loanId: loanId,
+      raisedBy: req.user.id?.toString(), // store app user id as string
+      role: userRole,
+      category: category,
+      subject: subject,
+      message: message,
+      priority: priority || "medium",
+  expectedResolution: expectedResolution || "",
+  evidence: Array.isArray(evidence) ? evidence.slice(0, 5) : []
     };
 
-    if (status === "resolved") {
+    console.log("Creating dispute with data:", disputeData);
+
+    // Validate dispute data before creating
+  if (!disputeData.raisedBy) {
+      console.log("ERROR: raisedBy is still undefined");
+      return res.status(500).json({ 
+        error: "Internal error: raisedBy field is undefined",
+        debugInfo: {
+          reqUser: req.user,
+      reqUserId: req.user?.id,
+          disputeData: disputeData
+        }
+      });
+    }
+
+    // Create the dispute
+    const dispute = new Dispute(disputeData);
+
+    console.log("Dispute object created, attempting to save...");
+    const savedDispute = await dispute.save();
+    console.log("Dispute saved successfully with ID:", savedDispute._id);
+
+    // Populate the saved dispute for response
+    const populatedDispute = await Dispute.findById(savedDispute._id)
+      .populate('loanId')
+      .lean();
+
+    // Notify counterparty about opened dispute
+    try {
+      const targetUser = userRole === 'lender' ? loan.borrowerId?._id : loan.lenderId?._id;
+      if (targetUser) {
+        await Notification.create({
+          userId: targetUser,
+          type: 'dispute_opened',
+          title: 'Dispute reported',
+          message: `${userRole === 'lender' ? 'Lender' : 'Borrower'} reported a dispute on loan "${loan.purpose}"${subject ? `: ${subject}` : ''}.`
+        });
+      }
+    } catch (notifyOpenErr) {
+      console.error('Failed to notify counterparty about dispute opening:', notifyOpenErr);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Dispute created successfully',
+      dispute: populatedDispute
+    });
+
+  } catch (error) {
+    console.error("=== DISPUTE CREATION ERROR ===");
+    console.error("Error message:", error.message);
+    console.error("Error name:", error.name);
+    console.error("Error stack:", error.stack);
+    
+    // Check for validation errors specifically
+    if (error.name === 'ValidationError') {
+      console.error("Validation errors:", error.errors);
+      const validationErrors = Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      }));
+      
+      return res.status(400).json({ 
+        error: "Validation failed",
+        validationErrors: validationErrors,
+        details: error.message
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to create dispute",
+      details: error.message,
+      errorName: error.name
+    });
+  }
+});
+
+// Get all disputes (admin only)
+router.get("/", verifyToken, async (req, res) => {
+  try {
+    const disputes = await Dispute.find()
+      .populate('loanId')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      disputes: disputes
+    });
+  } catch (error) {
+    console.error("Error fetching disputes:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to fetch disputes" 
+    });
+  }
+});
+
+// Get disputes for a specific user
+router.get("/my-disputes", verifyToken, async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      if (req.user?.uid && !req.user.id) {
+        req.user.id = req.user.uid;
+        console.log("ℹ️ /my-disputes using uid as id:", req.user.id);
+      }
+      console.log("⚠️ /my-disputes: req.user.id missing, attempting fallback by email");
+      if (req.user?.email) {
+        const fallbackUser = await User.findOne({ email: req.user.email });
+        if (fallbackUser) {
+          req.user.id = fallbackUser._id;
+          console.log("✅ Fallback user resolved for /my-disputes:", { id: fallbackUser._id });
+        }
+      }
+      if (!req.user?.id) {
+        return res.status(401).json({ 
+          error: "User authentication failed" 
+        });
+      }
+    }
+
+  const disputes = await Dispute.find({ raisedBy: req.user.id?.toString() })
+      .populate('loanId')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      disputes: disputes
+    });
+  } catch (error) {
+    console.error("Error fetching user disputes:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to fetch user disputes" 
+    });
+  }
+});
+
+// Update dispute status (admin only)
+router.patch("/:disputeId/status", verifyToken, async (req, res) => {
+  try {
+    const { disputeId } = req.params;
+    const { status, adminResponse } = req.body;
+
+    if (!req.user?.id) {
+      if (req.user?.uid && !req.user.id) {
+        req.user.id = req.user.uid;
+        console.log("ℹ️ /:disputeId/status using uid as id:", req.user.id);
+      }
+      console.log("⚠️ /:disputeId/status: req.user.id missing, attempting fallback by email");
+      if (req.user?.email) {
+        const fallbackUser = await User.findOne({ email: req.user.email });
+        if (fallbackUser) {
+          req.user.id = fallbackUser._id;
+          console.log("✅ Fallback user resolved for status update:", { id: fallbackUser._id });
+        }
+      }
+      if (!req.user?.id) {
+        return res.status(401).json({ 
+          error: "User authentication failed" 
+        });
+      }
+    }
+
+    const updateData = { 
+      status,
+      adminId: req.user.id?.toString()
+    };
+
+    if (adminResponse) {
+      updateData.adminResponse = adminResponse;
+    }
+
+    if (status === 'resolved') {
       updateData.resolvedAt = new Date();
     }
 
-    const updatedDispute = await Dispute.findByIdAndUpdate(
-      id,
+    const dispute = await Dispute.findByIdAndUpdate(
+      disputeId,
       updateData,
       { new: true }
-    ).populate('raisedBy', 'name email')
-     .populate('loanId', 'amount purpose collegeEmail')
-     .populate('adminId', 'name email');
+    ).populate('loanId');
 
-    if (!updatedDispute) {
-      return res.status(404).json({ error: "Dispute not found" });
+    if (!dispute) {
+      return res.status(404).json({ 
+        error: "Dispute not found" 
+      });
     }
 
-    res.json(updatedDispute);
-  } catch (error) {
-    console.error("Error resolving dispute:", error);
-    res.status(500).json({ error: "Failed to resolve dispute" });
-  }
-});
-
-// GET /disputes/stats → admin gets dispute statistics
-router.get("/admin/stats", verifyToken, async (req, res) => {
-  try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ error: "Access denied. Admins only." });
+    // Send a notification to the user who raised the dispute
+    try {
+      const targetUserId = dispute.raisedBy; // string of Mongo ObjectId
+      if (targetUserId) {
+        const notifDoc = await Notification.create({
+          userId: targetUserId,
+          type: status === 'resolved' ? 'dispute_resolved' : 'admin',
+          title: `Dispute ${status}`,
+          message: status === 'resolved'
+            ? `Your dispute "${dispute.subject || 'regarding your loan'}" has been resolved${dispute.adminResponse ? `: ${dispute.adminResponse}` : '.'}`
+            : `Your dispute status was updated to "${status}"${dispute.adminResponse ? ` with response: ${dispute.adminResponse}` : ''}.`
+        });
+        // Optional: log created notification id
+        if (notifDoc?._id) {
+          console.log('Notification created for dispute update:', notifDoc._id.toString());
+        }
+      }
+    } catch (notifyErr) {
+      console.error('Failed to create notification for dispute update:', notifyErr);
+      // Do not fail the main request on notification errors
     }
-
-    const totalDisputes = await Dispute.countDocuments();
-    const openDisputes = await Dispute.countDocuments({ status: "open" });
-    const inProgressDisputes = await Dispute.countDocuments({ status: "in-progress" });
-    const resolvedDisputes = await Dispute.countDocuments({ status: "resolved" });
-    const rejectedDisputes = await Dispute.countDocuments({ status: "rejected" });
-
-    const categoryStats = await Dispute.aggregate([
-      { $group: { _id: "$category", count: { $sum: 1 } } }
-    ]);
-
-    const priorityStats = await Dispute.aggregate([
-      { $group: { _id: "$priority", count: { $sum: 1 } } }
-    ]);
 
     res.json({
-      total: totalDisputes,
-      open: openDisputes,
-      inProgress: inProgressDisputes,
-      resolved: resolvedDisputes,
-      rejected: rejectedDisputes,
-      categoryBreakdown: categoryStats,
-      priorityBreakdown: priorityStats
+      success: true,
+      message: 'Dispute updated successfully',
+      dispute: dispute
     });
   } catch (error) {
-    console.error("Error fetching dispute stats:", error);
-    res.status(500).json({ error: "Failed to fetch dispute statistics" });
+    console.error("Error updating dispute:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Failed to update dispute" 
+    });
   }
 });
 

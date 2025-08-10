@@ -14,7 +14,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Navbar from "./Navbar";
-import API from "../api/api"; // Assuming this is your API import, adjust if needed
+import API from "../api/api";
 
 export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
@@ -29,11 +29,19 @@ export default function ProfilePage() {
     bio: "",
     university: "",
     graduationYear: "",
-    creditScore: 0,
-    totalLoans: 0,
-    totalBorrowed: "",
   });
 
+  // Add separate state for real-time statistics
+  const [userStats, setUserStats] = useState({
+    creditScore: 0,
+    activeLoans: 0,
+    totalBorrowed: 0,
+    totalLent: 0,
+    repaidLoans: 0,
+    overdueLoans: 0
+  });
+
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -45,20 +53,43 @@ export default function ProfilePage() {
           ...prev,
           name: user.name || "",
           email: user.email || "",
+          phone: user.phone || "",
+          location: user.location || "",
+          bio: user.bio || "",
+          university: user.university || "",
+          graduationYear: user.graduationYear || "",
           role: user.role || "",
           joinDate: new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }) || "",
-          profilePicture: user.profilePicture || null, // <-- Add this line
-          // Add more fields if available in user object, e.g.
-          // phone: user.phone || '',
-          // location: user.location || '',
-          // etc.
+          profilePicture: user.profilePicture || null,
         }));
       } catch (error) {
         console.error("Error fetching user data:", error);
       }
     };
 
+    const fetchUserStats = async () => {
+      try {
+        setIsLoadingStats(true);
+        const res = await API.get("/users/stats");
+        setUserStats(res.data);
+      } catch (error) {
+        console.error("Error fetching user stats:", error);
+        // Set default values if API fails
+        setUserStats({
+          creditScore: 750,
+          activeLoans: 0,
+          totalBorrowed: 0,
+          totalLent: 0,
+          repaidLoans: 0,
+          overdueLoans: 0
+        });
+      } finally {
+        setIsLoadingStats(false);
+      }
+    };
+
     fetchUserData();
+    fetchUserStats();
 
     // Load persisted profile picture from localStorage
     const savedPhoto = localStorage.getItem("profilePicture");
@@ -80,7 +111,7 @@ export default function ProfilePage() {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", "borrowease_profile"); // Set this in Cloudinary dashboard
+    formData.append("upload_preset", "borrowease_profile");
 
     try {
       const res = await fetch(
@@ -94,7 +125,6 @@ export default function ProfilePage() {
       const data = await res.json();
       const imageUrl = data.secure_url;
 
-      // Send this image URL to your backend to save in DB
       await API.patch("/users/me", { profilePicture: imageUrl });
 
       setProfileData((prev) => ({
@@ -107,20 +137,28 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSave = () => {
-    // Here you would typically save updated data to your API
-    // For example: await API.put('/users/me', profileData);
-    setProfileData((prev) => ({
-      ...prev,
-      role: profileData.role.toLowerCase(),
-    }));
-    console.log("Saving profile data:", profileData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      // Save updated profile data to API
+      await API.patch("/users/me", {
+        name: profileData.name,
+        phone: profileData.phone,
+        location: profileData.location,
+        bio: profileData.bio,
+        university: profileData.university,
+        graduationYear: profileData.graduationYear,
+      });
+      
+      console.log("Profile data saved successfully");
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Error saving profile data:", error);
+      alert("Failed to save profile data");
+    }
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    // Reset to original data if needed
   };
 
   return (
@@ -176,25 +214,34 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Stats for Borrower */}
-              {profileData.role === "borrower" && (
-                <div className="px-6 py-4 bg-gray-50">
+              {/* Real-time Stats */}
+              <div className="px-6 py-4 bg-gray-50">
+                {isLoadingStats ? (
+                  <div className="flex justify-center items-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                    <span className="ml-2 text-sm text-gray-600">Loading stats...</span>
+                  </div>
+                ) : (
                   <div className="grid grid-cols-2 gap-4 text-center">
                     <div>
                       <div className="text-2xl font-bold text-purple-600">
-                        {profileData.totalLoans}
+                        {userStats.activeLoans}
                       </div>
-                      <div className="text-sm text-gray-600">Active Loans</div>
+                      <div className="text-sm text-gray-600">
+                        {profileData.role === 'borrower' ? 'Active Loans' : 'Loans Funded'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-purple-600">
-                        {profileData.creditScore}
+                        {Math.round(userStats.creditScore)}
                       </div>
-                      <div className="text-sm text-gray-600">Credit Score</div>
+                      <div className="text-sm text-gray-600">
+                        {profileData.role === 'borrower' ? 'Credit Score' : 'Success Rate'}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               <div className="p-6">
                 <div className="space-y-4">
@@ -204,11 +251,11 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center text-gray-600">
                     <Phone className="w-5 h-5 mr-3" />
-                    <span className="text-sm">{profileData.phone}</span>
+                    <span className="text-sm">{profileData.phone || 'Not provided'}</span>
                   </div>
                   <div className="flex items-center text-gray-600">
                     <MapPin className="w-5 h-5 mr-3" />
-                    <span className="text-sm">{profileData.location}</span>
+                    <span className="text-sm">{profileData.location || 'Not provided'}</span>
                   </div>
                 </div>
               </div>
@@ -280,20 +327,9 @@ export default function ProfilePage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Email
                     </label>
-                    {isEditing ? (
-                      <input
-                        type="email"
-                        value={profileData.email}
-                        onChange={(e) =>
-                          handleInputChange("email", e.target.value)
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-                      />
-                    ) : (
-                      <p className="text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                        {profileData.email}
-                      </p>
-                    )}
+                    <p className="text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
+                      {profileData.email}
+                    </p>
                   </div>
 
                   <div>
@@ -311,7 +347,7 @@ export default function ProfilePage() {
                       />
                     ) : (
                       <p className="text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                        {profileData.phone}
+                        {profileData.phone || 'Not provided'}
                       </p>
                     )}
                   </div>
@@ -331,7 +367,7 @@ export default function ProfilePage() {
                       />
                     ) : (
                       <p className="text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                        {profileData.location}
+                        {profileData.location || 'Not provided'}
                       </p>
                     )}
                   </div>
@@ -353,7 +389,7 @@ export default function ProfilePage() {
                           />
                         ) : (
                           <p className="text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                            {profileData.university}
+                            {profileData.university || 'Not provided'}
                           </p>
                         )}
                       </div>
@@ -376,7 +412,7 @@ export default function ProfilePage() {
                           />
                         ) : (
                           <p className="text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                            {profileData.graduationYear}
+                            {profileData.graduationYear || 'Not provided'}
                           </p>
                         )}
                       </div>
@@ -398,56 +434,90 @@ export default function ProfilePage() {
                     />
                   ) : (
                     <p className="text-gray-900 bg-gray-50 px-3 py-2 rounded-lg min-h-[100px]">
-                      {profileData.bio}
+                      {profileData.bio || 'No bio provided'}
                     </p>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Account Summary */}
-            {profileData.role === "borrower" && (
-              <div className="mt-8 bg-white rounded-2xl shadow-lg overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    Account Summary
-                  </h3>
-                </div>
-                <div className="p-6">
+            {/* Enhanced Account Summary with Real-time Data */}
+            <div className="mt-8 bg-white rounded-2xl shadow-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Account Summary
+                </h3>
+              </div>
+              <div className="p-6">
+                {isLoadingStats ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    <span className="ml-2 text-gray-600">Loading account summary...</span>
+                  </div>
+                ) : (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="text-center p-4 bg-purple-50 rounded-lg">
                       <div className="flex items-center justify-center w-12 h-12 bg-purple-600 rounded-lg mx-auto mb-3">
                         <TrendingUp className="w-6 h-6 text-white" />
                       </div>
                       <div className="text-2xl font-bold text-purple-600">
-                        {profileData.creditScore}
+                        {Math.round(userStats.creditScore)}
                       </div>
-                      <div className="text-sm text-gray-600">Credit Score</div>
+                      <div className="text-sm text-gray-600">
+                        {profileData.role === 'borrower' ? 'Credit Score' : 'Success Rate'}
+                      </div>
+                      <div className="mt-1">
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          userStats.creditScore >= 750 ? 'bg-green-100 text-green-800' :
+                          userStats.creditScore >= 650 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {userStats.creditScore >= 750 ? 'Excellent' :
+                           userStats.creditScore >= 650 ? 'Good' : 'Fair'}
+                        </span>
+                      </div>
                     </div>
+                    
                     <div className="text-center p-4 bg-blue-50 rounded-lg">
                       <div className="flex items-center justify-center w-12 h-12 bg-blue-600 rounded-lg mx-auto mb-3">
                         <CreditCard className="w-6 h-6 text-white" />
                       </div>
                       <div className="text-2xl font-bold text-blue-600">
-                        {profileData.totalLoans}
+                        {userStats.activeLoans}
                       </div>
                       <div className="text-sm text-gray-600">Active Loans</div>
+                      {userStats.overdueLoans > 0 && (
+                        <div className="mt-1">
+                          <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
+                            {userStats.overdueLoans} Overdue
+                          </span>
+                        </div>
+                      )}
                     </div>
+                    
                     <div className="text-center p-4 bg-green-50 rounded-lg">
                       <div className="flex items-center justify-center w-12 h-12 bg-green-600 rounded-lg mx-auto mb-3">
                         <Shield className="w-6 h-6 text-white" />
                       </div>
                       <div className="text-2xl font-bold text-green-600">
-                        {profileData.totalBorrowed}
+                        ₹{profileData.role === 'borrower' ? 
+                          userStats.totalBorrowed.toLocaleString() : 
+                          userStats.totalLent.toLocaleString()
+                        }
                       </div>
                       <div className="text-sm text-gray-600">
-                        Total Borrowed
+                        {profileData.role === 'borrower' ? 'Total Borrowed' : 'Total Lent'}
+                      </div>
+                      <div className="mt-1">
+                        <span className="text-xs text-gray-500">
+                          {userStats.repaidLoans} Completed
+                        </span>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

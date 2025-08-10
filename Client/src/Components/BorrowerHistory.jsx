@@ -52,6 +52,13 @@ export default function BorrowerHistory () {
     const repaidLoans = loans.filter(loan => loan.repaid);
     const pendingLoans = loans.filter(loan => loan.funded && !loan.repaid);
 
+    // Order loans: newest first by createdAt (fallbacks for legacy fields)
+    const orderedLoans = [...loans].sort((a, b) => {
+        const aTime = new Date(a.createdAt || a.requestedDate || a.submittedAt || 0).getTime();
+        const bTime = new Date(b.createdAt || b.requestedDate || b.submittedAt || 0).getTime();
+        return bTime - aTime;
+    });
+
     const getStatusInfo = (loan) => {
         if (loan.repaid) {
             return {
@@ -192,7 +199,7 @@ export default function BorrowerHistory () {
                             </div>
                         ) : (
                             <div className="divide-y divide-gray-200">
-                                {loans.map((loan) => {
+                                {orderedLoans.map((loan) => {
                                     const statusInfo = getStatusInfo(loan);
                                     return (
                                         <div key={loan._id} className="p-6 hover:bg-gray-50 transition-colors">

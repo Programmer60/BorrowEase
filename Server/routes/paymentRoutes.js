@@ -21,20 +21,36 @@ router.post("/create-order", async (req, res) => {
   const { amount } = req.body;
 
   try {
-    if (!amount) return res.status(400).json({ error: "Amount is required" });
+    // Validate amount
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      return res.status(400).json({ error: "Valid amount is required" });
+    }
+
+    const paise = Math.round(amt * 100); // Razorpay expects paise as integer
 
     const options = {
-      amount: amount * 100, // Razorpay expects paise
+      amount: paise,
       currency: "INR",
-      receipt: `rcptid_${Math.floor(Math.random() * 10000)}`,
+      receipt: `rcptid_${Date.now()}`,
+      notes: { source: "BorrowEase", type: "loan_payment" },
     };
 
     const order = await instance.orders.create(options);
-    console.log("Order created:", order);
+    console.log("✅ Razorpay order created", { id: order.id, amount: order.amount });
     res.json(order);
   } catch (err) {
-    console.error("Error in Razorpay order creation:", err);
-    res.status(500).json({ error: "Razorpay order creation failed" });
+    // Log more diagnostics to help debugging
+    console.error("❌ Error in Razorpay order creation:", {
+      message: err?.message,
+      name: err?.name,
+      statusCode: err?.statusCode,
+      error: err?.error,
+    });
+    res.status(500).json({
+      error: "Razorpay order creation failed",
+      details: err?.message || "Unknown error",
+    });
   }
 });
 
@@ -73,7 +89,7 @@ router.post("/verify", verifyToken, async (req, res) => {
       borrowerMessage = `You have successfully repaid ₹${loan.amount} for your loan (${loan.purpose})`;
       lenderMessage = `Loan repayment of ₹${loan.amount} received from ${loan.name} for ${loan.purpose}`;
     } else {
-      update = { funded: true, lenderId: req.user.id };
+      update = { funded: true, lenderId: req.user.id, fundedAt: new Date() };
       borrowerMessage = `Your loan request for ₹${loan.amount} (${loan.purpose}) has been funded!`;
       lenderMessage = `You have successfully funded ₹${loan.amount} to ${loan.name} for ${loan.purpose}`;
     }

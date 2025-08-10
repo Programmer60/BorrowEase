@@ -3,6 +3,66 @@
 ## Overview
 Successfully replaced the simple DisputeModal with a comprehensive dispute management system throughout the BorrowEase platform. This enhancement provides better user experience, admin oversight, and resolution tracking.
 
+## 🆕 What's New (Aug 2025)
+
+The dispute system got several upgrades across backend and UI to make it more actionable and reliable:
+
+### 1) Lender “Report Issue” on loan cards
+- Added a prominent “Report Issue” button in lender loan cards (only when a loan is funded and not repaid).
+- Opens the enhanced dispute form with loan context prefilled.
+
+### 2) Role‑aware Disputes Overview and safer loading
+- For admins: loads all disputes from GET `/api/disputes`.
+- For lenders/borrowers: loads only the user’s disputes from GET `/api/disputes/my-disputes`.
+- Normalizes API responses (array or `{ success, disputes: [] }`) and hardens search/filter to avoid crashes.
+- Resolving a dispute now uses PATCH `/api/disputes/:id/status` and merges the updated dispute from the response.
+
+### 3) Actionable notifications (bell icon integrates automatically)
+- New notification types:
+  - `dispute_opened`: sent to the counterparty when a dispute is created.
+  - `dispute_resolved`: sent to the dispute raiser when an admin resolves/updates status.
+- Notification schema now supports an optional `title` for richer UI.
+
+### 4) Fairness: lender reporting time window
+- New field `loan.fundedAt` is set when funding completes.
+- Server enforces a configurable time window for lender reports after funding
+  - ENV: `LENDER_DISPUTE_WINDOW_HOURS` (default: `48`).
+  - If exceeded, server returns 400 with a clear message.
+
+### 5) Evidence support (API‑ready)
+- Dispute schema now supports an `evidence[]` array with `{ url, name, type, size }`.
+- The create endpoint accepts an optional `evidence` array; UI uploader can be wired next (Cloudinary upload route already exists for KYC and can be reused/configured for disputes).
+
+### 6) API and data model changes (non‑breaking)
+- Endpoints
+  - Create: `POST /api/disputes` -> returns `{ success, message, dispute }`.
+  - List (admin): `GET /api/disputes` -> `{ success, disputes }`.
+  - List (user): `GET /api/disputes/my-disputes` -> `{ success, disputes }`.
+  - Update: `PATCH /api/disputes/:id/status` -> `{ success, message, dispute }`.
+- Models
+  - Loan: `fundedAt: Date` (auto‑populated on funding).
+  - Dispute: `evidence: [{ url, name, type, size }]`.
+  - Notification: types extended with `dispute_opened`, `dispute_resolved` and optional `title`.
+
+### 7) UX details
+- Lender card shows “Report Issue” button (AlertTriangle, red accent) for funded, not‑repaid loans.
+- DisputesOverview search covers subject, message, role, and loan purpose; no crashes if fields are missing.
+
+## 🔎 Quick test checklist
+1. Lender clicks “Report Issue” on a funded loan → form opens → submit → success toast.
+2. Counterparty (borrower or lender) sees a new bell notification “Dispute reported”.
+3. Admin opens Disputes Overview → filters work → resolve a dispute.
+4. Dispute raiser receives a “Dispute resolved” bell notification with the admin response.
+5. Attempt lender dispute after `LENDER_DISPUTE_WINDOW_HOURS` → server rejects with 400.
+
+## ⚙️ Configuration
+- `LENDER_DISPUTE_WINDOW_HOURS` (default `48`) — controls how long after funding a lender can raise a dispute.
+
+## 🧩 Next (optional) enhancements
+- UI evidence uploader in the dispute form with preview and progress, posting uploaded files as `evidence[]`.
+- Show an “Under Review” badge on loan cards when a dispute is open for that loan and hide the report button.
+- Add MongoDB indexes on Dispute: `{ loanId: 1 }`, `{ raisedBy: 1 }`, `{ status: 1, createdAt: -1 }` for bigger datasets.
+
 ## ✅ Implementation Complete
 
 ### 🔄 What Was Changed

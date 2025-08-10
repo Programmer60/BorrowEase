@@ -45,12 +45,13 @@ export const verifyToken = async (req, res, next) => {
       }
       
       console.log('✅ User found in database:', user.email, 'Role:', user.role);
-      req.user = { 
-        id: user._id,       
-        name: decodedToken.name, 
-        email: decodedToken.email, 
-        role: user.role 
-      };
+          req.user = { 
+            id: user._id,       
+            uid: decodedToken.uid, // for backward compatibility
+            name: decodedToken.name, 
+            email: decodedToken.email, 
+            role: user.role 
+          };
       console.log('👤 User object set:', req.user);
     } else {
       // For /setup route, just pass the decoded token info
