@@ -116,7 +116,7 @@ router.get("/my-loans", verifyToken, async (req, res) => {
     
     // Get paginated loans with proper sorting (newest first)
     const loans = await Loan.find({ collegeEmail: email })
-      .sort({ submittedAt: -1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 

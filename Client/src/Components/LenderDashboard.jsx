@@ -8,6 +8,8 @@ import EnhancedLoanCard from './EnhancedLoanCard';
 import AILoanRecommendationEngine from './AILoanRecommendationEngine';
 import LenderInvestmentDashboard from './LenderInvestmentDashboard';
 import DisputesOverview from './DisputesOverview';
+import { ensureScrollUnlocked } from "../utils/scrollLockGuard";
+import { auth } from "../firebase";
 
 export default function LenderDashboard() {
   const [loanRequests, setLoanRequests] = useState([]);
@@ -17,10 +19,38 @@ export default function LenderDashboard() {
   const [sortBy, setSortBy] = useState('newest');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('browse'); // browse, recommendations, investment, disputes
+  const [redirecting, setRedirecting] = useState(false); // show overlay while creating order and redirecting
+  const [paymentBanner, setPaymentBanner] = useState(null); // { type, message }
   const token = localStorage.getItem('token');
+  // Derive backend origin from Axios baseURL (e.g., http://localhost:5000)
+  const API_BASE = API?.defaults?.baseURL || '';
+  const SERVER_ORIGIN = (() => {
+    try { return new URL(API_BASE).origin; } catch { return 'http://localhost:5000'; }
+  })();
 
   // Filter and search functionality
   useEffect(() => {
+    // If redirected back after payment, show a friendly banner and clean the URL
+    try {
+      const url = new URL(window.location.href);
+      const params = url.searchParams;
+      const status = params.get('payment');
+      const reason = params.get('reason');
+      if (status === 'success') {
+        setPaymentBanner({ type: 'success', message: 'Payment successful. Thank you!' });
+        try { localStorage.removeItem('last_order_id'); } catch {}
+      } else if (status === 'failed') {
+        const msg = reason ? decodeURIComponent(reason) : 'Payment failed or was cancelled.';
+        setPaymentBanner({ type: 'error', message: `Payment failed: ${msg}` });
+      }
+      if (status) {
+        params.delete('payment');
+        params.delete('reason');
+        params.delete('order');
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch {}
+
     // Fetch loans only once on mount
     const fetchLoans = async () => {
       setIsLoading(true);
@@ -34,6 +64,25 @@ export default function LenderDashboard() {
       }
     };
     fetchLoans();
+
+    // If user came back without callback (closed checkout), attempt to resolve status
+    try {
+      const lastOrderId = localStorage.getItem('last_order_id');
+      if (lastOrderId) {
+        API.get(`/payment/status/${lastOrderId}`).then(({ data }) => {
+          console.log('ℹ️ Resolved pending order status:', data);
+          if (data.status === 'paid') {
+            alert('Payment completed successfully.');
+            try { localStorage.removeItem('last_order_id'); } catch {}
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+
+    return () => {
+      // Safety: ensure body scroll isn't locked when navigating away
+      ensureScrollUnlocked();
+    }
   }, []);
 
   useEffect(() => {
@@ -73,60 +122,70 @@ export default function LenderDashboard() {
 
   const handleFund = async (loanId, amount) => {
   setIsLoading(true);
-  try {
-    // 1. Create Razorpay order via backend
-    const orderRes = await API.post('/payment/create-order', { amount });
-    const { amount: amount2, id, currency } = orderRes.data;
+  setRedirecting(true);
+    try {
+      const amt = Number(amount);
+      if (!Number.isFinite(amt) || amt <= 0) {
+        alert('Invalid amount');
+        return;
+      }
 
-    // 2. Open Razorpay checkout
-    const options = {
-      key: 'rzp_test_pBgIF99r7ZIsb7', 
-      amount: amount2,
-      currency: currency,
-      order_id: id,
-      name: 'BorrowEase',
-      description: 'Fund Loan',
-      handler: async function (response) {
-        try {
-          // 3. Verify payment on backend with CORRECT headers
-          const verifyRes = await API.post('/payment/verify', {
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-            loanId,
-            isRepayment: false
-          }, {
-            // --- THIS IS THE FIX ---
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          
-          if (verifyRes.data.status === "success") {
-            // 4. Refresh loans
-            const freshLoans = await getLoanRequests();
-            setLoanRequests(freshLoans);
-            alert('Payment successful! Loan has been funded.');
-          } else {
-            alert('Payment verification failed!');
-          }
-        } catch (error) {
-          console.error('Error verifying payment:', error.message);
-          alert('Payment verification failed!');
-        }
-      },
-      prefill: {},
-      theme: { color: '#7c3aed' }
-    };
-    const rzp = new window.Razorpay(options);
-    rzp.open();
-  } catch (error) {
-    console.error('Error funding loan:', error.message);
-    alert('Payment failed!');
-  } finally {
-    setIsLoading(false);
-  }
-};
+      // Always use redirect-based flow to avoid modal issues in emulated/preview contexts
+      console.log('➡️ Creating order at', `${SERVER_ORIGIN}/api/payment/create-order`);
+      // Proactively ensure a fresh token is attached (avoid rare race where interceptor runs before auth restores after redirect)
+      const user = auth.currentUser;
+      if (!user) {
+        alert('Session not restored yet. Please sign in again.');
+        return;
+      }
+      const freshToken = await user.getIdToken(true);
+      const orderRes = await API.post(
+        '/payment/create-order',
+        { amount: amt, loanId, isRepayment: false },
+        { headers: { Authorization: `Bearer ${freshToken}` } }
+      ).catch(async (e) => {
+        // Retry once after a short wait for transient CORS/network glitches
+        const msg = e?.message || e?.toString();
+        console.warn('First attempt failed, retrying create-order:', msg);
+        await new Promise(r => setTimeout(r, 300));
+        const retryToken = await user.getIdToken(true);
+        return API.post('/payment/create-order', { amount: amt, loanId, isRepayment: false }, { headers: { Authorization: `Bearer ${retryToken}` } });
+      });
+      console.log('✅ create-order response:', orderRes?.data);
+      const { id } = orderRes.data || {};
+      if (!id) {
+        console.error('create-order returned no order id:', orderRes?.data);
+        alert('Payment initialization failed (no order id).');
+        return;
+      }
+
+      // Redirect to backend-hosted checkout page (avoid SPA intercept on :5173)
+      const checkoutUrl = `${SERVER_ORIGIN}/api/payment/checkout/${id}`;
+      console.log('↪️ Redirecting to checkout:', checkoutUrl);
+      // Persist last order id in case the user closes the checkout page
+      try { localStorage.setItem('last_order_id', id); } catch {}
+      window.location.href = checkoutUrl;
+      return;
+      
+      // --- Modal path retained for future enablement ---
+      // const options = { ... , callback_url: `${SERVER_ORIGIN}/api/payment/callback` };
+    } catch (error) {
+      const status = error?.response?.status;
+      const details = error?.response?.data || error?.message || error;
+      console.error('Error funding loan:', details);
+      if (status === 0 || !status) {
+        alert('Could not reach server at 5000. Check that the backend is running and CORS allows 5173.');
+      } else if (status === 401) {
+        alert('Please sign in again. Auth token missing/expired.');
+      } else {
+        alert('Payment initialization failed. See console for details.');
+      }
+    } finally {
+  setIsLoading(false);
+  setRedirecting(false);
+      ensureScrollUnlocked();
+    }
+  };
 
   // Calculate statistics - only for approved loans
   const approvedLoans = loanRequests.filter(loan => loan.status === "approved");
@@ -139,6 +198,23 @@ export default function LenderDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Payment status banner */}
+      {paymentBanner && (
+        <div className={`px-4 py-3 ${paymentBanner.type === 'success' ? 'bg-green-50 border-b border-green-200' : 'bg-red-50 border-b border-red-200'} text-sm text-gray-800 flex items-center justify-between`}
+             role="status">
+          <span>{paymentBanner.message}</span>
+          <button className="text-gray-500 hover:text-gray-700" onClick={() => setPaymentBanner(null)}>Dismiss</button>
+        </div>
+      )}
+      {/* Tiny overlay to indicate progress when opening payment */}
+      {redirecting && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[2000]">
+          <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent" />
+            <span className="text-sm text-gray-700">Opening secure payment…</span>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <Navbar />
 

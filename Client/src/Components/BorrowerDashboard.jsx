@@ -32,6 +32,7 @@ import EnhancedLoanRequestForm from "./EnhancedLoanRequestForm";
 import InteractiveInterestCalculator from "./InteractiveInterestCalculator";
 import DisputesManagement from "./DisputesManagement";
 import EnhancedDisputeForm from "./EnhancedDisputeForm";
+import { ensureScrollUnlocked } from "../utils/scrollLockGuard";
 
 
 const Toast = ({ message, type, onClose }) => {
@@ -88,6 +89,8 @@ export default function BorrowerDashboard() {
   const [showInterestCalculator, setShowInterestCalculator] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'newLoan', 'calculator', 'disputes'
   const [chatUnreadCounts, setChatUnreadCounts] = useState({});
+  const [redirectingPayment, setRedirectingPayment] = useState(false);
+  const [paymentBanner, setPaymentBanner] = useState(null); // { type, message }
   const LOANS_TO_SHOW = 4; // Show only 4 loans initially
   
 
@@ -119,7 +122,32 @@ export default function BorrowerDashboard() {
       }
     });
 
-    return () => unsubscribe();
+    // Show payment banner if redirected back
+    try {
+      const url = new URL(window.location.href);
+      const params = url.searchParams;
+      const status = params.get('payment');
+      const reason = params.get('reason');
+      if (status === 'success') {
+        setPaymentBanner({ type: 'success', message: 'Payment successful. Thank you!' });
+        try { localStorage.removeItem('last_order_id'); } catch {}
+      } else if (status === 'failed') {
+        const msg = reason ? decodeURIComponent(reason) : 'Payment failed or was cancelled.';
+        setPaymentBanner({ type: 'error', message: `Payment failed: ${msg}` });
+      }
+      if (status) {
+        params.delete('payment');
+        params.delete('reason');
+        params.delete('order');
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch {}
+
+    return () => {
+      unsubscribe();
+      // Safety: ensure body scroll isn't locked when navigating away
+      ensureScrollUnlocked();
+    };
   }, []);
 
   const showToast = (message, type) => {
@@ -131,7 +159,7 @@ export default function BorrowerDashboard() {
 
   const loadLoans = async () => {
     try {
-      const res = await API.get("/loans/my-loans");
+  const res = await API.get("/loans/my-loans?limit=50");
       console.log("Loaded loans:", res.data);
       
       // Handle both old format (array) and new format (object with loans and pagination)
@@ -167,9 +195,17 @@ export default function BorrowerDashboard() {
     setIsSubmitting(true);
 
     try {
-      await API.post("/loans", loanData);
+      const resp = await API.post("/loans", loanData);
       showToast("Loan request submitted successfully!", "success");
       setCurrentView('dashboard');
+      // Optimistically add to top of list for immediate feedback
+      const newLoan = resp.data?.loan || resp.data;
+      if (newLoan && newLoan._id) {
+        // Ensure createdAt exists so it sorts to the top immediately
+        const withTimestamp = { createdAt: new Date().toISOString(), ...newLoan };
+        setLoanRequests(prev => [withTimestamp, ...prev]);
+      }
+      // Then refresh from server in background
       loadLoans();
     } catch (error) {
       showToast("Error submitting loan request", "error");
@@ -181,6 +217,7 @@ export default function BorrowerDashboard() {
 
   const handlePayment = async (amount, loan) => {
     try {
+  setRedirectingPayment(true);
       // Basic validation
       const amt = Number(amount);
       if (!Number.isFinite(amt) || amt <= 0) {
@@ -194,8 +231,14 @@ export default function BorrowerDashboard() {
         return;
       }
 
-      const res = await API.post("/payment/create-order", { amount: amt });
+      console.log('➡️ Borrower creating order for repayment...');
+      const res = await API.post("/payment/create-order", { amount: amt, loanId: loan._id, isRepayment: true }).catch(async (e) => {
+        console.warn('First attempt failed (repayment), retrying...', e?.message || e);
+        await new Promise(r => setTimeout(r, 300));
+        return API.post("/payment/create-order", { amount: amt, loanId: loan._id, isRepayment: true });
+      });
       const order = res.data;
+      console.log('✅ Repayment create-order response:', order);
 
       if (!order || !order.id) {
         showToast("Failed to initialize payment. Try again.", "error");
@@ -238,16 +281,31 @@ export default function BorrowerDashboard() {
         theme: { color: "#3399cc" },
       };
 
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", function (response) {
-        console.error("Payment failed:", response.error);
-        showToast(response?.error?.description || "Payment failed", "error");
-      });
-      rzp.open();
+      // Prefer server-hosted checkout redirect for reliability
+      try {
+        const SERVER_ORIGIN = new URL(API.defaults.baseURL).origin;
+        const checkoutUrl = `${SERVER_ORIGIN}/api/payment/checkout/${order.id}`;
+        console.log('↪️ Redirecting to repayment checkout:', checkoutUrl);
+        window.location.href = checkoutUrl;
+      } catch (e) {
+        // Fallback to modal if URL parse fails
+        const rzp = new window.Razorpay(options);
+        rzp.on("payment.failed", function (response) {
+          console.error("Payment failed:", response.error);
+          showToast(response?.error?.description || "Payment failed", "error");
+          ensureScrollUnlocked();
+        });
+        console.log('🧾 Opening Razorpay modal for repayment, order_id:', order.id);
+        rzp.open();
+      }
+      // After a short delay, ensure any scroll lock added by checkout is removed
+      setTimeout(() => ensureScrollUnlocked(), 0);
     } catch (err) {
       console.error("Payment error", err);
       const msg = err?.response?.data?.error || err?.message || "Payment failed";
       showToast(msg, "error");
+      ensureScrollUnlocked();
+  setRedirectingPayment(false);
     }
   };
   const getStatusIcon = (loan) => {
@@ -279,8 +337,8 @@ export default function BorrowerDashboard() {
 
   // Order loans newest-first (by createdAt or submittedAt) and then slice for display
   const orderedLoanRequests = [...loanRequests].sort((a, b) => {
-    const aDate = new Date(a.createdAt || a.submittedAt || 0).getTime();
-    const bDate = new Date(b.createdAt || b.submittedAt || 0).getTime();
+    const aDate = new Date(a.createdAt || a.updatedAt || a.fundedAt || a.submittedAt || 0).getTime();
+    const bDate = new Date(b.createdAt || b.updatedAt || b.fundedAt || b.submittedAt || 0).getTime();
     return bDate - aDate; // Descending: newest first
   });
 
@@ -305,6 +363,21 @@ export default function BorrowerDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 z-50">
+      {paymentBanner && (
+        <div className={`px-4 py-3 ${paymentBanner.type === 'success' ? 'bg-green-50 border-b border-green-200' : 'bg-red-50 border-b border-red-200'} text-sm text-gray-800 flex items-center justify-between`}
+             role="status">
+          <span>{paymentBanner.message}</span>
+          <button className="text-gray-500 hover:text-gray-700" onClick={() => setPaymentBanner(null)}>Dismiss</button>
+        </div>
+      )}
+      {redirectingPayment && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[2000]">
+          <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-600 border-t-transparent" />
+            <span className="text-sm text-gray-700">Opening secure payment…</span>
+          </div>
+        </div>
+      )}
       {/* Toast Notification - move this above Navbar */}
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={closeToast} />

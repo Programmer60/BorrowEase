@@ -9,15 +9,16 @@ const ProtectedRoute = ({ element: Component, requiredRole }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const checkAuth = async () => {
+    // Wait for Firebase to restore the session after a full-page redirect
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       try {
-        // Check if user is logged in
-        if (!auth.currentUser) {
+        if (!user) {
+          // No session
           navigate('/login');
           return;
         }
 
-        // Check user role if required
+        // Only check role once the user is available (token attached by interceptor)
         if (requiredRole) {
           const res = await API.get('/users/me');
           if (res.data.role !== requiredRole) {
@@ -29,14 +30,14 @@ const ProtectedRoute = ({ element: Component, requiredRole }) => {
 
         setIsAuthorized(true);
       } catch (error) {
-        console.error('Authentication error:', error.message);
+        console.error('Authentication error:', error?.response?.data || error?.message || error);
         navigate('/login');
       } finally {
         setIsLoading(false);
       }
-    };
+    });
 
-    checkAuth();
+    return () => unsubscribe();
   }, [navigate, requiredRole]);
 
   if (isLoading) return null;

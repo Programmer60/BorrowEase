@@ -82,7 +82,7 @@ const DisputesManagement = () => {
 
   const filterDisputes = () => {
     const base = Array.isArray(disputes) ? disputes : [];
-    let filtered = [...base];
+  let filtered = [...base];
 
     // Filter by status
     if (filters.status !== 'all') {
@@ -108,16 +108,19 @@ const DisputesManagement = () => {
         const roleStr = dispute.role || '';
         const loanPurpose = dispute.loanId?.purpose || '';
         const borrowerEmail = dispute.loanId?.collegeEmail || '';
-        return (
-          subjectStr.toLowerCase().includes(searchLower) ||
-          messageStr.toLowerCase().includes(searchLower) ||
-          roleStr.toLowerCase().includes(searchLower) ||
-          loanPurpose.toLowerCase().includes(searchLower) ||
-          borrowerEmail.toLowerCase().includes(searchLower)
-        );
+        const raisedByName = dispute.raisedByUser?.name || '';
+        const raisedByEmail = dispute.raisedByUser?.email || '';
+        const counterpartyName = dispute.counterpartyUser?.name || '';
+        const counterpartyEmail = dispute.counterpartyUser?.email || '';
+        return [
+          subjectStr, messageStr, roleStr, loanPurpose, borrowerEmail,
+          raisedByName, raisedByEmail, counterpartyName, counterpartyEmail
+        ].some(val => (val || '').toLowerCase().includes(searchLower));
       });
     }
 
+    // Newest first (already sorted by API, but ensure locally if needed)
+    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     setFilteredDisputes(filtered);
   };
 
@@ -179,7 +182,7 @@ const DisputesManagement = () => {
   };
 
   const DisputeCard = ({ dispute }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow overflow-hidden">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className={`p-2 rounded-lg ${getPriorityColor(dispute.priority)}`}>
@@ -200,19 +203,48 @@ const DisputesManagement = () => {
         </div>
       </div>
 
-      <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
-        <div className="flex items-center">
-          <User className="w-4 h-4 mr-1" />
-          {dispute.role ? dispute.role.charAt(0).toUpperCase() + dispute.role.slice(1) : 'User'}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600 mb-4 break-words">
+        <div className="flex items-center min-w-0">
+          <User className="w-4 h-4 mr-1 flex-shrink-0" />
+          <span className="font-medium flex-shrink-0">
+            {dispute.role ? dispute.role.charAt(0).toUpperCase() + dispute.role.slice(1) : 'User'}
+          </span>
+          {dispute.raisedByUser?.name && (
+            <span className="ml-2 text-gray-700 max-w-[160px] truncate" title={dispute.raisedByUser.name}>
+              • {dispute.raisedByUser.name}
+            </span>
+          )}
+          {dispute.raisedByUser?.email && (
+            <span className="ml-2 text-gray-500 max-w-[220px] truncate" title={dispute.raisedByUser.email}>
+              ({dispute.raisedByUser.email})
+            </span>
+          )}
         </div>
-        <div className="flex items-center">
-          <Calendar className="w-4 h-4 mr-1" />
-          {new Date(dispute.createdAt).toLocaleDateString()}
+        <div className="flex items-center min-w-0">
+          <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
+          <span>{new Date(dispute.createdAt).toLocaleDateString()}</span>
         </div>
         {dispute.loanId && (
-          <div className="flex items-center">
-            <DollarSign className="w-4 h-4 mr-1" />
-            ₹{dispute.loanId.amount?.toLocaleString()}
+          <div className="flex items-center min-w-0">
+            <DollarSign className="w-4 h-4 mr-1 flex-shrink-0" />
+            <span>₹{dispute.loanId.amount?.toLocaleString()}</span>
+          </div>
+        )}
+        {dispute.counterpartyUser && (
+          <div className="flex items-center min-w-0">
+            <User className="w-4 h-4 mr-1 flex-shrink-0" />
+            <span className="text-gray-600 flex-shrink-0">Counterparty:</span>
+            <span
+              className="ml-1 text-gray-700 max-w-[200px] truncate"
+              title={dispute.counterpartyUser.name || ''}
+            >
+              {dispute.counterpartyUser.name || 'Unknown'}
+            </span>
+            {dispute.counterpartyUser.email && (
+              <span className="ml-2 text-gray-500 max-w-[220px] truncate" title={dispute.counterpartyUser.email}>
+                ({dispute.counterpartyUser.email})
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -402,6 +434,22 @@ const DisputesManagement = () => {
                   <div className="flex items-center"><Calendar className="w-4 h-4 mr-2" />
                     Created: {new Date(selectedDispute.createdAt).toLocaleString()}
                   </div>
+                  <div className="flex items-center">
+                    <User className="w-4 h-4 mr-2" />
+                    Raised by: {selectedDispute.raisedByUser?.name || 'Unknown'}
+                    {selectedDispute.raisedByUser?.email && (
+                      <span className="ml-2 text-gray-500">({selectedDispute.raisedByUser.email})</span>
+                    )}
+                  </div>
+                  {selectedDispute.counterpartyUser && (
+                    <div className="flex items-center">
+                      <User className="w-4 h-4 mr-2" />
+                      Other party: {selectedDispute.counterpartyUser?.name || 'Unknown'}
+                      {selectedDispute.counterpartyUser?.email && (
+                        <span className="ml-2 text-gray-500">({selectedDispute.counterpartyUser.email})</span>
+                      )}
+                    </div>
+                  )}
                   {selectedDispute.loanId && (
                     <>
                       <div className="flex items-center"><DollarSign className="w-4 h-4 mr-2" />

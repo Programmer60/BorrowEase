@@ -1,4 +1,5 @@
 import express from "express";
+import mongoose from "mongoose";
 import Dispute from "../models/disputeModel.js";
 import Loan from "../models/loanModel.js";
 import User from "../models/userModel.js";
@@ -208,13 +209,57 @@ router.post("/", verifyToken, async (req, res) => {
 // Get all disputes (admin only)
 router.get("/", verifyToken, async (req, res) => {
   try {
-    const disputes = await Dispute.find()
-      .populate('loanId')
-      .sort({ createdAt: -1 });
-    
+    // Populate loan and its parties
+    const disputesRaw = await Dispute.find()
+      .populate({
+        path: 'loanId',
+        populate: [
+          { path: 'borrowerId', select: 'name email role' },
+          { path: 'lenderId', select: 'name email role' }
+        ]
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Collect unique raisedBy ids (stored as strings) and convert to ObjectIds safely
+    const raisedByIds = Array.from(new Set(
+      disputesRaw
+        .map(d => d.raisedBy)
+        .filter(Boolean)
+    ));
+
+    const raisedByObjectIds = raisedByIds
+      .map(idStr => {
+        try {
+          return new mongoose.Types.ObjectId(idStr);
+        } catch (_) {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    // Fetch user docs for raisedBy
+    const users = await User.find({ _id: { $in: raisedByObjectIds } })
+      .select('name email role')
+      .lean();
+    const userMap = new Map(users.map(u => [u._id.toString(), u]));
+
+    // Enrich disputes with raisedByUser and counterpartyUser
+    const disputes = disputesRaw.map(d => {
+      const raisedByUser = d.raisedBy ? userMap.get(d.raisedBy.toString()) || null : null;
+      const borrowerUser = d.loanId?.borrowerId || null;
+      const lenderUser = d.loanId?.lenderId || null;
+      const counterpartyUser = d.role === 'borrower' ? lenderUser : d.role === 'lender' ? borrowerUser : null;
+      return {
+        ...d,
+        raisedByUser,
+        counterpartyUser
+      };
+    });
+
     res.json({
       success: true,
-      disputes: disputes
+      disputes
     });
   } catch (error) {
     console.error("Error fetching disputes:", error);
