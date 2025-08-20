@@ -4,16 +4,19 @@ import { MessageCircle } from "lucide-react";
 import Navbar from "./Navbar";
 import { getMyLoans } from "../api/loanApi";
 import { loadChatUnreadCounts } from "../api/chatApi";
+import { useSocket } from "../contexts/SocketContext";
 import API from "../api/api";
 
 export default function BorrowerHistory () {
     const [loans, setLoans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [chatUnreadCounts, setChatUnreadCounts] = useState({});
     const [pagination, setPagination] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const navigate = useNavigate();
+    
+    // Use centralized socket context for chat notifications
+    const { chatUnreadCounts, updateChatUnreadCounts } = useSocket();
 
     useEffect(() => {
         const loadMyLoans = async () => {
@@ -32,7 +35,7 @@ export default function BorrowerHistory () {
                 const fundedLoans = myLoans.filter(loan => loan.funded);
                 if (fundedLoans.length > 0) {
                     const unreadCounts = await loadChatUnreadCounts(fundedLoans);
-                    setChatUnreadCounts(unreadCounts);
+                    updateChatUnreadCounts(unreadCounts, true); // Mark as initial load
                 }
             } catch (error) {
                 console.error("Error loading my loans:", error.message);
@@ -44,8 +47,6 @@ export default function BorrowerHistory () {
 
         loadMyLoans();
     }, [currentPage]);
-
-    // Remove the old sequential loadChatUnreadCounts function since we're using the optimized one from chatApi
 
     const totalRequested = loans.reduce((sum, loan) => sum + loan.amount, 0);
     const fundedLoans = loans.filter(loan => loan.funded);

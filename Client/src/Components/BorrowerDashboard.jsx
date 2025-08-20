@@ -28,6 +28,7 @@ import API from "../api/api";
 import { loadChatUnreadCounts } from "../api/chatApi";
 import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { useSocket } from "../contexts/SocketContext";
 import EnhancedLoanRequestForm from "./EnhancedLoanRequestForm";
 import InteractiveInterestCalculator from "./InteractiveInterestCalculator";
 import DisputesManagement from "./DisputesManagement";
@@ -88,11 +89,12 @@ export default function BorrowerDashboard() {
   const [showLoanForm, setShowLoanForm] = useState(false);
   const [showInterestCalculator, setShowInterestCalculator] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'newLoan', 'calculator', 'disputes'
-  const [chatUnreadCounts, setChatUnreadCounts] = useState({});
   const [redirectingPayment, setRedirectingPayment] = useState(false);
   const [paymentBanner, setPaymentBanner] = useState(null); // { type, message }
   const LOANS_TO_SHOW = 4; // Show only 4 loans initially
-  
+
+  // Use centralized socket context for chat notifications
+  const { chatUnreadCounts, updateChatUnreadCounts } = useSocket();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -134,6 +136,7 @@ export default function BorrowerDashboard() {
       } else if (status === 'failed') {
         const msg = reason ? decodeURIComponent(reason) : 'Payment failed or was cancelled.';
         setPaymentBanner({ type: 'error', message: `Payment failed: ${msg}` });
+        try { localStorage.removeItem('last_order_id'); } catch {}
       }
       if (status) {
         params.delete('payment');
@@ -142,6 +145,29 @@ export default function BorrowerDashboard() {
         window.history.replaceState({}, '', url.toString());
       }
     } catch {}
+
+    // If user closed gateway without redirect, poll last known order once
+    (async () => {
+      try {
+        // Skip if we already handled via query param above
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('payment')) return;
+        const pendingOrderId = localStorage.getItem('last_order_id');
+        if (!pendingOrderId) return;
+        const { data } = await API.get(`/payment/status/${pendingOrderId}`);
+        if (data?.status === 'paid') {
+          setPaymentBanner({ type: 'success', message: 'Payment successful. Thank you!' });
+          // Refresh loans to reflect repaid status
+          try { await loadLoans(); } catch {}
+        } else {
+          setPaymentBanner({ type: 'error', message: 'Payment failed or was cancelled.' });
+        }
+      } catch (e) {
+        setPaymentBanner({ type: 'error', message: 'Payment failed or was cancelled.' });
+      } finally {
+        try { localStorage.removeItem('last_order_id'); } catch {}
+      }
+    })();
 
     return () => {
       unsubscribe();
@@ -178,7 +204,7 @@ export default function BorrowerDashboard() {
       const fundedLoans = loans.filter(loan => loan.funded);
       if (fundedLoans.length > 0) {
         const unreadCounts = await loadChatUnreadCounts(fundedLoans);
-        setChatUnreadCounts(unreadCounts);
+        updateChatUnreadCounts(unreadCounts, true); // Mark as initial load
       }
     } catch (error) {
       showToast("Error fetching loans", "error");
@@ -237,7 +263,7 @@ export default function BorrowerDashboard() {
         await new Promise(r => setTimeout(r, 300));
         return API.post("/payment/create-order", { amount: amt, loanId: loan._id, isRepayment: true });
       });
-      const order = res.data;
+  const order = res.data;
       console.log('✅ Repayment create-order response:', order);
 
       if (!order || !order.id) {
@@ -281,10 +307,12 @@ export default function BorrowerDashboard() {
         theme: { color: "#3399cc" },
       };
 
+      // Persist pending order so we can poll if user closes gateway without redirect
+      try { localStorage.setItem('last_order_id', order.id); } catch {}
+
       // Prefer server-hosted checkout redirect for reliability
       try {
-        const SERVER_ORIGIN = new URL(API.defaults.baseURL).origin;
-        const checkoutUrl = `${SERVER_ORIGIN}/api/payment/checkout/${order.id}`;
+        const checkoutUrl = order.checkoutUrl || `${new URL(API.defaults.baseURL).origin}/api/payment/checkout/${order.id}`;
         console.log('↪️ Redirecting to repayment checkout:', checkoutUrl);
         window.location.href = checkoutUrl;
       } catch (e) {

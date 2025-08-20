@@ -48,9 +48,18 @@ router.get("/loan/:loanId", verifyToken, async (req, res) => {
     }
 
     const messages = await ChatMessage.find({ loanId })
-      .populate("senderId", "name email")
-      .populate("receiverId", "name email")
+      .populate("senderId", "name email _id")
+      .populate("receiverId", "name email _id")
       .sort({ timestamp: 1 });
+
+    console.log('📨 Retrieved messages:', {
+      count: messages.length,
+      sampleMessage: messages[0] ? {
+        senderId: messages[0].senderId._id.toString(),
+        senderName: messages[0].senderId.name,
+        message: messages[0].message.substring(0, 50)
+      } : 'No messages'
+    });
 
     // Mark messages as read for the current user
     await ChatMessage.updateMany(
@@ -111,8 +120,15 @@ router.post("/send", verifyToken, async (req, res) => {
     await newMessage.save();
     
     const populatedMessage = await ChatMessage.findById(newMessage._id)
-      .populate("senderId", "name email")
-      .populate("receiverId", "name email");
+      .populate("senderId", "name email _id")
+      .populate("receiverId", "name email _id");
+
+    console.log('📤 New message sent:', {
+      messageId: populatedMessage._id,
+      senderId: populatedMessage.senderId._id.toString(),
+      senderName: populatedMessage.senderId.name,
+      message: populatedMessage.message.substring(0, 50)
+    });
 
     res.status(201).json(populatedMessage);
   } catch (error) {

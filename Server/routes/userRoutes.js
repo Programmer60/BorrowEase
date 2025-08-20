@@ -69,6 +69,7 @@ router.get("/me", verifyToken, async (req, res) => {
     }
     
     const responseData = {
+      _id: user._id, // Add the MongoDB _id for frontend comparison
       name: user.name,
       email: user.email,
       role: user.role,
@@ -83,7 +84,7 @@ router.get("/me", verifyToken, async (req, res) => {
       } : null
     };
     
-    console.log('✅ Sending user data:', responseData);
+    console.log('✅ Sending user data with _id:', responseData);
     res.json(responseData);
   } catch (error) {
     console.error('❌ Error in /users/me:', error);

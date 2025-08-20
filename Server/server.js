@@ -161,6 +161,23 @@ io.on("connection", (socket) => {
         }
       });
 
+      // If loan is funded but lenderId is missing and the joiner is not the borrower, stamp lender info
+      const borrowerIdStr = loan.borrowerId?._id?.toString();
+      const lenderIdStr = loan.lenderId?._id?.toString();
+      if (loan.funded && !lenderIdStr && userId !== borrowerIdStr) {
+        try {
+          loan.lenderId = userId;
+          await loan.save();
+          // Also set denormalized lenderName for display
+          await Loan.findByIdAndUpdate(loanId, { lenderName: userName }, { new: true });
+          console.log('🛠️ Stamped missing lender on loan', loanId, 'lenderId', userId, 'lenderName', userName);
+          // Notify room participants so UIs can refresh counterparty name
+          io.to(`loan_${loanId}`).emit('loanUpdated', { loanId, lenderId: userId, lenderName: userName });
+        } catch (e) {
+          console.warn('⚠️ Failed to stamp lender info on loan', loanId, e?.message);
+        }
+      }
+
       // Join the loan chat room
       socket.join(`loan_${loanId}`);
       console.log(`User ${userName} joined chat for loan ${loanId}`);
@@ -178,6 +195,7 @@ io.on("connection", (socket) => {
   // Handle sending messages
   socket.on("sendMessage", async ({ loanId, message, receiverId }) => {
     try {
+  console.log('🛰️ sendMessage received', { from: userId, to: receiverId, loanId, socket: socket.id });
       // Verify the loan exists and user is authorized
       const loan = await Loan.findById(loanId)
         .populate('borrowerId', '_id')
@@ -212,7 +230,8 @@ io.on("connection", (socket) => {
         .populate("receiverId", "name email");
 
       // Send to all users in the loan chat room (only the participants)
-      io.to(`loan_${loanId}`).emit("receiveMessage", populatedMessage);
+  io.to(`loan_${loanId}`).emit("receiveMessage", populatedMessage);
+  console.log('📡 receiveMessage emitted to room', `loan_${loanId}`, 'msgId', populatedMessage._id?.toString?.());
       
       // Only notify the receiver via user room if they're not currently in the chat room
       const receiverSockets = await io.in(`user_${receiverId}`).fetchSockets();
@@ -226,6 +245,7 @@ io.on("connection", (socket) => {
           message: populatedMessage,
           from: userName
         });
+        console.log('🔔 newMessage emitted to user room', `user_${receiverId}`);
       }
       
     } catch (error) {
@@ -236,7 +256,8 @@ io.on("connection", (socket) => {
 
   // Handle typing indicators (only for specific loan chat)
   socket.on("typing", ({ loanId }) => {
-    socket.to(`loan_${loanId}`).emit("userTyping", { 
+  console.log('⌨️ typing from', userId, 'in loan', loanId);
+  socket.to(`loan_${loanId}`).emit("userTyping", { 
       userId, 
       userName,
       loanId 
@@ -244,7 +265,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("stopTyping", ({ loanId }) => {
-    socket.to(`loan_${loanId}`).emit("userStopTyping", { 
+  console.log('⌨️ stopTyping from', userId, 'in loan', loanId);
+  socket.to(`loan_${loanId}`).emit("userStopTyping", { 
       userId, 
       userName,
       loanId 

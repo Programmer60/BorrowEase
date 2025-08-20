@@ -398,6 +398,50 @@ Client/
 - Fund approved loans with AI guidance
 - Track funded loan performance
 - **AI-powered repayment predictions** for funded loans
+
+## 🧩 Recent Fix: Payment failure/cancel redirect UX (Aug 2025)
+
+Issue observed
+- Clicking “Failure” in Razorpay sometimes showed “Cannot GET /api/payment/callback”, or redirected borrowers to /lender where a role-guard popped “Access denied. You are not a lender.”
+
+What we changed (server)
+- Added GET /api/payment/callback to handle Razorpay GET-style redirects on failure, mirroring the POST handler.
+- Both POST and GET /api/payment/callback now render a small branded interstitial page and then auto-redirect back to the SPA with clear query params.
+- POST /api/payment/create-order now returns checkoutUrl that points to the server-hosted checkout page and includes a fallback role parameter:
+  - Repayment → ?fallback=borrower
+  - Funding → ?fallback=lender
+- Server-hosted checkout pages forward fallback into Razorpay’s callback_url so, even if orderId is missing, the callback knows which dashboard to return to.
+- Callback picks destination by reading the order’s notes.isRepayment; if unavailable, it falls back to the ?fallback value.
+
+What we changed (client)
+- BorrowerDashboard and LenderDashboard:
+  - Show a friendly banner after redirect based on ?payment=success|failed&reason=...
+  - Persist last_order_id and, if the user closes the gateway without redirect, poll GET /api/payment/status/:orderId once to resolve status.
+  - Clean the query string after showing the banner.
+
+Expected behavior
+- On cancel/failure: you briefly see an interstitial page, then land on /borrower or /lender with a banner and URL like:
+  - /borrower?payment=failed&order=order_...&code=...&reason=...
+  - /lender?payment=failed&order=order_...&code=...&reason=...
+- On success: you land on the correct dashboard with ?payment=success and a success banner.
+
+Endpoints involved
+- POST /api/payment/create-order → returns { id, amount, …, checkoutUrl }
+- GET  /api/payment/checkout/:orderId[?fallback=role]
+- POST /api/payment/callback (success/failure)
+- GET  /api/payment/callback    (failure or when gateway uses GET)
+- GET  /api/payment/status/:orderId (dashboard polling fallback)
+
+Quick test
+1) Start backend and frontend.
+2) As a borrower, initiate a repayment and click Failure in Razorpay → you should be redirected to /borrower with a “Payment failed” banner.
+3) As a lender, initiate funding and click Failure → redirected to /lender with a “Payment failed” banner.
+4) Close the gateway without redirect → on next load, dashboard polls status for last_order_id and shows the proper banner.
+
+Troubleshooting
+- If you see “Cannot GET /api/payment/callback”, ensure the API has the new GET route and has been restarted.
+- If redirected to the wrong dashboard, check that checkoutUrl contains ?fallback=borrower or ?fallback=lender and that callback_url also includes the same fallback.
+- See PAYMENT_DEBUG_GUIDE.md for deeper diagnostics.
 - Communicate with borrowers
 - Submit disputes for problems
 

@@ -1,25 +1,41 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Search } from "lucide-react";
 import Navbar from "./Navbar";
-import { getFundedLoans } from "../api/loanApi";
 import { loadChatUnreadCounts } from "../api/chatApi";
+import { useSocket } from "../contexts/SocketContext";
 import API from "../api/api";
 
 export default function LenderHistory() {
     const [loans, setLoans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [chatUnreadCounts, setChatUnreadCounts] = useState({});
     const [pagination, setPagination] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [debouncedQ, setDebouncedQ] = useState("");
     const navigate = useNavigate();
+    const { chatUnreadCounts, updateChatUnreadCounts } = useSocket();
+
+    // Debounce search input to reduce API calls
+    useEffect(() => {
+        const id = setTimeout(() => setDebouncedQ(searchTerm.trim()), 300);
+        return () => clearTimeout(id);
+    }, [searchTerm]);
+
+    // Reset to first page whenever debounced search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedQ]);
 
     useEffect(() => {
         const loadFundedLoans = async () => {
             try {
                 setLoading(true);
-                const response = await getFundedLoans(currentPage, 20);
+                // Send search term to backend so results span all pages
+                const params = new URLSearchParams({ page: String(currentPage), limit: String(20) });
+                if (debouncedQ) params.set('q', debouncedQ);
+                const response = await API.get(`/loans/funded?${params.toString()}`).then(r => r.data);
                 
                 // Handle both old format (array) and new format (object with loans and pagination)
                 const fundedLoans = response.loans || response;
@@ -31,7 +47,7 @@ export default function LenderHistory() {
                 // Load chat unread counts for funded loans (optimized bulk call)
                 if (fundedLoans.length > 0) {
                     const unreadCounts = await loadChatUnreadCounts(fundedLoans);
-                    setChatUnreadCounts(unreadCounts);
+                    updateChatUnreadCounts(unreadCounts, true); // Mark as initial load
                 }
             } catch (error) {
                 setError(error.message);
@@ -40,13 +56,23 @@ export default function LenderHistory() {
             }
         };
         loadFundedLoans();
-    }, [currentPage]);
-
-    // Remove the old sequential loadChatUnreadCounts function since we're using the optimized one from chatApi
+    }, [currentPage, debouncedQ]);
 
     const totalFunded = loans.reduce((sum, loan) => sum + loan.amount, 0);
     const repaidLoans = loans.filter(loan => loan.repaid).length;
     const pendingLoans = loans.filter(loan => !loan.repaid).length;
+
+        // Client-side search over current page results
+        const normalized = (val) => (val || "").toString().toLowerCase();
+        const q = normalized(debouncedQ);
+            // We already query the backend with q; keep local filter as a secondary guard
+            const filteredLoans = q
+                    ? loans.filter(loan =>
+                            normalized(loan.purpose).includes(q) ||
+                            normalized(loan.name).includes(q) ||
+                            normalized(loan.collegeEmail).includes(q)
+                        )
+                    : loans;
 
     return (
         <>
@@ -68,6 +94,17 @@ export default function LenderHistory() {
                                 <div className="text-center">
                                     <div className="text-2xl font-bold text-green-600">₹{totalFunded.toLocaleString()}</div>
                                     <div className="text-sm text-gray-500">Total Funded</div>
+                                </div>
+                                {/* Search box */}
+                                <div className="relative">
+                                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        placeholder="Search by borrower, email, purpose"
+                                        className="pl-9 pr-3 py-2 w-72 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -150,9 +187,19 @@ export default function LenderHistory() {
                                 <h3 className="text-lg font-medium text-gray-900 mb-2">No loans funded yet</h3>
                                 <p className="text-gray-500">Start funding loans to see them here</p>
                             </div>
+                        ) : filteredLoans.length === 0 ? (
+                            <div className="text-center py-12">
+                                <div className="text-gray-400 mb-4">
+                                    <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">No matching loans</h3>
+                                <p className="text-gray-500">Try a different name, email, or purpose</p>
+                            </div>
                         ) : (
                             <div className="divide-y divide-gray-200">
-                                {loans.map((loan) => (
+                                {filteredLoans.map((loan) => (
                                     <div key={loan._id} className="p-6 hover:bg-gray-50 transition-colors">
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">

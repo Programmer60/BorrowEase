@@ -142,12 +142,25 @@ router.get("/funded", verifyToken, async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20; // Default 20 loans per page
     const skip = (page - 1) * limit;
+    const q = (req.query.q || '').toString().trim();
+
+    const filter = { lenderId: id };
+    if (q) {
+      // Escape regex special chars, then case-insensitive search across key fields
+      const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(esc, 'i');
+      filter.$or = [
+        { purpose: regex },
+        { name: regex },
+        { collegeEmail: regex },
+      ];
+    }
 
     // Get total count for pagination info
-    const totalLoans = await Loan.countDocuments({ lenderId: id });
+    const totalLoans = await Loan.countDocuments(filter);
     
     // Get paginated loans with proper sorting (newest first)
-    const loans = await Loan.find({ lenderId: id })
+    const loans = await Loan.find(filter)
       .sort({ fundedAt: -1, submittedAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -189,7 +202,10 @@ router.patch("/:id/fund", verifyToken, async (req, res) => {
     loan.lenderId = req.user.id;
     await loan.save();
 
-    res.json(loan);
+  // Ensure response carries a usable lenderName for UI display
+  const loanObj = loan.toObject({ getters: true, virtuals: false });
+  loanObj.lenderName = loan.lenderName || loan.lenderId?.name || loan.lenderId?.email || '';
+  res.json(loanObj);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -37,6 +37,7 @@ export default function EnhancedChatRoom() {
   const [otherUserOnline, setOtherUserOnline] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true); // Track if we should auto-scroll
   
   // Refs
   const messagesEndRef = useRef(null);
@@ -79,7 +80,10 @@ export default function EnhancedChatRoom() {
         // Get current user data from API
         console.log("👤 Fetching current user data...");
         const userRes = await API.get("/users/me");
+        console.log("👤 Raw API response:", userRes);
         console.log("👤 Current user data:", userRes.data);
+        console.log("👤 User _id field:", userRes.data._id);
+        console.log("👤 User keys:", Object.keys(userRes.data));
         setCurrentUser(userRes.data);
 
         // Fetch initial chat data
@@ -128,6 +132,28 @@ export default function EnhancedChatRoom() {
       cleanup();
     };
   }, []);
+
+  // Smart auto-scroll: only scroll to bottom when appropriate
+  useEffect(() => {
+    if (messagesEndRef.current && shouldAutoScroll) {
+      const messagesContainer = messagesEndRef.current.parentElement;
+      if (messagesContainer) {
+        // Check if user is near the bottom (within 100px)
+        const isNearBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < 100;
+        
+        if (isNearBottom) {
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    }
+  }, [messages, shouldAutoScroll]);
+
+  // Handle scroll events to determine if we should auto-scroll
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setShouldAutoScroll(isNearBottom);
+  };
 
   // Cleanup function
   const cleanup = () => {
@@ -182,6 +208,26 @@ export default function EnhancedChatRoom() {
       // Chat event handlers
       socketRef.current.on("joinedLoanChat", ({ loanId: joinedLoanId }) => {
         console.log("🏠 Joined loan chat room:", joinedLoanId);
+      });
+
+      // Live loan updates (e.g., lenderName stamped later)
+      socketRef.current.on("loanUpdated", (payload) => {
+        try {
+          console.log('🔄 loanUpdated event received:', payload);
+          if (payload?.loanId === loanId && payload?.lenderName) {
+            setLoan(prev => ({ ...(prev || {}), lenderName: payload.lenderName, lenderId: payload.lenderId || (prev && prev.lenderId) }));
+            // If current user is borrower, the other party is lender; update its name/id if missing
+            setOtherParty(prev => {
+              if (!prev) return prev;
+              const updated = { ...prev };
+              if (!updated._id && payload.lenderId) updated._id = payload.lenderId;
+              if (payload.lenderName) updated.name = payload.lenderName;
+              return updated;
+            });
+          }
+        } catch (e) {
+          console.warn('loanUpdated handler error', e?.message);
+        }
       });
 
       socketRef.current.on("receiveMessage", (message) => {
@@ -316,14 +362,53 @@ export default function EnhancedChatRoom() {
       console.log("📋 Loan data received for:", loanRes.data.purpose);
       setLoan(loanRes.data);
 
-      // Determine other party using email fallback for user identification
-      const userId = currentUser?._id || user._id || user.id || user.uid || user.firebaseUid;
-      
-      const other = (loanRes.data.borrowerId._id === userId || loanRes.data.borrowerId.email === user.email)
-        ? loanRes.data.lenderId 
-        : loanRes.data.borrowerId;
-      
-      console.log("🤝 Other party determined:", other?.name);
+      // Determine other party robustly (supports populated objects or raw IDs)
+      const userId = (user && (user._id || user.id || user.uid || user.firebaseUid)) || currentUser?._id;
+
+      const borrowerRaw = loanRes.data.borrowerId;
+      const lenderRaw = loanRes.data.lenderId;
+
+      const norm = (party, fallbacks = {}) => {
+        if (!party) return null;
+        if (typeof party === 'string') {
+          return { _id: party, name: fallbacks.name || '', email: fallbacks.email || '' };
+        }
+        if (typeof party === 'object') {
+          return {
+            _id: party._id || party.id || null,
+            name: party.name || fallbacks.name || '',
+            email: party.email || fallbacks.email || ''
+          };
+        }
+        return null;
+      };
+
+      const borrower = norm(borrowerRaw, { name: loanRes.data.name, email: loanRes.data.collegeEmail });
+      const lender = norm(lenderRaw, { name: loanRes.data.lenderName, email: loanRes.data.lenderEmail });
+
+      // Identify if current user is borrower
+      const isBorrower = !!(
+        (borrower?.
+          _id && borrower._id?.toString?.() === (userId?.toString?.() || userId)) ||
+        (borrower?.email && user?.email && borrower.email === user.email)
+      );
+
+      let other = isBorrower ? lender : borrower;
+      if (!other) {
+        // Fallback in case data is incomplete
+        other = isBorrower
+          ? { _id: typeof lenderRaw === 'string' ? lenderRaw : null, name: loanRes.data.lenderName || 'Lender', email: loanRes.data.lenderEmail || '' }
+          : { _id: typeof borrowerRaw === 'string' ? borrowerRaw : null, name: loanRes.data.name || 'Borrower', email: loanRes.data.collegeEmail || '' };
+      }
+
+      console.log("🤝 Other party resolved:", {
+        isBorrower,
+        otherId: other?._id,
+        otherName: other?.name,
+        borrowerId: borrower?._id,
+        lenderId: lender?._id,
+        currentUserId: userId
+      });
       setOtherParty(other);
 
       // Fetch existing messages
@@ -369,10 +454,15 @@ export default function EnhancedChatRoom() {
   };
 
   // Auto-scroll to bottom when new messages arrive
+  const scrollToBottom = (force = false) => {
+    if (messagesEndRef.current && (force || shouldAutoScroll)) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      setShouldAutoScroll(true); // Reset auto-scroll when we force scroll
+    }
+  };
+
+  // Mark messages as read when user is actively viewing the chat
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    
-    // Mark messages as read when user is actively viewing the chat
     if (socketRef.current) {
       socketRef.current.emit("markAsRead", { loanId });
     }
@@ -390,24 +480,31 @@ export default function EnhancedChatRoom() {
 
       // Send message via Socket.IO only to prevent duplicates
       if (socketRef.current && connected) {
+        const senderId = (currentUser && (currentUser._id || currentUser.id)) || null;
+        const receiverId = (typeof otherParty?._id === 'object' ? otherParty?._id?.toString?.() : otherParty?._id) || null;
+        console.log("📤 Preparing to emit sendMessage:", { loanId, senderId, receiverId, hasSocket: !!socketRef.current, connected });
         socketRef.current.emit("sendMessage", {
           loanId,
           message: messageText,
-          receiverId: otherParty._id
+          receiverId
         });
-        console.log("📤 Message sent via socket:", { loanId, message: messageText, receiverId: otherParty._id });
+        console.log("📤 Message emitted via socket:", { loanId, message: messageText, receiverId });
       } else {
         // Fallback to API only if socket is disconnected
+        const receiverId = (typeof otherParty?._id === 'object' ? otherParty?._id?.toString?.() : otherParty?._id) || null;
         await API.post("/chat/send", {
           loanId,
           message: messageText,
-          receiverId: otherParty._id
+          receiverId
         });
-        console.log("📤 Message sent via API (fallback)");
+        console.log("📤 Message sent via API (fallback)", { loanId, receiverId });
       }
       
       // Stop typing indicator
       handleStopTyping();
+      
+      // Force scroll to bottom when sending a message
+      setTimeout(() => scrollToBottom(true), 100);
 
     } catch (error) {
       console.error("❌ Error sending message:", error);
@@ -423,7 +520,8 @@ export default function EnhancedChatRoom() {
     if (!connected || !socketRef.current) return;
 
     if (!typing) {
-      console.log("🎯 Emitting typing event for loan:", loanId);
+  const senderId = (currentUser && (currentUser._id || currentUser.id)) || null;
+  console.log("🎯 Emitting typing event for loan:", { loanId, senderId });
       setTyping(true);
       socketRef.current.emit("typing", { loanId });
     }
@@ -609,7 +707,10 @@ export default function EnhancedChatRoom() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-1 bg-gray-50">
+      <div 
+        className="flex-1 overflow-y-auto p-4 space-y-1 bg-gray-50"
+        onScroll={handleScroll}
+      >
         {Object.keys(groupedMessages).length === 0 ? (
           <div className="text-center py-12">
             <MessageCircle className="w-12 h-12 mx-auto text-gray-400 mb-4" />
@@ -627,10 +728,49 @@ export default function EnhancedChatRoom() {
               
               {/* Messages for this date */}
               {dayMessages.map((message, index) => {
-                const currentUserId = currentUser._id || currentUser.id || currentUser.uid || currentUser.firebaseUid;
-                const isCurrentUser = message.senderId._id === currentUserId;
+                // Robust sender/receiver check with debugging
+                let senderId = message.senderId;
+                if (typeof senderId === 'object' && senderId !== null) {
+                  senderId = senderId._id || senderId.id;
+                }
+                
+                // Convert MongoDB ObjectId to string for comparison
+                if (typeof senderId === 'object' && senderId.toString) {
+                  senderId = senderId.toString();
+                }
+                
+                let currentId = currentUser?._id || currentUser?.id || currentUser?.uid || currentUser?.firebaseUid;
+                
+                // Convert currentId to string if it's an object
+                if (typeof currentId === 'object' && currentId && currentId.toString) {
+                  currentId = currentId.toString();
+                }
+                
+                const isCurrentUser = senderId === currentId;
+                
+                // Debug logging for first few messages
+                if (index < 3) {
+                  console.log('🎨 Message styling debug:', {
+                    messageIndex: index,
+                    messageId: message._id,
+                    messageSenderId: message.senderId,
+                    extractedSenderId: senderId,
+                    senderIdType: typeof senderId,
+                    currentUser: currentUser,
+                    extractedCurrentId: currentId,
+                    currentIdType: typeof currentId,
+                    isCurrentUser: isCurrentUser,
+                    messageText: message.message.substring(0, 30),
+                    comparisonResult: `"${senderId}" === "${currentId}" = ${senderId === currentId}`
+                  });
+                }
+                
                 const nextMessage = dayMessages[index + 1];
-                const isLastFromSender = !nextMessage || nextMessage.senderId._id !== message.senderId._id;
+                let nextSenderId = nextMessage?.senderId;
+                if (typeof nextSenderId === 'object' && nextSenderId !== null) {
+                  nextSenderId = nextSenderId._id || nextSenderId.id;
+                }
+                const isLastFromSender = !nextMessage || nextSenderId !== senderId;
 
                 return (
                   <div key={message._id} className={`mb-1 ${isLastFromSender ? 'mb-3' : ''}`}>

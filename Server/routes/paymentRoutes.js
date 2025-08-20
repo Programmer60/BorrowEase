@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import https from "https";
 import Loan from "../models/loanModel.js";
+import User from "../models/userModel.js";
 import Notification from "../models/notificationModel.js";
 import { verifyToken } from "../firebase.js";
 
@@ -36,6 +37,48 @@ const getCallbackUrl = (req) => {
 // Helper to build client (SPA) origin to return the user after payment
 const getClientOrigin = (req) => {
   return process.env.PUBLIC_CLIENT_ORIGIN || 'http://localhost:5173';
+};
+
+// Pretty redirect page (used in callback) so users don't see a blank screen
+const renderAutoRedirectPage = (redirectUrl, opts = {}) => {
+  const title = opts.title || 'Redirecting…';
+  const subtitle = opts.subtitle || 'Please wait while we take you back to BorrowEase';
+  const statusColor = opts.status === 'success' ? '#16a34a' : opts.status === 'error' ? '#dc2626' : '#4f46e5';
+  return `<!doctype html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>${title}</title>
+      <meta http-equiv="refresh" content="1;url=${redirectUrl}">
+      <style>
+        body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#f8fafc;color:#0f172a}
+        .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+        .card{background:#fff;border-radius:16px;box-shadow:0 10px 25px rgba(2,6,23,0.08);padding:28px;max-width:520px;width:100%;text-align:center;border:1px solid #e5e7eb}
+        .logo{font-weight:800;font-size:20px;color:#4f46e5;letter-spacing:0.3px}
+        .title{margin:12px 0 6px 0;font-size:20px;font-weight:700}
+        .subtitle{margin:0 0 18px 0;color:#475569;font-size:14px}
+        .spinner{margin:18px auto 16px auto;width:44px;height:44px;border:4px solid #e5e7eb;border-top-color:${statusColor};border-radius:50%;animation:spin 0.9s linear infinite}
+        .btn{display:inline-block;margin-top:8px;background:${statusColor};color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none;font-weight:600}
+        @keyframes spin{to{transform:rotate(360deg)}}
+      </style>
+      <script>
+        // Safety redirect for JS-enabled browsers
+        (function(){try{setTimeout(function(){window.location.replace('${redirectUrl}');}, 150);}catch(e){}})();
+      </script>
+    </head>
+    <body>
+      <div class="wrap">
+        <div class="card">
+          <div class="logo">BorrowEase</div>
+          <div class="spinner"></div>
+          <div class="title">${title}</div>
+          <div class="subtitle">${subtitle}</div>
+          <a class="btn" href="${redirectUrl}">Continue</a>
+        </div>
+      </div>
+    </body>
+  </html>`;
 };
 
 // Simple health/diagnostics endpoint to verify server reachability and CORS
@@ -96,7 +139,8 @@ router.post("/create-order", verifyToken, async (req, res) => {
         type: "loan_payment",
         loanId: loanId || "",
         isRepayment: Boolean(isRepayment) === true,
-        userId: req.user?.id || req.user?.uid || ""
+  userId: req.user?.id || req.user?.uid || "",
+  userName: req.user?.name || req.user?.email || ""
       },
     };
 
@@ -159,7 +203,19 @@ router.post("/create-order", verifyToken, async (req, res) => {
     }
 
   console.log("✅ Razorpay order created", { id: order.id, amount: order.amount });
-    res.json(order);
+    // Provide a convenient server-hosted checkout URL for top-level redirect flows
+    try {
+      const checkoutBase = getCallbackUrl(req).replace('/callback', ''); // -> {ORIGIN}/api/payment
+      const fallbackRole = (Boolean(isRepayment) === true) ? 'borrower' : 'lender';
+      const checkoutUrl = `${checkoutBase}/checkout/${order.id}?fallback=${fallbackRole}`;
+      res.json({
+        ...order,
+        checkoutUrl,
+      });
+    } catch (_) {
+      // Fallback to vanilla order object if URL construction fails
+      res.json(order);
+    }
   } catch (err) {
     // Log more diagnostics to help debugging
     console.error("❌ Error in Razorpay order creation:", {
@@ -212,7 +268,7 @@ router.post("/verify", verifyToken, async (req, res) => {
       borrowerMessage = `You have successfully repaid ₹${loan.amount} for your loan (${loan.purpose})`;
       lenderMessage = `Loan repayment of ₹${loan.amount} received from ${loan.name} for ${loan.purpose}`;
     } else {
-      update = { funded: true, lenderId: req.user.id, fundedAt: new Date() };
+      update = { funded: true, lenderId: req.user.id, lenderName: (req.user.name || req.user.email || ''), fundedAt: new Date() };
       borrowerMessage = `Your loan request for ₹${loan.amount} (${loan.purpose}) has been funded!`;
       lenderMessage = `You have successfully funded ₹${loan.amount} to ${loan.name} for ${loan.purpose}`;
     }
@@ -286,7 +342,8 @@ router.post("/callback", async (req, res) => {
       const orderId = errorPayload?.metadata?.order_id || flattenedOrder || razorpay_order_id || '';
 
       // Try to decide destination from order notes
-      let routeBase = '/lender';
+      const fb = (req.query?.fallback || '').toString().toLowerCase();
+      let routeBase = fb === 'borrower' ? '/borrower' : '/lender';
       try {
         if (orderId) {
           const auth = Buffer.from(`${RZP_KEY_ID}:${RZP_KEY_SECRET}`).toString('base64');
@@ -305,18 +362,12 @@ router.post("/callback", async (req, res) => {
       } catch (_) {}
 
       const redirectUrl = `${clientOrigin}${routeBase}?payment=failed&order=${encodeURIComponent(orderId)}&code=${encodeURIComponent(errCode)}&reason=${encodeURIComponent(errDesc)}`;
-      return res.status(200).send(`
-        <html>
-          <body>
-            <script>
-              window.location.replace('${redirectUrl}');
-            </script>
-            <noscript>
-              Payment failed. <a href="${redirectUrl}">Return to app</a>
-            </noscript>
-          </body>
-        </html>
-      `);
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
+        title: 'Payment failed',
+        subtitle: 'Taking you back to your dashboard…',
+        status: 'error'
+      }));
     }
 
     // Success flow: verify signature
@@ -327,12 +378,12 @@ router.post("/callback", async (req, res) => {
       .digest("hex");
     if (expectedSignature !== razorpay_signature) {
       const redirectUrl = `${clientOrigin}/lender?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=SIGNATURE_MISMATCH&reason=${encodeURIComponent('Invalid signature')}`;
-      return res.status(200).send(`
-        <html><body>
-          <script>window.location.replace('${redirectUrl}');</script>
-          <noscript>Invalid signature. <a href="${redirectUrl}">Return</a></noscript>
-        </body></html>
-      `);
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
+        title: 'Verification error',
+        subtitle: 'We could not verify this payment. Redirecting…',
+        status: 'error'
+      }));
     }
 
     // Fetch order to recover notes context (loanId, isRepayment, userId)
@@ -345,12 +396,12 @@ router.post("/callback", async (req, res) => {
     if (!orderResp.ok) {
       const text = await orderResp.text().catch(() => '');
       const redirectUrl = `${clientOrigin}/lender?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=ORDER_FETCH_FAILED&reason=${encodeURIComponent(text || 'Failed to fetch order')}`;
-      return res.status(200).send(`
-        <html><body>
-          <script>window.location.replace('${redirectUrl}');</script>
-          <noscript>Order fetch failed. <a href="${redirectUrl}">Return</a></noscript>
-        </body></html>
-      `);
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
+        title: 'Processing error',
+        subtitle: 'We could not retrieve order details. Redirecting…',
+        status: 'error'
+      }));
     }
     const orderJson = await orderResp.json();
     const notes = orderJson?.notes || {};
@@ -360,64 +411,127 @@ router.post("/callback", async (req, res) => {
 
     if (!loanId) {
       const redirectUrl = `${clientOrigin}${routeBase}?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=MISSING_CONTEXT&reason=${encodeURIComponent('Order missing loanId context')}`;
-      return res.status(200).send(`
-        <html><body>
-          <script>window.location.replace('${redirectUrl}');</script>
-          <noscript>Missing context. <a href="${redirectUrl}">Return</a></noscript>
-        </body></html>
-      `);
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
+        title: 'Missing context',
+        subtitle: 'Redirecting you back safely…',
+        status: 'error'
+      }));
     }
 
     // Update loan similar to /verify route
     const loan = await Loan.findById(loanId).populate('borrowerId lenderId');
     if (!loan) {
       const redirectUrl = `${clientOrigin}${routeBase}?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=LOAN_NOT_FOUND&reason=${encodeURIComponent('Loan not found')}`;
-      return res.status(200).send(`
-        <html><body>
-          <script>window.location.replace('${redirectUrl}');</script>
-          <noscript>Loan not found. <a href="${redirectUrl}">Return</a></noscript>
-        </body></html>
-      `);
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
+        title: 'Loan not found',
+        subtitle: 'Redirecting you back to dashboard…',
+        status: 'error'
+      }));
     }
 
     let update = {};
     if (isRepayment) {
       update = { repaid: true };
     } else {
-      update = { funded: true, fundedAt: new Date() };
+      // Attach lenderId and lenderName from order notes so it shows in lender history/chat
+      const lenderId = notes?.userId || null;
+      let lenderName = notes?.userName || '';
+      if (!lenderName && lenderId) {
+        try {
+          const lender = await User.findById(lenderId).select('name email');
+          lenderName = lender?.name || lender?.email || '';
+        } catch (_) {}
+      }
+      update = { funded: true, fundedAt: new Date(), ...(lenderId ? { lenderId } : {}), ...(lenderName ? { lenderName } : {}) };
     }
     await Loan.findByIdAndUpdate(loanId, update, { new: true });
 
-    // Fire-and-forget notification to borrower
+    // Fire-and-forget notifications
     try {
       const borrowerMessage = isRepayment
         ? `You have successfully repaid ₹${loan.amount} for your loan (${loan.purpose})`
         : `Your loan request for ₹${loan.amount} (${loan.purpose}) has been funded!`;
       await Notification.create({ userId: loan.borrowerId, type: 'payment', message: borrowerMessage });
+      if (!isRepayment) {
+        const lenderId = notes?.userId || null;
+        if (lenderId) {
+          const lenderMsg = `You have successfully funded ₹${loan.amount} to ${loan.name} for ${loan.purpose}`;
+          await Notification.create({ userId: lenderId, type: 'payment', message: lenderMsg });
+        }
+      }
     } catch (_) {}
 
     // Redirect back to app with success status
     const successUrl = `${clientOrigin}${routeBase}?payment=success&order=${encodeURIComponent(razorpay_order_id)}`;
-    return res.status(200).send(`
-      <html>
-        <body>
-          <script>
-            window.location.replace('${successUrl}');
-          </script>
-          <noscript>Payment processed. <a href="${successUrl}">Return to app</a></noscript>
-        </body>
-      </html>
-    `);
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(renderAutoRedirectPage(successUrl, {
+      title: 'Payment successful',
+      subtitle: 'Redirecting you back to your dashboard…',
+      status: 'success'
+    }));
   } catch (err) {
     console.error('Callback verification error:', err);
     const clientOrigin = getClientOrigin(req);
     const fallbackUrl = `${clientOrigin}/lender?payment=failed&code=CALLBACK_ERROR&reason=${encodeURIComponent(err?.message || 'Payment callback failed')}`;
-    return res.status(200).send(`
-      <html><body>
-        <script>window.location.replace('${fallbackUrl}');</script>
-        <noscript>Payment error. <a href="${fallbackUrl}">Return</a></noscript>
-      </body></html>
-    `);
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(renderAutoRedirectPage(fallbackUrl, {
+      title: 'Payment error',
+      subtitle: 'We hit a snag processing your payment. Redirecting…',
+      status: 'error'
+    }));
+  }
+});
+
+// Some Razorpay flows (especially failures) may hit callback via GET instead of POST
+router.get("/callback", async (req, res) => {
+  try {
+    const clientOrigin = getClientOrigin(req);
+    const q = req.query || {};
+
+    // Extract error details from query-encoded fields
+    const errCode = q["error[code]"] || q.code || 'PAYMENT_FAILED';
+    const errDesc = q["error[description]"] || q.reason || 'Payment was cancelled or failed.';
+    const orderId = q["error[metadata][order_id]"] || q.order_id || '';
+
+  // Decide where to return: borrower (repayment) vs lender (funding)
+  const fb = (q.fallback || '').toString().toLowerCase();
+  let routeBase = fb === 'borrower' ? '/borrower' : '/lender';
+    try {
+      if (orderId) {
+        const auth = Buffer.from(`${RZP_KEY_ID}:${RZP_KEY_SECRET}`).toString('base64');
+        const orderResp = await fetch(`https://api.razorpay.com/v1/orders/${orderId}`, {
+          method: 'GET',
+          headers: { 'Authorization': `Basic ${auth}`, 'Connection': 'keep-alive' },
+          agent: rzpAgent,
+        });
+        if (orderResp.ok) {
+          const orderJson = await orderResp.json();
+          const notes = orderJson?.notes || {};
+          const isRepayment = notes.isRepayment === true || notes.isRepayment === 'true';
+          routeBase = isRepayment ? '/borrower' : '/lender';
+        }
+      }
+    } catch (_) {}
+
+    const redirectUrl = `${clientOrigin}${routeBase}?payment=failed&order=${encodeURIComponent(orderId)}&code=${encodeURIComponent(errCode)}&reason=${encodeURIComponent(errDesc)}`;
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
+      title: 'Payment failed',
+      subtitle: 'Taking you back to your dashboard…',
+      status: 'error'
+    }));
+  } catch (err) {
+    console.error('GET /payment/callback error:', err);
+    const clientOrigin = getClientOrigin(req);
+    const fallbackUrl = `${clientOrigin}/borrower?payment=failed&code=CALLBACK_GET_ERROR&reason=${encodeURIComponent(err?.message || 'Payment callback failed')}`;
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(renderAutoRedirectPage(fallbackUrl, {
+      title: 'Payment error',
+      subtitle: 'Redirecting you back…',
+      status: 'error'
+    }));
   }
 });
 
@@ -453,7 +567,8 @@ router.get('/status/:orderId', verifyToken, async (req, res) => {
           }
         } else {
           if (!loan.funded) {
-            await Loan.findByIdAndUpdate(loan._id, { funded: true, fundedAt: new Date() }, { new: true });
+            const lenderId = notes.userId || undefined;
+            await Loan.findByIdAndUpdate(loan._id, { funded: true, fundedAt: new Date(), ...(lenderId ? { lenderId } : {}) }, { new: true });
             updated = true;
           }
         }
@@ -472,7 +587,8 @@ router.get('/checkout/:orderId', (req, res) => {
   const { orderId } = req.params;
   console.log('➡️ Serving checkout for orderId (param):', orderId);
   if (!orderId) return res.status(400).send('Missing orderId');
-  const callbackUrl = getCallbackUrl(req);
+  const fb = (req.query.fallback || '').toString().toLowerCase();
+  const callbackUrl = `${getCallbackUrl(req)}${fb ? `?fallback=${encodeURIComponent(fb)}` : ''}`;
   const keyId = RZP_KEY_ID;
   res.setHeader('Content-Type', 'text/html');
   res.send(`<!doctype html>
@@ -516,16 +632,8 @@ router.get('/checkout', (req, res) => {
   const orderId = req.query.orderId;
   console.log('➡️ Serving checkout for orderId (query):', orderId);
   if (!orderId) return res.status(400).send('Missing orderId');
-  req.params = { orderId };
-  return router.handle(req, res, () => {});
-});
-
-// Fallback: wildcard match /checkout/*
-router.get('/checkout/*', (req, res) => {
-  const orderId = req.params[0];
-  console.log('➡️ Serving checkout for orderId (wildcard):', orderId);
-  if (!orderId) return res.status(400).send('Missing orderId');
-  const callbackUrl = getCallbackUrl(req);
+  const fb = (req.query.fallback || '').toString().toLowerCase();
+  const callbackUrl = `${getCallbackUrl(req)}${fb ? `?fallback=${encodeURIComponent(fb)}` : ''}`;
   const keyId = RZP_KEY_ID;
   res.setHeader('Content-Type', 'text/html');
   res.send(`<!doctype html>
@@ -544,6 +652,45 @@ router.get('/checkout/*', (req, res) => {
         data-description="Fund Loan"
         data-redirect="true"
         data-callback_url="${callbackUrl}"></script>
+      <script>
+        (function(){
+          if (window.Razorpay && typeof Razorpay === 'function') {
+            try {
+              var r = new Razorpay({ key: '${keyId}', order_id: '${orderId}', redirect: true, callback_url: '${callbackUrl}' });
+              r.open();
+            } catch(e) {}
+          }
+        })();
+      </script>
+    </body>
+  </html>`);
+});
+
+// Fallback: wildcard match /checkout/*
+router.get('/checkout/*', (req, res) => {
+  const orderId = req.params[0];
+  console.log('➡️ Serving checkout for orderId (wildcard):', orderId);
+  if (!orderId) return res.status(400).send('Missing orderId');
+  const fb = (req.query.fallback || '').toString().toLowerCase();
+  const callbackUrl = `${getCallbackUrl(req)}${fb ? `?fallback=${encodeURIComponent(fb)}` : ''}`;
+  const keyId = RZP_KEY_ID;
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Processing Payment...</title>
+    </head>
+    <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
+      <p>Opening secure checkout...</p>
+      <script src="https://checkout.razorpay.com/v1/checkout.js"
+        data-key="${keyId}"
+        data-order_id="${orderId}"
+        data-name="BorrowEase"
+        data-description="Fund Loan"
+        data-redirect="true"
+  data-callback_url="${callbackUrl}"></script>
       <script>
         (function(){
           if (window.Razorpay && typeof Razorpay === 'function') {

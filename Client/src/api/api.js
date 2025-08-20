@@ -5,21 +5,26 @@ const API = axios.create({
   baseURL: "http://localhost:5000/api",
 });
 
+let inFlightRefresh = null;
+let lastToken = null;
+let lastUserUid = null;
+
 API.interceptors.request.use(async (config) => {
   try {
     const user = auth.currentUser;
     if (!user) {
-      console.log('⚠️ No authenticated user found');
       return config;
     }
 
-    console.log('🔑 Getting token for user:', user.email);
-    const token = await user.getIdToken(true); // Force refresh token
-    config.headers.Authorization = `Bearer ${token}`;
-    console.log('✅ Token added to request');
+    // Use cached token when the same user is active; Firebase SDK manages expiry for getIdToken()
+    if (!lastToken || lastUserUid !== user.uid) {
+      lastToken = await user.getIdToken(); // do NOT force refresh on every request
+      lastUserUid = user.uid;
+    }
+    config.headers.Authorization = `Bearer ${lastToken}`;
     return config;
   } catch (error) {
-    console.error('❌ Error in API interceptor:', error);
+    // If token fetch fails, proceed without auth; response interceptor will try a single refresh on 401
     return config;
   }
 });
@@ -34,19 +39,20 @@ API.interceptors.response.use(
     
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      console.log('🔄 Token expired, attempting to refresh...');
-      
       try {
         const user = auth.currentUser;
-        if (user) {
-          const newToken = await user.getIdToken(true);
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          console.log('✅ Token refreshed, retrying request');
-          return API(originalRequest);
+        if (!user) throw new Error('No user for refresh');
+
+        // Single-flight refresh to avoid quota exceeded
+        if (!inFlightRefresh) {
+          inFlightRefresh = user.getIdToken(true).then(t => {
+            lastToken = t; lastUserUid = user.uid; return t;
+          }).finally(() => { inFlightRefresh = null; });
         }
-      } catch (refreshError) {
-        console.error('❌ Token refresh failed:', refreshError);
-      }
+        const newToken = await inFlightRefresh;
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return API(originalRequest);
+      } catch (_) {}
     }
     
     return Promise.reject(error);
