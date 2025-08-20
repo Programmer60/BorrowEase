@@ -5,46 +5,209 @@ import { verifyToken } from "../firebase.js";
 
 const router = express.Router();
 
-// Simple AI Risk Assessment Function
-const calculateRiskScore = (user, loans = []) => {
+// Import credit score calculation function
+const calculateCreditScore = async (userId) => {
+  try {
+    // Get user data
+    const user = await User.findById(userId);
+    if (!user) throw new Error("User not found");
+
+    // Get user's loan history
+    const loans = await Loan.find({
+      $or: [
+        { borrowerId: userId },
+        { collegeEmail: user.email }
+      ]
+    });
+
+    // Base score
+    let score = 300;
+    
+    // Payment History (35% of score - up to 192 points)
+    const totalLoans = loans.length;
+    const repaidLoans = loans.filter(loan => loan.repaid).length;
+    const paymentHistoryScore = totalLoans > 0 ? (repaidLoans / totalLoans) * 192 : 0;
+    score += paymentHistoryScore;
+
+    // Credit Utilization (30% of score - up to 165 points)
+    const totalBorrowed = loans.reduce((sum, loan) => sum + loan.amount, 0);
+    const avgLoanSize = totalBorrowed / (totalLoans || 1);
+    const utilizationScore = Math.min(165, Math.max(0, 165 - (avgLoanSize / 10000) * 20));
+    score += utilizationScore;
+
+    // Credit History Length (15% of score - up to 82 points)
+    const oldestLoan = loans.reduce((oldest, loan) => {
+      return !oldest || new Date(loan.createdAt) < new Date(oldest.createdAt) ? loan : oldest;
+    }, null);
+    
+    const historyMonths = oldestLoan ? 
+      Math.floor((Date.now() - new Date(oldestLoan.createdAt)) / (1000 * 60 * 60 * 24 * 30)) : 0;
+    const historyScore = Math.min(82, historyMonths * 3);
+    score += historyScore;
+
+    // Loan Diversity (10% of score - up to 55 points)
+    const loanPurposes = new Set(loans.map(loan => loan.purpose));
+    const diversityScore = Math.min(55, loanPurposes.size * 15);
+    score += diversityScore;
+
+    // KYC and Trust Factors (10% of score - up to 55 points)
+    let trustScore = 0;
+    if (user.kycStatus === 'verified') trustScore += 30;
+    if (user.trustScore > 70) trustScore += 25;
+    score += Math.min(55, trustScore);
+
+    // Cap the score at 850
+    score = Math.min(850, Math.round(score));
+
+    // Calculate factors
+    const factors = {
+      paymentHistory: Math.round(paymentHistoryScore),
+      creditUtilization: Math.round((100 - (avgLoanSize / 10000) * 20)),
+      creditHistory: historyMonths,
+      loanDiversity: loanPurposes.size,
+      socialScore: user.trustScore || 50,
+      kycVerified: user.kycStatus === 'verified'
+    };
+
+    return {
+      score,
+      factors,
+      breakdown: {
+        paymentHistory: Math.round(paymentHistoryScore),
+        creditUtilization: Math.round(utilizationScore),
+        creditHistoryLength: Math.round(historyScore),
+        loanDiversity: Math.round(diversityScore),
+        trustFactors: Math.min(55, trustScore)
+      }
+    };
+
+  } catch (error) {
+    console.error("Error calculating credit score:", error);
+    return { score: 300, factors: {}, breakdown: {} }; // Default safe score
+  }
+};
+
+// Enhanced AI Risk Assessment Function with Credit Score Integration
+// Enhanced AI Risk Assessment Function with Credit Score Integration
+const calculateRiskScore = async (user, loans = []) => {
   let score = 100; // Start with maximum score
+  const riskFactors = [];
 
-  // Phone Verification (-20 if not verified)
-  if (!user.phoneVerified) score -= 20;
+  console.log(`🔍 Calculating enhanced risk score for user: ${user.email}`);
 
-  // KYC Verification (+30 if verified, -30 if rejected)
-  if (user.kyc?.status === 'verified') score += 30;
-  else if (user.kyc?.status === 'rejected') score -= 30;
+  // Get credit score data
+  const creditData = await calculateCreditScore(user._id);
+  console.log(`📊 Credit score data:`, creditData);
 
-  // Previous Default (-40 if any loan is overdue)
+  // 1. Credit Score Impact (40% weight - most important factor)
+  if (creditData.score) {
+    const creditScoreImpact = ((creditData.score - 300) / 550) * 40; // Normalize 300-850 to 0-40 points
+    score += creditScoreImpact;
+    
+    if (creditData.score >= 750) {
+      riskFactors.push({ factor: "Excellent Credit Score", impact: creditScoreImpact, description: `Credit score: ${creditData.score}` });
+    } else if (creditData.score >= 650) {
+      riskFactors.push({ factor: "Good Credit Score", impact: creditScoreImpact, description: `Credit score: ${creditData.score}` });
+    } else if (creditData.score >= 550) {
+      riskFactors.push({ factor: "Fair Credit Score", impact: creditScoreImpact, description: `Credit score: ${creditData.score}` });
+    } else {
+      riskFactors.push({ factor: "Poor Credit Score", impact: creditScoreImpact, description: `Credit score: ${creditData.score}` });
+    }
+  }
+
+  // 2. Payment History Analysis (25% weight)
+  const paymentHistoryScore = creditData.factors?.paymentHistory || 0;
+  const paymentImpact = (paymentHistoryScore / 192) * 25; // Normalize to 25 points max
+  score += paymentImpact;
+  
+  if (paymentHistoryScore >= 150) {
+    riskFactors.push({ factor: "Excellent Payment History", impact: paymentImpact, description: "Strong track record of on-time payments" });
+  } else if (paymentHistoryScore >= 100) {
+    riskFactors.push({ factor: "Good Payment History", impact: paymentImpact, description: "Generally reliable payment behavior" });
+  } else if (paymentHistoryScore < 50) {
+    riskFactors.push({ factor: "Poor Payment History", impact: paymentImpact, description: "History of late or missed payments" });
+  }
+
+  // 3. Credit Utilization (15% weight)
+  const utilizationScore = creditData.factors?.creditUtilization || 50;
+  const utilizationImpact = (utilizationScore / 100) * 15;
+  score += utilizationImpact;
+  
+  if (utilizationScore > 80) {
+    riskFactors.push({ factor: "Low Credit Utilization", impact: utilizationImpact, description: "Conservative borrowing behavior" });
+  } else if (utilizationScore < 30) {
+    riskFactors.push({ factor: "High Credit Utilization", impact: utilizationImpact, description: "High debt-to-limit ratio" });
+  }
+
+  // 4. Credit History Length (10% weight)
+  const historyMonths = creditData.factors?.creditHistory || 0;
+  const historyImpact = Math.min(10, historyMonths * 0.5); // 0.5 points per month, max 10
+  score += historyImpact;
+  
+  if (historyMonths >= 24) {
+    riskFactors.push({ factor: "Established Credit History", impact: historyImpact, description: `${historyMonths} months of credit history` });
+  } else if (historyMonths < 6) {
+    riskFactors.push({ factor: "Limited Credit History", impact: historyImpact, description: `Only ${historyMonths} months of credit history` });
+  }
+
+  // 5. KYC and Verification Status (5% weight)
+  if (user.kyc?.status === 'verified') {
+    score += 5;
+    riskFactors.push({ factor: "KYC Verified", impact: 5, description: "Identity verification completed" });
+  } else if (user.kyc?.status === 'rejected') {
+    score -= 10;
+    riskFactors.push({ factor: "KYC Rejected", impact: -10, description: "Identity verification failed" });
+  } else {
+    score -= 5;
+    riskFactors.push({ factor: "KYC Pending", impact: -5, description: "Identity verification not completed" });
+  }
+
+  // 6. Active Loan Management (5% weight)
+  const activeLoans = loans.filter(loan => loan.funded && !loan.repaid).length;
+  if (activeLoans === 0) {
+    score += 5;
+    riskFactors.push({ factor: "No Active Debt", impact: 5, description: "Currently debt-free" });
+  } else if (activeLoans <= 2) {
+    score += 2;
+    riskFactors.push({ factor: "Manageable Active Loans", impact: 2, description: `${activeLoans} active loan(s)` });
+  } else {
+    score -= 5;
+    riskFactors.push({ factor: "Multiple Active Loans", impact: -5, description: `${activeLoans} active loans - potential overextension` });
+  }
+
+  // 7. Default Risk Assessment
   const hasDefault = loans.some(loan => {
     if (loan.funded && !loan.repaid) {
       const repaymentDate = new Date(loan.repaymentDate);
       const now = new Date();
-      return now > repaymentDate; // Overdue loan
+      return now > repaymentDate;
     }
     return false;
   });
-  if (hasDefault) score -= 40;
+  
+  if (hasDefault) {
+    score -= 25;
+    riskFactors.push({ factor: "Active Default", impact: -25, description: "Currently has overdue loan(s)" });
+  }
 
-  // Active Loans (more than 2 active loans = -15)
-  const activeLoans = loans.filter(loan => loan.funded && !loan.repaid).length;
-  if (activeLoans > 2) score -= 15;
-
-  // Trust Score Impact (use existing trust score)
-  const trustScoreImpact = ((user.trustScore || 50) - 50) * 0.5; // Scale trust score impact
-  score += trustScoreImpact;
-
-  // Repayment History Bonus
-  if (user.loansRepaid > 0 && user.loansTaken > 0) {
-    const repaymentRate = (user.loansRepaid / user.loansTaken) * 100;
-    if (repaymentRate >= 90) score += 20;
-    else if (repaymentRate >= 75) score += 10;
-    else if (repaymentRate < 50) score -= 20;
+  // 8. Loan Diversity Bonus
+  const loanDiversity = creditData.factors?.loanDiversity || 0;
+  if (loanDiversity >= 3) {
+    score += 5;
+    riskFactors.push({ factor: "Diverse Loan Portfolio", impact: 5, description: `Experience with ${loanDiversity} types of loans` });
   }
 
   // Ensure score is between 0 and 100
-  return Math.max(0, Math.min(100, Math.round(score)));
+  const finalScore = Math.max(0, Math.min(100, Math.round(score)));
+  
+  console.log(`✅ Enhanced risk score calculated: ${finalScore}/100`);
+  console.log(`📋 Risk factors:`, riskFactors);
+
+  return {
+    score: finalScore,
+    riskFactors,
+    creditData
+  };
 };
 
 // Calculate individual factor scores
@@ -169,6 +332,9 @@ router.post("/assess-borrower", verifyToken, async (req, res) => {
   try {
     const { borrowerId, loanAmount, loanPurpose, repaymentPeriod } = req.body;
     
+    console.log(`🎯 AI Assessment requested for borrower: ${borrowerId}`);
+    console.log(`💰 Loan details: ₹${loanAmount}, Purpose: ${loanPurpose}, Period: ${repaymentPeriod} days`);
+    
     // Fetch borrower data
     const borrower = await User.findById(borrowerId);
     if (!borrower) {
@@ -178,13 +344,20 @@ router.post("/assess-borrower", verifyToken, async (req, res) => {
     // Fetch borrower's loan history
     const borrowerLoans = await Loan.find({ userId: borrowerId });
 
-    // Calculate basic risk score
-    const baseRiskScore = calculateRiskScore(borrower, borrowerLoans);
+    console.log(`👤 Borrower: ${borrower.name} (${borrower.email})`);
+    console.log(`📊 Loan history: ${borrowerLoans.length} loans`);
+
+    // Calculate enhanced risk score with credit data
+    const riskAssessment = await calculateRiskScore(borrower, borrowerLoans);
+    const baseRiskScore = riskAssessment.score;
     const factors = calculateFactorScores(borrower, borrowerLoans);
+
+    console.log(`📈 Base risk score: ${baseRiskScore}/100`);
+    console.log(`💳 Credit score: ${riskAssessment.creditData?.score || 'N/A'}`);
 
     // Loan-specific risk adjustments
     let loanSpecificScore = baseRiskScore;
-    const loanRiskFactors = [];
+    const loanRiskFactors = [...riskAssessment.riskFactors];
 
     // Loan amount risk (higher amounts = higher risk for new borrowers)
     if (loanAmount > 50000 && borrowerLoans.length === 0) {
@@ -265,6 +438,8 @@ router.post("/assess-borrower", verifyToken, async (req, res) => {
       };
     }
 
+    console.log(`🎯 Final assessment: ${loanDecision.decision} (${loanDecision.confidence}% confidence)`);
+
     res.json({
       borrowerId,
       borrowerName: borrower.name,
@@ -282,9 +457,15 @@ router.post("/assess-borrower", verifyToken, async (req, res) => {
         suggestedRate: loanDecision.suggestedRate,
         maxRecommendedAmount: loanDecision.maxAmount
       },
+      creditProfile: {
+        creditScore: riskAssessment.creditData?.score || null,
+        creditFactors: riskAssessment.creditData?.factors || {},
+        creditBreakdown: riskAssessment.creditData?.breakdown || {}
+      },
       riskFactors: {
         borrowerFactors: factors,
-        loanSpecificFactors: loanRiskFactors
+        enhancedRiskFactors: loanRiskFactors,
+        detailedAnalysis: riskAssessment.riskFactors
       },
       recommendations: loanRecommendations,
       suggestedModifications,

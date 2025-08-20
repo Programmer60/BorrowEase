@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Navbar from './Navbar';
 import API from '../api/api';
+import { auth } from '../firebase';
 
 const BorrowerAssessment = () => {
   const [borrowerData, setBorrowerData] = useState({
@@ -46,44 +47,28 @@ const BorrowerAssessment = () => {
     try {
       console.log('🔍 Fetching borrowers for assessment...');
       
-      // Try to get pending loan applications first
-      const response = await API.get('/loans/pending-applications');
-      console.log('✅ Fetched pending applications:', response.data);
+      // Directly fetch all borrowers instead of pending applications
+      // This ensures we get proper user objects with correct IDs
+      const response = await API.get('/users/all-borrowers');
+      console.log('✅ Fetched all borrowers:', response.data);
       setAvailableBorrowers(response.data);
       
       if (response.data.length === 0) {
-        console.log('ℹ️ No pending applications found, trying to fetch all borrowers...');
-        // Fallback to get all borrowers if no pending applications
-        const fallbackResponse = await API.get('/users/all-borrowers');
-        console.log('✅ Fetched all borrowers:', fallbackResponse.data);
-        setAvailableBorrowers(fallbackResponse.data);
+        console.log('ℹ️ No borrowers found');
+      } else {
+        console.log(`📊 Found ${response.data.length} borrowers available for assessment`);
       }
     } catch (error) {
-      console.error('❌ Error fetching pending applications:', error);
+      console.error('❌ Error fetching borrowers:', error);
       
       // Check if it's an authentication error
       if (error.response?.status === 401 || error.response?.status === 403) {
         alert('Authentication error. Please make sure you are logged in as a lender.');
         return;
-      }
-      
-      console.log('🔄 Falling back to all borrowers...');
-      
-      // Fallback to get all borrowers
-      try {
-        const response = await API.get('/users/all-borrowers');
-        console.log('✅ Fallback successful, fetched borrowers:', response.data);
-        setAvailableBorrowers(response.data);
-      } catch (fallbackError) {
-        console.error('❌ Fallback error:', fallbackError);
-        
-        if (fallbackError.response?.status === 401 || fallbackError.response?.status === 403) {
-          alert('You need to be logged in as a lender to access borrower assessment.');
-        } else if (fallbackError.response?.status === 404) {
-          alert('Borrower data endpoint not found. Please check if the server is running.');
-        } else {
-          alert('Failed to load borrowers. Please check your connection and try again.');
-        }
+      } else if (error.response?.status === 404) {
+        alert('Borrower data endpoint not found. Please check if the server is running.');
+      } else {
+        alert('Failed to load borrowers. Please check your connection and try again.');
       }
     }
   };
@@ -96,11 +81,37 @@ const BorrowerAssessment = () => {
 
     setLoading(true);
     try {
+      console.log('🚀 Starting borrower assessment...');
+      console.log('📊 Assessment data:', borrowerData);
+      
+      // Check authentication status
+      const user = auth.currentUser;
+      console.log('👤 Current user:', user ? user.email : 'Not authenticated');
+      
+      if (!user) {
+        alert('Please login to assess borrowers');
+        setLoading(false);
+        return;
+      }
+
       const response = await API.post('/ai/assess-borrower', borrowerData);
+      console.log('✅ Assessment response:', response.data);
       setAssessment(response.data);
     } catch (error) {
-      console.error('Error assessing borrower:', error);
-      alert('Failed to assess borrower. Please try again.');
+      console.error('❌ Error assessing borrower:', error);
+      console.error('❌ Error response:', error.response);
+      console.error('❌ Error status:', error.response?.status);
+      console.error('❌ Error data:', error.response?.data);
+      
+      if (error.response?.status === 401) {
+        alert('Authentication failed. Please login again.');
+      } else if (error.response?.status === 404) {
+        alert('Assessment service not found. Please contact support.');
+      } else if (error.response?.status === 403) {
+        alert('You do not have permission to assess borrowers.');
+      } else {
+        alert(`Failed to assess borrower: ${error.response?.data?.error || error.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -157,11 +168,17 @@ const BorrowerAssessment = () => {
                     ) : (
                       availableBorrowers.map((borrower, index) => {
                         console.log(`🔧 Mapping borrower ${index + 1}:`, borrower);
+                        
+                        // Handle user objects with _id or id
                         const borrowerId = borrower._id || borrower.id;
-                        console.log(`🔧 Using ID: ${borrowerId}`);
+                        const borrowerName = borrower.name;
+                        const borrowerEmail = borrower.email;
+                        
+                        console.log(`🔧 Extracted - ID: ${borrowerId}, Name: ${borrowerName}, Email: ${borrowerEmail}`);
+                        
                         return (
                           <option key={borrowerId || index} value={borrowerId}>
-                            {borrower.name} ({borrower.email})
+                            {borrowerName} ({borrowerEmail})
                           </option>
                         );
                       })
@@ -363,6 +380,124 @@ const BorrowerAssessment = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Enhanced Credit Profile Section */}
+                {assessment.creditProfile && assessment.creditProfile.creditScore && (
+                  <div className="bg-white rounded-xl shadow-sm p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <CreditCard className="w-5 h-5 mr-2" />
+                      Credit Profile Analysis
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Credit Score Display */}
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600 mb-2">
+                          {assessment.creditProfile.creditScore}
+                        </div>
+                        <div className="text-sm text-gray-600 mb-4">Credit Score (300-850)</div>
+                        <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                          assessment.creditProfile.creditScore >= 750 ? 'bg-green-100 text-green-800' :
+                          assessment.creditProfile.creditScore >= 650 ? 'bg-blue-100 text-blue-800' :
+                          assessment.creditProfile.creditScore >= 550 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {assessment.creditProfile.creditScore >= 750 ? 'Excellent' :
+                           assessment.creditProfile.creditScore >= 650 ? 'Good' :
+                           assessment.creditProfile.creditScore >= 550 ? 'Fair' : 'Poor'}
+                        </div>
+                      </div>
+
+                      {/* Credit Factors */}
+                      <div className="space-y-3">
+                        <h4 className="font-medium text-gray-700">Credit Factors</h4>
+                        {assessment.creditProfile.creditFactors && (
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span>Payment History:</span>
+                              <span className="font-medium">{assessment.creditProfile.creditFactors.paymentHistory || 0}/192</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Credit Utilization:</span>
+                              <span className="font-medium">{assessment.creditProfile.creditFactors.creditUtilization || 50}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Credit History:</span>
+                              <span className="font-medium">{assessment.creditProfile.creditFactors.creditHistory || 0} months</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Loan Diversity:</span>
+                              <span className="font-medium">{assessment.creditProfile.creditFactors.loanDiversity || 0} types</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>KYC Status:</span>
+                              <span className={`font-medium ${assessment.creditProfile.creditFactors.kycVerified ? 'text-green-600' : 'text-red-600'}`}>
+                                {assessment.creditProfile.creditFactors.kycVerified ? 'Verified' : 'Not Verified'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Credit Score Breakdown */}
+                    {assessment.creditProfile.creditBreakdown && (
+                      <div className="mt-6 pt-6 border-t border-gray-200">
+                        <h4 className="font-medium text-gray-700 mb-3">Score Breakdown</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                          <div className="text-center p-2 bg-gray-50 rounded">
+                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.paymentHistory || 0}</div>
+                            <div className="text-xs text-gray-600">Payment History</div>
+                          </div>
+                          <div className="text-center p-2 bg-gray-50 rounded">
+                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.creditUtilization || 0}</div>
+                            <div className="text-xs text-gray-600">Credit Utilization</div>
+                          </div>
+                          <div className="text-center p-2 bg-gray-50 rounded">
+                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.creditHistoryLength || 0}</div>
+                            <div className="text-xs text-gray-600">Credit History</div>
+                          </div>
+                          <div className="text-center p-2 bg-gray-50 rounded">
+                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.loanDiversity || 0}</div>
+                            <div className="text-xs text-gray-600">Loan Diversity</div>
+                          </div>
+                          <div className="text-center p-2 bg-gray-50 rounded">
+                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.trustFactors || 0}</div>
+                            <div className="text-xs text-gray-600">Trust Factors</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Detailed Risk Analysis */}
+                {assessment.riskFactors.detailedAnalysis && assessment.riskFactors.detailedAnalysis.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <Shield className="w-5 h-5 mr-2" />
+                      Detailed Risk Analysis
+                    </h3>
+                    <div className="space-y-3">
+                      {assessment.riskFactors.detailedAnalysis.map((factor, index) => (
+                        <div key={index} className="flex items-start p-3 rounded-lg border border-gray-200">
+                          <div className={`w-3 h-3 rounded-full mt-1 mr-3 ${
+                            factor.impact > 0 ? 'bg-green-500' : 'bg-red-500'
+                          }`}></div>
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <span className="font-medium text-gray-900">{factor.factor}</span>
+                              <span className={`text-sm font-bold ${factor.impact > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {factor.impact > 0 ? '+' : ''}{factor.impact}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1">{factor.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Recommendations */}
                 <div className="bg-white rounded-xl shadow-sm p-6">

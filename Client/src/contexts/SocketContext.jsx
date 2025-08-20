@@ -12,7 +12,17 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
-  const [chatUnreadCounts, setChatUnreadCounts] = useState({});
+  
+  // Initialize chat unread counts from localStorage
+  const [chatUnreadCounts, setChatUnreadCounts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('chatUnreadCounts');
+      return saved ? JSON.parse(saved) : {};
+    } catch (error) {
+      console.error('📱 Error loading chat notifications from localStorage:', error);
+      return {};
+    }
+  });
   
   const socketRef = useRef(null);
   const isInitializing = useRef(false);
@@ -20,17 +30,51 @@ export const SocketProvider = ({ children }) => {
   // Set to track processed messages and prevent duplicates
   const processedMessages = useRef(new Set());
 
-  // Stable function to update chat unread counts
-  const updateChatUnreadCounts = useCallback((updateFn) => {
-    setChatUnreadCounts(updateFn);
+  // Save chat unread counts to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('chatUnreadCounts', JSON.stringify(chatUnreadCounts));
+      console.log('💾 Saved chat notifications to localStorage:', chatUnreadCounts);
+    } catch (error) {
+      console.error('📱 Error saving chat notifications to localStorage:', error);
+    }
+  }, [chatUnreadCounts]);
+
+  // Enhanced function to update chat unread counts with merge logic
+  const updateChatUnreadCounts = useCallback((counts, isInitialLoad = false) => {
+    setChatUnreadCounts(prev => {
+      if (typeof counts === 'function') {
+        // Handle function-based updates (existing behavior)
+        return counts(prev);
+      }
+      
+      if (isInitialLoad) {
+        // For initial loads, merge preserving higher counts from real-time updates
+        const merged = { ...prev };
+        Object.keys(counts).forEach(loanId => {
+          // Take the maximum of API count vs real-time count
+          merged[loanId] = Math.max(counts[loanId] || 0, prev[loanId] || 0);
+        });
+        console.log('📊 Merged initial chat counts:', { api: counts, realTime: prev, merged });
+        return merged;
+      } else {
+        // For regular updates, replace completely
+        console.log('🔄 Updated chat counts:', counts);
+        return { ...prev, ...counts };
+      }
+    });
   }, []);
 
   // Stable function to reset unread count for a specific loan
   const resetUnreadCount = useCallback((loanId) => {
-    setChatUnreadCounts(prev => ({
-      ...prev,
-      [loanId]: 0
-    }));
+    setChatUnreadCounts(prev => {
+      const newCounts = {
+        ...prev,
+        [loanId]: 0
+      };
+      console.log(`🔄 Reset unread count for loan ${loanId}`);
+      return newCounts;
+    });
   }, []);
 
   useEffect(() => {
@@ -86,16 +130,16 @@ export const SocketProvider = ({ children }) => {
           setConnected(true);
         });
 
-        // Enhanced newMessage listener with duplicate protection
+        // Enhanced newMessage listener with duplicate protection and localStorage persistence
         newSocket.on("newMessage", ({ loanId, message, from }) => {
-          console.log(" Global new message notification:", { loanId, from, socketId: newSocket.id });
+          console.log("🔔 Global new message notification:", { loanId, from, socketId: newSocket.id });
           
           // Create unique message identifier to prevent duplicates
           const messageKey = loanId + "_" + (message.timestamp || Date.now()) + "_" + from;
           
           // Check if this message was already processed
           if (processedMessages.current.has(messageKey)) {
-            console.log(" Duplicate message detected, skipping:", messageKey);
+            console.log("⚠️ Duplicate message detected, skipping:", messageKey);
             return;
           }
           
@@ -105,23 +149,46 @@ export const SocketProvider = ({ children }) => {
           // Increment unread count for this loan (single source of truth)
           setChatUnreadCounts(prev => {
             const newCount = (prev[loanId] || 0) + 1;
-            console.log(" Chat notification: " + loanId + " -> " + newCount + " unread messages");
-            return {
+            console.log(`📊 Chat notification: ${loanId} -> ${newCount} unread messages`);
+            
+            const newCounts = {
               ...prev,
               [loanId]: newCount
             };
+            
+            // Immediately save to localStorage for persistence across tab switches
+            try {
+              localStorage.setItem('chatUnreadCounts', JSON.stringify(newCounts));
+              console.log('💾 Saved notification to localStorage:', newCounts);
+            } catch (error) {
+              console.error('📱 Error saving notification to localStorage:', error);
+            }
+            
+            return newCounts;
           });
         });
 
-        // Listen for messages being marked as read
+        // Listen for messages being marked as read with localStorage persistence
         newSocket.on("messagesRead", ({ loanId, userId }) => {
-          console.log(" Global messages marked as read:", { loanId, userId });
+          console.log("📖 Global messages marked as read:", { loanId, userId });
           
           // Reset unread count for this loan to 0
-          setChatUnreadCounts(prev => ({
-            ...prev,
-            [loanId]: 0
-          }));
+          setChatUnreadCounts(prev => {
+            const newCounts = {
+              ...prev,
+              [loanId]: 0
+            };
+            
+            // Immediately save to localStorage
+            try {
+              localStorage.setItem('chatUnreadCounts', JSON.stringify(newCounts));
+              console.log('💾 Cleared notification in localStorage for loan:', loanId);
+            } catch (error) {
+              console.error('📱 Error saving cleared notification to localStorage:', error);
+            }
+            
+            return newCounts;
+          });
         });
 
         newSocket.on("disconnect", () => {
@@ -158,13 +225,34 @@ export const SocketProvider = ({ children }) => {
     };
   }, []);
 
+  // Helper function to manually clear notifications for a specific loan
+  const clearNotifications = (loanId) => {
+    setChatUnreadCounts(prev => {
+      const newCounts = {
+        ...prev,
+        [loanId]: 0
+      };
+      
+      // Immediately save to localStorage
+      try {
+        localStorage.setItem('chatUnreadCounts', JSON.stringify(newCounts));
+        console.log('💾 Manually cleared notifications for loan:', loanId);
+      } catch (error) {
+        console.error('📱 Error clearing notifications in localStorage:', error);
+      }
+      
+      return newCounts;
+    });
+  };
+
   const value = {
     socket,
     connected,
     error,
     chatUnreadCounts,
     updateChatUnreadCounts,
-    resetUnreadCount
+    resetUnreadCount,
+    clearNotifications // Helper function to manually clear notifications
   };
 
   return (

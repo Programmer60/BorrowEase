@@ -267,12 +267,13 @@ router.get("/pending-applications", verifyToken, async (req, res) => {
         
         console.log(`✅ Including borrower: ${app.name} (${app.collegeEmail})`);
         uniqueBorrowers.set(key, {
-          _id: app._id, // Use the most recent application ID
+          _id: user?._id || null, // Use the actual user ID, not the application ID
           name: app.name,
           email: app.collegeEmail,
           loanAmount: app.amount,
           purpose: app.purpose,
-          submittedAt: app.submittedAt
+          submittedAt: app.submittedAt,
+          applicationId: app._id // Keep application ID for reference
         });
       } else {
         console.log(`🔄 Skipping duplicate borrower: ${app.name} (${app.collegeEmail})`);

@@ -17,10 +17,14 @@ import {
 import { io } from "socket.io-client";
 import API from "../api/api";
 import { auth } from "../firebase";
+import { useSocket } from "../contexts/SocketContext";
 
 export default function EnhancedChatRoom() {
   const { loanId } = useParams();
   const navigate = useNavigate();
+  
+  // Get global socket context for notification management
+  const { clearNotifications } = useSocket();
   
   // State management
   const [messages, setMessages] = useState([]);
@@ -208,6 +212,9 @@ export default function EnhancedChatRoom() {
       // Chat event handlers
       socketRef.current.on("joinedLoanChat", ({ loanId: joinedLoanId }) => {
         console.log("🏠 Joined loan chat room:", joinedLoanId);
+        // Clear global notifications when successfully joining the chat room
+        clearNotifications(joinedLoanId);
+        console.log("🧹 Auto-cleared global notifications for joined loan:", joinedLoanId);
       });
 
       // Live loan updates (e.g., lenderName stamped later)
@@ -426,6 +433,9 @@ export default function EnhancedChatRoom() {
       // Mark messages as read
       if (socketRef.current) {
         socketRef.current.emit("markAsRead", { loanId });
+        // Clear global notifications for this loan in localStorage
+        clearNotifications(loanId);
+        console.log("🧹 Cleared global notifications for loan:", loanId);
       }
 
     } catch (error) {
@@ -463,10 +473,12 @@ export default function EnhancedChatRoom() {
 
   // Mark messages as read when user is actively viewing the chat
   useEffect(() => {
-    if (socketRef.current) {
+    if (socketRef.current && messages.length > 0) {
       socketRef.current.emit("markAsRead", { loanId });
+      // Clear global notifications as backup when viewing messages
+      clearNotifications(loanId);
     }
-  }, [messages]);
+  }, [messages, loanId, clearNotifications]);
 
   // Handle sending messages
   const handleSendMessage = async (e) => {
