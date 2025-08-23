@@ -3,8 +3,10 @@ import { Brain, Target, TrendingUp, AlertTriangle, CheckCircle, XCircle, Star, A
 import API from '../api/api';
 import KYCBadge from './KYCBadge';
 import EnhancedDisputeForm from './EnhancedDisputeForm';
+import { useTheme } from '../contexts/ThemeContext';
 
 const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'lender' }) => {
+  const { isDark } = useTheme();
   const [aiAssessment, setAiAssessment] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
   const [borrowerKYC, setBorrowerKYC] = useState(null);
@@ -66,83 +68,16 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
     }
   }
 
-  const fetchAIAssessment = async () => {
-    try {
-      setLoadingAI(true);
-      
-      // Debug the borrowerId structure
-      console.log('🔍 AI Assessment - Debug borrowerId:', {
-        raw: loan.borrowerId,
-        type: typeof loan.borrowerId,
-        isObject: typeof loan.borrowerId === 'object',
-        hasId: loan.borrowerId?._id,
-        keys: typeof loan.borrowerId === 'object' ? Object.keys(loan.borrowerId || {}) : 'not object'
-      });
-      
-      // Handle both populated and non-populated borrowerId
-      let borrowerIdValue;
-      if (typeof loan.borrowerId === 'object' && loan.borrowerId !== null) {
-        // If it's an object, try to get the _id property
-        borrowerIdValue = loan.borrowerId._id || loan.borrowerId.id;
-      } else {
-        // If it's a string, use it directly
-        borrowerIdValue = loan.borrowerId;
-      }
-        
-      console.log('🎯 AI Assessment - Final borrowerIdValue:', borrowerIdValue);
-      
-      if (!borrowerIdValue) {
-        console.warn('No borrower ID available for AI assessment');
-        return;
-      }
-      
-      const response = await API.post('/ai/assess-borrower', {
-        borrowerId: borrowerIdValue,
-        loanAmount: loan.amount,
-        loanPurpose: loan.purpose,
-        repaymentPeriod: loan.tenureMonths * 30 || 30 // Convert months to days, default 30
-      });
-      setAiAssessment(response.data);
-    } catch (error) {
-      console.error('Error fetching AI assessment:', error);
-      console.error('Loan data:', {
-        loanId: loan._id,
-        borrowerId: loan.borrowerId,
-        borrowerIdType: typeof loan.borrowerId
-      });
-    } finally {
-      setLoadingAI(false);
-    }
-  };
-
-  const getScoreColor = (score) => {
-    if (score >= 80) return 'text-green-600 bg-green-50 border-green-200';
-    if (score >= 60) return 'text-blue-600 bg-blue-50 border-blue-200';
-    if (score >= 40) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-    return 'text-red-600 bg-red-50 border-red-200';
-  };
-
-  const getDecisionColor = (decision) => {
-    switch (decision) {
-      case 'approve': return 'text-green-600 bg-green-50 border-green-200';
-      case 'reject': return 'text-red-600 bg-red-50 border-red-200';
-      default: return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-    }
-  };
-
-  const getScoreIcon = (score) => {
-    if (score >= 80) return <CheckCircle className="w-4 h-4" />;
-    if (score >= 60) return <Target className="w-4 h-4" />;
-    if (score >= 40) return <AlertTriangle className="w-4 h-4" />;
-    return <XCircle className="w-4 h-4" />;
-  };
-
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all">
+    <div className={`rounded-xl shadow-sm border p-6 hover:shadow-md transition-all ${
+      isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+    }`}>
       {/* Loan Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">{loan.purpose}</h3>
+          <h3 className={`text-lg font-semibold ${
+            isDark ? 'text-gray-100' : 'text-gray-900'
+          }`}>{loan.purpose}</h3>
           <p className="text-2xl font-bold text-blue-600">₹{loan.amount?.toLocaleString()}</p>
         </div>
         <div className="text-right">
@@ -159,21 +94,21 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
       {/* Borrower Info */}
       <div className="space-y-2 mb-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">Borrower:</span>
-          <span className="font-medium">{loan.name}</span>
+          <span className={isDark ? 'text-gray-200' : 'text-gray-600'}>Borrower:</span>
+          <span className={`font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{loan.name}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">College:</span>
-          <span className="font-medium">{loan.collegeEmail}</span>
+          <span className={isDark ? 'text-gray-200' : 'text-gray-600'}>College:</span>
+          <span className={`font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{loan.collegeEmail}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600">Repayment:</span>
-          <span className="font-medium">{new Date(loan.repaymentDate).toLocaleDateString()}</span>
+          <span className={isDark ? 'text-gray-200' : 'text-gray-600'}>Repayment:</span>
+          <span className={`font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{new Date(loan.repaymentDate).toLocaleDateString()}</span>
         </div>
         {/* KYC Status for Lenders */}
         {userRole === 'lender' && borrowerKYC && (
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">KYC Status:</span>
+            <span className={isDark ? 'text-gray-200' : 'text-gray-600'}>KYC Status:</span>
             <KYCBadge kycStatus={borrowerKYC.kycStatus} size="xs" />
           </div>
         )}
@@ -213,7 +148,7 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
       
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
+      <div className={`flex items-center justify-between mt-6 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
         {userRole === 'lender' && !loan.funded && loan.status === 'approved' && (
           <button
             onClick={() => onFund(loan._id, loan.amount)}
@@ -233,7 +168,7 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
         
         {loan.funded && (
           <div className="flex items-center gap-4 md:gap-6">
-            <span className="text-green-600 font-medium hidden sm:flex items-center">
+            <span className={`font-medium hidden sm:flex items-center ${isDark ? 'text-green-400' : 'text-green-600'}`}>
               <CheckCircle className="w-4 h-4 mr-1" />
               Successfully Funded
             </span>
@@ -241,7 +176,11 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
             {userRole === 'lender' && !loan.repaid && (
               <button
                 onClick={() => setShowDisputeForm(true)}
-                className="inline-flex items-center px-3 py-2 rounded-lg font-medium border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-colors"
+                className={`inline-flex items-center px-3 py-2 rounded-lg font-medium border transition-colors ${
+                  isDark 
+                    ? 'border-red-600 text-red-400 bg-red-900/30 hover:bg-red-900/50 hover:border-red-500' 
+                    : 'border-red-200 text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300'
+                }`}
                 title="Report an issue with this loan"
               >
                 <AlertTriangle className="w-4 h-4 mr-2" />
@@ -253,7 +192,7 @@ const EnhancedLoanCard = ({ loan, onFund, showAIFeatures = true, userRole = 'len
 
         {/* Performance Indicator */}
         {showAIFeatures && aiAssessment && (
-          <div className="flex items-center text-xs text-gray-500">
+          <div className={`flex items-center text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             <Activity className="w-3 h-3 mr-1" />
             AI Analysis Complete
           </div>

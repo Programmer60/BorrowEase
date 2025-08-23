@@ -21,8 +21,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
 import API from "../api/api";
 import NotificationBell from "./NotificationBell";
+import ThemeToggle from "./ThemeToggle";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function Navbar() {
+  const { isDark } = useTheme();
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -160,7 +163,11 @@ export default function Navbar() {
   ];
 
   return (
-    <header className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
+    <header className={`shadow-lg sticky top-0 z-50 theme-transition ${
+      isDark 
+        ? 'bg-gray-900 border-b border-gray-700' 
+        : 'bg-white border-b border-gray-200'
+    }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -184,8 +191,15 @@ export default function Navbar() {
                 <button
                   key={link.path}
                   onClick={() => navigate(link.path)}
-                  className={`relative flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all hover:bg-gray-100 ${
-                    link.className || "text-gray-700 hover:text-indigo-600"
+                  className={`relative flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isDark 
+                      ? 'hover:bg-gray-800' 
+                      : 'hover:bg-gray-100'
+                  } ${
+                    link.className || (isDark 
+                      ? "text-gray-300 hover:text-indigo-400" 
+                      : "text-gray-700 hover:text-indigo-600"
+                    )
                   }`}
                 >
                   {link.icon}
@@ -203,6 +217,9 @@ export default function Navbar() {
           <div className="hidden md:flex items-center space-x-4">
             {user ? (
               <>
+                {/* Theme Toggle */}
+                <ThemeToggle variant="simple" />
+
                 <NotificationBell/>
 
                 <div className="relative">
@@ -222,27 +239,48 @@ export default function Navbar() {
                       )}
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
-                      <p className="text-xs text-gray-500">{userRole}</p>
+                      <p className={`text-sm font-medium ${
+                        isDark ? 'text-gray-100' : 'text-gray-900'
+                      }`}>{user.displayName}</p>
+                      <p className={`text-xs ${
+                        isDark ? 'text-gray-400' : 'text-gray-500'
+                      }`}>{userRole}</p>
                     </div>
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
+                    <ChevronDown className={`w-4 h-4 ${
+                      isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`} />
                   </button>
 
                   {isProfileOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded shadow-lg border py-1 z-50">
-                      <div className="px-4 py-2 border-b">
-                        <p className="text-sm font-medium">{user.displayName}</p>
-                        <p className="text-xs text-gray-500">{user.email}</p>
+                    <div className={`absolute right-0 mt-2 w-48 rounded shadow-lg py-1 z-50 ${
+                      isDark 
+                        ? 'bg-gray-800 border border-gray-700' 
+                        : 'bg-white border border-gray-200'
+                    }`}>
+                      <div className={`px-4 py-2 border-b ${
+                        isDark ? 'border-gray-700' : 'border-gray-200'
+                      }`}>
+                        <p className={`text-sm font-medium ${
+                          isDark ? 'text-gray-100' : 'text-gray-900'
+                        }`}>{user.displayName}</p>
+                        <p className={`text-xs ${
+                          isDark ? 'text-gray-400' : 'text-gray-500'
+                        }`}>{user.email}</p>
                         {userRole === "admin" && (
-                          <p className="text-xs text-red-600 font-semibold">Admin User</p>
+                          <p className={`text-xs font-semibold ${
+                            isDark ? 'text-red-400' : 'text-red-600'
+                          }`}>Admin User</p>
                         )}
                         {userRole === "borrower" && user.kycStatus && (
                           <div className="mt-1">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              user.kycStatus === 'verified' ? 'bg-green-100 text-green-800' :
-                              user.kycStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              user.kycStatus === 'rejected' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
+                              user.kycStatus === 'verified' 
+                                ? (isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800')
+                                : user.kycStatus === 'pending' 
+                                ? (isDark ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-100 text-yellow-800')
+                                : user.kycStatus === 'rejected' 
+                                ? (isDark ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800')
+                                : (isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800')
                             }`}>
                               <Shield className="w-3 h-3 mr-1" />
                               KYC {user.kycStatus === 'not_submitted' ? 'Not Submitted' : 
@@ -253,18 +291,27 @@ export default function Navbar() {
                       </div>
                       <button
                         onClick={() => navigate("/profile")}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                        className={`w-full text-left px-4 py-2 text-sm ${
+                          isDark 
+                            ? 'hover:bg-gray-700 text-gray-300' 
+                            : 'hover:bg-gray-100 text-gray-700'
+                        }`}
                       >
                         Profile Settings
                       </button>
                       {userRole === "borrower" && (
                         <button
                           onClick={() => navigate("/kyc")}
-                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center ${
-                            user.kycStatus === 'verified' ? 'text-green-600' :
-                            user.kycStatus === 'pending' ? 'text-yellow-600' :
-                            user.kycStatus === 'rejected' ? 'text-red-600' :
-                            'text-blue-600'
+                          className={`w-full text-left px-4 py-2 text-sm flex items-center ${
+                            isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                          } ${
+                            user.kycStatus === 'verified' 
+                              ? (isDark ? 'text-green-400' : 'text-green-600')
+                              : user.kycStatus === 'pending' 
+                              ? (isDark ? 'text-yellow-400' : 'text-yellow-600')
+                              : user.kycStatus === 'rejected' 
+                              ? (isDark ? 'text-red-400' : 'text-red-600')
+                              : (isDark ? 'text-blue-400' : 'text-blue-600')
                           }`}
                         >
                           <Shield className="w-4 h-4 mr-2" />
@@ -305,7 +352,11 @@ export default function Navbar() {
                       )}
                       <button
                         onClick={handleLogout}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        className={`w-full text-left px-4 py-2 text-sm ${
+                          isDark 
+                            ? 'text-red-400 hover:bg-red-900/20' 
+                            : 'text-red-600 hover:bg-red-50'
+                        }`}
                       >
                         Logout
                       </button>
@@ -314,19 +365,27 @@ export default function Navbar() {
                 </div>
               </>
             ) : (
-              <Link to="/login">
-                <button className="bg-indigo-600 text-white px-6 py-2 rounded-lg shadow hover:bg-indigo-700 transition">
-                  Login
-                </button>
-              </Link>
+              <div className="flex items-center space-x-3">
+                {/* Theme Toggle for non-authenticated users */}
+                <ThemeToggle variant="simple" />
+                <Link to="/login">
+                  <button className="bg-indigo-600 text-white px-6 py-2 rounded-lg shadow hover:bg-indigo-700 transition">
+                    Login
+                  </button>
+                </Link>
+              </div>
             )}
           </div>
 
           {/* Mobile Hamburger */}
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center space-x-2">
+            {/* Mobile Theme Toggle */}
+            <ThemeToggle variant="simple" />
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 text-gray-500"
+              className={`p-2 ${
+                isDark ? 'text-gray-400' : 'text-gray-500'
+              }`}
             >
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -336,7 +395,11 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {isMenuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-200 shadow">
+        <div className={`md:hidden border-t shadow ${
+          isDark 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
           {navLinks
             .filter((link) => link.show && link.label !== "Admin Panel")
             .map((link) => (
@@ -346,8 +409,10 @@ export default function Navbar() {
                   navigate(link.path);
                   setIsMenuOpen(false);
                 }}
-                className={`relative w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center ${
-                  link.className || "text-gray-700"
+                className={`relative w-full px-4 py-3 text-left text-sm flex items-center ${
+                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                } ${
+                  link.className || (isDark ? "text-gray-300" : "text-gray-700")
                 }`}
               >
                 {link.icon}
@@ -373,7 +438,11 @@ export default function Navbar() {
             {user ? (
               <button
                 onClick={handleLogout}
-                className="text-sm text-red-600 hover:text-red-700"
+                className={`text-sm ${
+                  isDark 
+                    ? 'text-red-400 hover:text-red-300' 
+                    : 'text-red-600 hover:text-red-700'
+                }`}
               >
                 Logout
               </button>

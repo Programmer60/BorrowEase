@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import API from "../api/api";
 import { Bell } from "lucide-react";
+import { useTheme } from "../contexts/ThemeContext";
 
 // Custom bell ringing animation styles
 const bellStyles = `
@@ -40,6 +41,7 @@ export default function NotificationBell() {
   const [isRinging, setIsRinging] = useState(false);
   const bellRef = useRef(null);
   const prevNotificationCount = useRef(0);
+  const { isDark } = useTheme();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -146,19 +148,36 @@ export default function NotificationBell() {
         )}
       </button>
       {dropdownOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white border rounded shadow-lg z-50 max-h-96 overflow-y-auto">
+        <div className={`absolute right-0 mt-2 w-80 border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto ${
+          isDark 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
           {loading ? (
-            <div className="p-4 text-gray-500">Loading...</div>
+            <div className={`p-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</div>
           ) : error ? (
-            <div className="p-4 text-red-500">{error}</div>
+            <div className={`p-4 ${isDark ? 'text-red-400' : 'text-red-500'}`}>{error}</div>
           ) : notifications.length === 0 ? (
-            <div className="p-4 text-gray-500">No notifications</div>
+            <div className={`p-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No notifications</div>
           ) : (
             notifications.map(n => (
-              <div key={n._id} className={`p-4 border-b last:border-b-0 ${n.read ? 'bg-gray-100' : 'bg-white'}`}>
-                <div className="font-medium">{n.title || "Notification"}</div>
-                <div className="text-sm text-gray-600">{n.message || n.text || "No details"}</div>
-                <div className="text-xs text-gray-400 mt-1">{new Date(n.createdAt).toLocaleString()}</div>
+              <div 
+                key={n._id} 
+                className={`p-4 border-b last:border-b-0 transition-colors ${
+                  isDark 
+                    ? `border-gray-700 ${n.read ? 'bg-gray-800' : 'bg-gray-700/50'}` 
+                    : `border-gray-100 ${n.read ? 'bg-gray-100' : 'bg-white'}`
+                }`}
+              >
+                <div className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
+                  {n.title || "Notification"}
+                </div>
+                <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {n.message || n.text || "No details"}
+                </div>
+                <div className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                  {new Date(n.createdAt).toLocaleString()}
+                </div>
               </div>
             ))
           )}

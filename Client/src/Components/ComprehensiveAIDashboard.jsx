@@ -24,51 +24,60 @@ import {
 import Navbar from './Navbar';
 import API from '../api/api';
 import AIFraudDetectionDashboard from './AIFraudDetectionDashboard';
+import { auth } from '../firebase';
 
 const ComprehensiveAIDashboard = () => {
-  const [activeTab, setActiveTab] = useState('risk-assessment');
+  const [activeTab, setActiveTab] = useState('fraud-detection'); // Default to fraud detection (available to all)
   const [riskData, setRiskData] = useState(null);
   const [platformAnalytics, setPlatformAnalytics] = useState(null);
-  const [borrowerAssessment, setBorrowerAssessment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedModel, setSelectedModel] = useState('comprehensive');
-  const [assessmentForm, setAssessmentForm] = useState({
-    borrowerId: '',
-    loanAmount: '',
-    loanPurpose: '',
-    repaymentPeriod: ''
-  });
+  const [userRole, setUserRole] = useState('');
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        try {
+          const res = await API.get('/users/me');
+          console.log('👤 User role fetched in AI Dashboard:', res.data.role);
+          setUserRole(res.data.role);
+        } catch (error) {
+          console.error('Error fetching user role:', error);
+        }
+      } else {
+        setUser(null);
+        setUserRole('');
+      }
+    });
+
     loadDashboardData();
+    
+    return () => unsubscribe();
   }, []);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [riskResponse, analyticsResponse] = await Promise.all([
-        API.get(`/ai/risk-assessment?model=${selectedModel}`).catch(() => ({ data: null })),
-        API.get('/ai/platform-analytics').catch(() => ({ data: null }))
-      ]);
+      
+      // Only fetch risk assessment data if user is admin
+      const promises = [];
+      
+      if (userRole === 'admin') {
+        promises.push(API.get(`/ai/risk-assessment?model=${selectedModel}`).catch(() => ({ data: null })));
+      } else {
+        promises.push(Promise.resolve({ data: null }));
+      }
+      
+      promises.push(API.get('/ai/platform-analytics').catch(() => ({ data: null })));
+
+      const [riskResponse, analyticsResponse] = await Promise.all(promises);
 
       setRiskData(riskResponse.data);
       setPlatformAnalytics(analyticsResponse.data);
     } catch (error) {
       console.error('Error loading AI dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBorrowerAssessment = async () => {
-    try {
-      setLoading(true);
-      const response = await API.post('/ai/assess-borrower', assessmentForm);
-      setBorrowerAssessment(response.data);
-      setActiveTab('borrower-assessment');
-    } catch (error) {
-      console.error('Error assessing borrower:', error);
-      alert('Failed to assess borrower. Please check the borrower ID.');
     } finally {
       setLoading(false);
     }
@@ -93,6 +102,28 @@ const ComprehensiveAIDashboard = () => {
       case 'approve': return 'text-green-600 bg-green-50 border-green-200';
       case 'reject': return 'text-red-600 bg-red-50 border-red-200';
       default: return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+    }
+  };
+
+  const getRiskLevelColor = (riskLevel) => {
+    switch (riskLevel) {
+      case 'very_low': return 'bg-green-50 border-green-200';
+      case 'low': return 'bg-blue-50 border-blue-200';
+      case 'medium': return 'bg-yellow-50 border-yellow-200';
+      case 'high': return 'bg-orange-50 border-orange-200';
+      case 'very_high': return 'bg-red-50 border-red-200';
+      default: return 'bg-gray-50 border-gray-200';
+    }
+  };
+
+  const getRiskLevelBadge = (riskLevel) => {
+    switch (riskLevel) {
+      case 'very_low': return 'bg-green-100 text-green-800';
+      case 'low': return 'bg-blue-100 text-blue-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
+      case 'very_high': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -213,13 +244,31 @@ const ComprehensiveAIDashboard = () => {
     );
   };
 
-  const tabs = [
-    { id: 'risk-assessment', label: 'Risk Assessment', icon: Gauge },
-    { id: 'borrower-assessment', label: 'Borrower Analysis', icon: Users },
-    { id: 'platform-analytics', label: 'Platform Analytics', icon: BarChart3 },
-    { id: 'fraud-detection', label: 'Fraud Detection', icon: Shield },
-    { id: 'ai-models', label: 'AI Models', icon: Brain },
+  const allTabs = [
+    { id: 'risk-assessment', label: 'Risk Assessment', icon: Gauge, adminOnly: true },
+    { id: 'fraud-detection', label: 'Fraud Detection', icon: Shield, adminOnly: false },
+    { id: 'ai-models', label: 'AI Models', icon: Brain, adminOnly: false },
   ];
+
+  // Filter tabs based on user role
+  const tabs = allTabs.filter(tab => !tab.adminOnly || userRole === 'admin');
+
+  // Update active tab if current tab is not available for user role
+  useEffect(() => {
+    if (userRole && tabs.length > 0) {
+      const isActiveTabAvailable = tabs.some(tab => tab.id === activeTab);
+      if (!isActiveTabAvailable) {
+        setActiveTab(tabs[0].id); // Set to first available tab
+      }
+    }
+  }, [userRole, tabs, activeTab]);
+
+  // Reload data when user role changes
+  useEffect(() => {
+    if (userRole) {
+      loadDashboardData();
+    }
+  }, [userRole]);
 
   if (loading && !riskData) {
     return (
@@ -291,8 +340,8 @@ const ComprehensiveAIDashboard = () => {
           </div>
 
           <div className="p-6">
-            {/* Risk Assessment Tab */}
-            {activeTab === 'risk-assessment' && riskData && (
+            {/* Risk Assessment Tab - Admin Only */}
+            {activeTab === 'risk-assessment' && userRole === 'admin' && riskData && (
               <div className="space-y-6">
                 {/* Overall Score */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -354,59 +403,129 @@ const ComprehensiveAIDashboard = () => {
                   </div>
                 </div>
 
-                {/* Risk Factors */}
+                {/* Industry-Standard Risk Factors */}
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Risk Factor Analysis</h3>
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">Industry-Standard Risk Factor Analysis</h3>
+                  
+                  {/* Risk Components Overview */}
+                  {riskData.riskComponents && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                      <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-purple-700">Creditworthiness</span>
+                          <span className="text-xs text-purple-600">{((riskData.riskComponents.creditworthiness / 35) * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="text-2xl font-bold text-purple-700">{riskData.riskComponents.creditworthiness}/35</div>
+                        <div className="w-full bg-purple-200 rounded-full h-2 mt-2">
+                          <div 
+                            className="bg-purple-600 h-2 rounded-full" 
+                            style={{width: `${(riskData.riskComponents.creditworthiness / 35) * 100}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-blue-700">Behavioral Risk</span>
+                          <span className="text-xs text-blue-600">{((riskData.riskComponents.behavioralRisk / 25) * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="text-2xl font-bold text-blue-700">{riskData.riskComponents.behavioralRisk}/25</div>
+                        <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full" 
+                            style={{width: `${(riskData.riskComponents.behavioralRisk / 25) * 100}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-green-700">Financial Stability</span>
+                          <span className="text-xs text-green-600">{((riskData.riskComponents.financialStability / 20) * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="text-2xl font-bold text-green-700">{riskData.riskComponents.financialStability}/20</div>
+                        <div className="w-full bg-green-200 rounded-full h-2 mt-2">
+                          <div 
+                            className="bg-green-600 h-2 rounded-full" 
+                            style={{width: `${(riskData.riskComponents.financialStability / 20) * 100}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-orange-700">Identity Verification</span>
+                          <span className="text-xs text-orange-600">{((riskData.riskComponents.identityVerification / 10) * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="text-2xl font-bold text-orange-700">{riskData.riskComponents.identityVerification}/10</div>
+                        <div className="w-full bg-orange-200 rounded-full h-2 mt-2">
+                          <div 
+                            className="bg-orange-600 h-2 rounded-full" 
+                            style={{width: `${(riskData.riskComponents.identityVerification / 10) * 100}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-indigo-700">Platform History</span>
+                          <span className="text-xs text-indigo-600">{((riskData.riskComponents.platformHistory / 10) * 100).toFixed(0)}%</span>
+                        </div>
+                        <div className="text-2xl font-bold text-indigo-700">{riskData.riskComponents.platformHistory}/10</div>
+                        <div className="w-full bg-indigo-200 rounded-full h-2 mt-2">
+                          <div 
+                            className="bg-indigo-600 h-2 rounded-full" 
+                            style={{width: `${(riskData.riskComponents.platformHistory / 10) * 100}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Detailed Risk Factors */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <FactorCard
-                      title="Payment History"
-                      score={riskData.factors?.paymentHistory || 0}
-                      impact="High"
-                      trend={5}
-                      description="Track record of on-time payments and defaults"
-                      icon={Star}
-                    />
-                    <FactorCard
-                      title="Credit Utilization"
-                      score={riskData.factors?.creditUtilization || 0}
-                      impact="High"
-                      trend={-2}
-                      description="Current debt relative to available credit"
-                      icon={BarChart3}
-                    />
-                    <FactorCard
-                      title="Income Stability"
-                      score={riskData.factors?.incomeStability || 0}
-                      impact="Medium"
-                      trend={3}
-                      description="Consistency and reliability of income sources"
-                      icon={TrendingUp}
-                    />
-                    <FactorCard
-                      title="Debt to Income"
-                      score={riskData.factors?.debtToIncome || 0}
-                      impact="High"
-                      trend={-1}
-                      description="Total debt obligations vs monthly income"
-                      icon={PieChart}
-                    />
-                    <FactorCard
-                      title="Social Signals"
-                      score={riskData.factors?.socialSignals || 0}
-                      impact="Low"
-                      trend={2}
-                      description="KYC verification and profile completeness"
-                      icon={Users}
-                    />
-                    <FactorCard
-                      title="Market Conditions"
-                      score={riskData.factors?.marketConditions || 0}
-                      impact="Medium"
-                      trend={1}
-                      description="Current economic and market environment"
-                      icon={Activity}
-                    />
+                    {riskData.riskFactors && riskData.riskFactors.map((factor, index) => (
+                      <div key={index} className={`border rounded-xl p-4 ${getRiskLevelColor(factor.risk_level)}`}>
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-semibold text-sm">{factor.factor}</h4>
+                          <span className={`text-xs px-2 py-1 rounded-full ${getRiskLevelBadge(factor.risk_level)}`}>
+                            {factor.risk_level?.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex items-center mb-2">
+                          <span className="text-lg font-bold mr-2">
+                            {factor.impact > 0 ? '+' : ''}{factor.impact}
+                          </span>
+                          {factor.impact > 0 ? (
+                            <TrendingUp className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <TrendingUp className="w-4 h-4 text-red-600 rotate-180" />
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600 mb-1">{factor.description}</p>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          {factor.category}
+                        </span>
+                      </div>
+                    ))}
                   </div>
+
+                  {/* Warning Flags */}
+                  {riskData.warningFlags && riskData.warningFlags.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-lg font-semibold text-red-700 mb-3 flex items-center">
+                        <AlertTriangle className="w-5 h-5 mr-2" />
+                        Warning Flags ({riskData.warningFlags.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {riskData.warningFlags.map((warning, index) => (
+                          <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-sm text-red-800">{warning}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Recommendations */}
@@ -439,208 +558,12 @@ const ComprehensiveAIDashboard = () => {
               </div>
             )}
 
-            {/* Borrower Assessment Tab */}
-            {activeTab === 'borrower-assessment' && (
-              <div className="space-y-6">
-                {/* Assessment Form */}
-                <div className="bg-white rounded-xl border p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Individual Borrower Assessment</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Borrower ID</label>
-                      <input
-                        type="text"
-                        value={assessmentForm.borrowerId}
-                        onChange={(e) => setAssessmentForm({...assessmentForm, borrowerId: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter borrower ID"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Loan Amount</label>
-                      <input
-                        type="number"
-                        value={assessmentForm.loanAmount}
-                        onChange={(e) => setAssessmentForm({...assessmentForm, loanAmount: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="₹ 0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Loan Purpose</label>
-                      <input
-                        type="text"
-                        value={assessmentForm.loanPurpose}
-                        onChange={(e) => setAssessmentForm({...assessmentForm, loanPurpose: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="e.g., Business expansion"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Repayment Period (days)</label>
-                      <input
-                        type="number"
-                        value={assessmentForm.repaymentPeriod}
-                        onChange={(e) => setAssessmentForm({...assessmentForm, repaymentPeriod: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="30"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleBorrowerAssessment}
-                    disabled={loading || !assessmentForm.borrowerId}
-                    className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
-                  >
-                    <Brain className="w-4 h-4 mr-2" />
-                    Assess Borrower
-                  </button>
-                </div>
-
-                {/* Assessment Results */}
-                {borrowerAssessment && (
-                  <div className="space-y-6">
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6">
-                      <h3 className="text-xl font-bold text-gray-900 mb-4">Assessment Results</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="text-center">
-                          <CircularProgress score={borrowerAssessment.assessment?.baseRiskScore || 0} size={100} />
-                          <p className="text-sm text-gray-600 mt-2">Base Risk Score</p>
-                        </div>
-                        <div className="text-center">
-                          <CircularProgress score={borrowerAssessment.assessment?.loanSpecificScore || 0} size={100} />
-                          <p className="text-sm text-gray-600 mt-2">Loan-Specific Score</p>
-                        </div>
-                        <div className="text-center">
-                          <div className={`inline-flex items-center px-4 py-2 rounded-full border text-lg font-semibold ${
-                            getDecisionColor(borrowerAssessment.assessment?.finalDecision)
-                          }`}>
-                            {borrowerAssessment.assessment?.finalDecision === 'approve' ? (
-                              <CheckCircle className="w-6 h-6 mr-2" />
-                            ) : (
-                              <XCircle className="w-6 h-6 mr-2" />
-                            )}
-                            {borrowerAssessment.assessment?.finalDecision?.toUpperCase()}
-                          </div>
-                          <p className="text-sm text-gray-600 mt-2">
-                            Confidence: {borrowerAssessment.assessment?.confidence}%
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Detailed Analysis */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div className="bg-white rounded-xl border p-6">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Borrower Profile</h4>
-                        <div className="space-y-3 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Name:</span>
-                            <span className="font-medium">{borrowerAssessment.borrowerName}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Email:</span>
-                            <span className="font-medium">{borrowerAssessment.borrowerEmail}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Requested Amount:</span>
-                            <span className="font-medium">₹{borrowerAssessment.loanDetails?.requestedAmount?.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Purpose:</span>
-                            <span className="font-medium">{borrowerAssessment.loanDetails?.purpose}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Repayment Period:</span>
-                            <span className="font-medium">{borrowerAssessment.loanDetails?.repaymentPeriod} days</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-xl border p-6">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-4">Loan Recommendation</h4>
-                        <div className="space-y-3 text-sm">
-                          {borrowerAssessment.assessment?.suggestedRate && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Suggested Interest Rate:</span>
-                              <span className="font-medium">{borrowerAssessment.assessment.suggestedRate}% p.a.</span>
-                            </div>
-                          )}
-                          {borrowerAssessment.assessment?.maxRecommendedAmount && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Max Recommended Amount:</span>
-                              <span className="font-medium">₹{borrowerAssessment.assessment.maxRecommendedAmount.toLocaleString()}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Recommendations */}
-                    {borrowerAssessment.recommendations && (
-                      <div className="bg-white rounded-xl border p-6">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-4">AI Recommendations</h4>
-                        <div className="space-y-3">
-                          {borrowerAssessment.recommendations.map((rec, index) => (
-                            <div key={index} className={`p-3 rounded-lg border-l-4 ${
-                              rec.priority === 'high' ? 'bg-red-50 border-red-400' :
-                              rec.priority === 'medium' ? 'bg-yellow-50 border-yellow-400' :
-                              'bg-blue-50 border-blue-400'
-                            }`}>
-                              <h5 className="font-medium text-gray-900">{rec.title}</h5>
-                              <p className="text-gray-700 text-sm">{rec.description}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Platform Analytics Tab */}
-            {activeTab === 'platform-analytics' && platformAnalytics && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div className="bg-white rounded-xl border p-6 text-center">
-                    <div className="text-3xl font-bold text-blue-600">{platformAnalytics.platformRiskScore}</div>
-                    <div className="text-gray-600 text-sm">Platform Risk Score</div>
-                  </div>
-                  <div className="bg-white rounded-xl border p-6 text-center">
-                    <div className="text-3xl font-bold text-green-600">{platformAnalytics.totalUsers}</div>
-                    <div className="text-gray-600 text-sm">Total Users</div>
-                  </div>
-                  <div className="bg-white rounded-xl border p-6 text-center">
-                    <div className="text-3xl font-bold text-red-600">{platformAnalytics.riskDistribution?.high}</div>
-                    <div className="text-gray-600 text-sm">High Risk Users</div>
-                  </div>
-                  <div className="bg-white rounded-xl border p-6 text-center">
-                    <div className="text-3xl font-bold text-green-600">{platformAnalytics.riskDistribution?.low}</div>
-                    <div className="text-gray-600 text-sm">Low Risk Users</div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl border p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">Risk Distribution</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center p-4 bg-red-50 rounded-lg">
-                      <div className="text-2xl font-bold text-red-600">{platformAnalytics.riskDistribution?.high}</div>
-                      <div className="text-sm text-red-600">High Risk</div>
-                      <div className="text-xs text-gray-500">Score &lt; 40</div>
-                    </div>
-                    <div className="text-center p-4 bg-yellow-50 rounded-lg">
-                      <div className="text-2xl font-bold text-yellow-600">{platformAnalytics.riskDistribution?.medium}</div>
-                      <div className="text-sm text-yellow-600">Medium Risk</div>
-                      <div className="text-xs text-gray-500">Score 40-70</div>
-                    </div>
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">{platformAnalytics.riskDistribution?.low}</div>
-                      <div className="text-sm text-green-600">Low Risk</div>
-                      <div className="text-xs text-gray-500">Score &gt; 70</div>
-                    </div>
-                  </div>
-                </div>
+            {/* Access Denied for Risk Assessment for Non-Admin Users */}
+            {activeTab === 'risk-assessment' && userRole !== 'admin' && (
+              <div className="text-center py-12">
+                <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-600 mb-2">Access Restricted</h3>
+                <p className="text-gray-500">Risk Assessment features are only available to administrators.</p>
               </div>
             )}
 

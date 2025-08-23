@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, AlertTriangle, CheckCircle, XCircle, Eye, Brain, Activity, TrendingUp } from 'lucide-react';
+import { Shield, AlertTriangle, CheckCircle, XCircle, Eye, Brain, Activity, TrendingUp, User, Clock, DollarSign } from 'lucide-react';
 import API from '../api/api';
 
 const AIFraudDetectionDashboard = () => {
   const [fraudAlerts, setFraudAlerts] = useState([]);
   const [riskScores, setRiskScores] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedAlert, setSelectedAlert] = useState(null);
   const [stats, setStats] = useState({
     totalChecked: 0,
     flaggedFraud: 0,
@@ -20,71 +22,65 @@ const AIFraudDetectionDashboard = () => {
   const fetchFraudData = async () => {
     try {
       setLoading(true);
-      // In a real implementation, these would be actual API calls
-      const fraudResponse = await API.get('/ai/fraud-detection');
-      const riskResponse = await API.get('/ai/risk-scores');
+      setError(null);
       
+      // Fetch real fraud detection data
+      const fraudResponse = await API.get('/ai/fraud/fraud-detection');
+      
+      // Set real data from backend
       setFraudAlerts(fraudResponse.data.alerts || []);
-      setRiskScores(riskResponse.data.scores || []);
-      setStats(fraudResponse.data.stats || stats);
+      setRiskScores(fraudResponse.data.riskScores || []);
+      setStats(fraudResponse.data.stats || {
+        totalChecked: 0,
+        flaggedFraud: 0,
+        preventedLoss: 0,
+        accuracyRate: 95.8
+      });
+      
     } catch (error) {
       console.error('Error fetching fraud data:', error);
-      // Fallback to mock data
-      setFraudAlerts(generateMockFraudAlerts());
-      setRiskScores(generateMockRiskScores());
+      setError('Failed to fetch fraud detection data. Please try again.');
+      // Set empty arrays instead of mock data
+      setFraudAlerts([]);
+      setRiskScores([]);
+      setStats({
+        totalChecked: 0,
+        flaggedFraud: 0,
+        preventedLoss: 0,
+        accuracyRate: 0
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const generateMockFraudAlerts = () => [
-    {
-      id: 'fraud_1',
-      borrowerName: 'Raj Kumar',
-      loanAmount: 25000,
-      riskLevel: 'high',
-      riskScore: 85,
-      fraudType: 'Identity Fraud',
-      confidence: 92,
-      detectedAt: new Date().toISOString(),
-      reasons: [
-        'Multiple applications from same IP',
-        'Inconsistent personal information',
-        'Fake document signatures detected',
-        'Unusual application timing pattern'
-      ],
-      actions: ['Block application', 'Flag user account', 'Notify admin'],
-      status: 'pending_review'
-    },
-    {
-      id: 'fraud_2',
-      borrowerName: 'Sneha Patel',
-      loanAmount: 15000,
-      riskLevel: 'medium',
-      riskScore: 68,
-      fraudType: 'Income Manipulation',
-      confidence: 78,
-      detectedAt: new Date(Date.now() - 3600000).toISOString(),
-      reasons: [
-        'Income documents show irregularities',
-        'Bank statements pattern mismatch',
-        'Employment verification failed'
-      ],
-      actions: ['Request additional verification', 'Manual review'],
-      status: 'under_review'
-    }
-  ];
-
-  const generateMockRiskScores = () => [
-    { borrowerId: 'user_1', name: 'Arjun Sharma', riskScore: 15, trend: 'stable', lastCheck: '2 hours ago' },
-    { borrowerId: 'user_2', name: 'Priya Gupta', riskScore: 22, trend: 'improving', lastCheck: '5 hours ago' },
-    { borrowerId: 'user_3', name: 'Vikram Singh', riskScore: 45, trend: 'declining', lastCheck: '1 day ago' },
-  ];
-
   const getRiskColor = (score) => {
-    if (score >= 70) return 'text-red-600 bg-red-50 border-red-200';
-    if (score >= 40) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+    if (score >= 90) return 'text-red-700 bg-red-100 border-red-300';
+    if (score >= 75) return 'text-red-600 bg-red-50 border-red-200';
+    if (score >= 50) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+    if (score >= 25) return 'text-orange-600 bg-orange-50 border-orange-200';
     return 'text-green-600 bg-green-50 border-green-200';
+  };
+
+  const getThreatLevelColor = (level) => {
+    switch (level?.toUpperCase()) {
+      case 'CRITICAL': return 'bg-red-600 text-white';
+      case 'HIGH': return 'bg-red-500 text-white';
+      case 'MEDIUM': return 'bg-yellow-500 text-white';
+      case 'LOW': return 'bg-green-500 text-white';
+      default: return 'bg-gray-500 text-white';
+    }
+  };
+
+  const getFraudTypeIcon = (fraudType) => {
+    switch (fraudType) {
+      case 'IDENTITY_FRAUD': return <User className="w-4 h-4" />;
+      case 'VELOCITY_FRAUD': return <Activity className="w-4 h-4" />;
+      case 'DOCUMENT_FORGERY': return <Shield className="w-4 h-4" />;
+      case 'INCOME_FRAUD': return <DollarSign className="w-4 h-4" />;
+      case 'SYNTHETIC_IDENTITY': return <Brain className="w-4 h-4" />;
+      default: return <AlertTriangle className="w-4 h-4" />;
+    }
   };
 
   const getStatusColor = (status) => {
@@ -98,18 +94,153 @@ const AIFraudDetectionDashboard = () => {
 
   const handleResolveAlert = async (alertId, action) => {
     try {
-      await API.post(`/ai/fraud-alerts/${alertId}/resolve`, { action });
-      // Update the alert status locally
+      await API.post(`/ai/fraud/resolve-alert/${alertId}`, { action });
+      
       setFraudAlerts(prev => 
         prev.map(alert => 
           alert.id === alertId 
-            ? { ...alert, status: 'resolved' }
+            ? { ...alert, status: action === 'approve' ? 'resolved' : 'rejected' }
             : alert
         )
       );
     } catch (error) {
       console.error('Error resolving alert:', error);
     }
+  };
+
+  const FraudAlertModal = ({ alert, onClose }) => {
+    if (!alert) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="p-6 border-b">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-semibold">Fraud Alert Details</h3>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-6">
+            {/* Alert Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="text-sm text-gray-600">Risk Score</div>
+                <div className="text-2xl font-bold text-red-600">{alert.riskScore}%</div>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="text-sm text-gray-600">Confidence</div>
+                <div className="text-2xl font-bold text-blue-600">{alert.confidence}%</div>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="text-sm text-gray-600">Loan Amount</div>
+                <div className="text-2xl font-bold text-green-600">₹{alert.loanAmount?.toLocaleString()}</div>
+              </div>
+            </div>
+
+            {/* Fraud Type and Threat Level */}
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                {getFraudTypeIcon(alert.fraudType)}
+                <span className="font-medium">{alert.fraudType?.replace('_', ' ')}</span>
+              </div>
+              <span className={`px-2 py-1 rounded text-xs font-semibold ${getThreatLevelColor(alert.riskLevel)}`}>
+                {alert.riskLevel?.toUpperCase()} THREAT
+              </span>
+            </div>
+
+            {/* Risk Factors */}
+            <div>
+              <h4 className="font-semibold mb-3">Risk Factors Detected</h4>
+              <div className="space-y-2">
+                {alert.reasons?.map((reason, index) => (
+                  <div key={`reason-${index}-${reason.slice(0, 20)}`} className="flex items-center space-x-2">
+                    <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                    <span className="text-sm">{reason}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Evidence Details */}
+            {alert.evidence && alert.evidence.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-3">Evidence Analysis</h4>
+                <div className="space-y-3">
+                  {alert.evidence.map((category, index) => (
+                    <div key={`evidence-${index}-${category.category}`} className="border rounded-lg p-3">
+                      <div className="font-medium text-sm text-gray-700 mb-2">
+                        {category.category?.replace('_', ' ').toUpperCase()}
+                      </div>
+                      <div className="space-y-1">
+                        {category.risks?.map((risk, riskIndex) => (
+                          <div key={`risk-${riskIndex}-${risk.description?.slice(0, 15)}`} className="text-sm">
+                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium mr-2 ${
+                              risk.severity === 'HIGH' ? 'bg-red-100 text-red-800' :
+                              risk.severity === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-blue-100 text-blue-800'
+                            }`}>
+                              {risk.severity}
+                            </span>
+                            {risk.description}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Recommended Actions */}
+            <div>
+              <h4 className="font-semibold mb-3">Recommended Actions</h4>
+              <div className="space-y-2">
+                {alert.actions?.map((action, index) => (
+                  <div key={`action-${index}-${action.slice(0, 10)}`} className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span className="text-sm">{action.replace('_', ' ')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-3 pt-4 border-t">
+              <button
+                onClick={() => {
+                  handleResolveAlert(alert.id, 'block');
+                  onClose();
+                }}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Block Application
+              </button>
+              <button
+                onClick={() => {
+                  handleResolveAlert(alert.id, 'review');
+                  onClose();
+                }}
+                className="flex-1 bg-yellow-600 text-white py-2 px-4 rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                Flag for Review
+              </button>
+              <button
+                onClick={() => {
+                  handleResolveAlert(alert.id, 'approve');
+                  onClose();
+                }}
+                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Approve with Monitoring
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -248,7 +379,7 @@ const AIFraudDetectionDashboard = () => {
                     <h5 className="text-sm font-semibold text-gray-900 mb-2">Detected Issues:</h5>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {alert.reasons.map((reason, idx) => (
-                        <div key={idx} className="flex items-center text-sm text-red-700">
+                        <div key={`compact-reason-${idx}-${reason.slice(0, 15)}`} className="flex items-center text-sm text-red-700">
                           <XCircle className="w-3 h-3 mr-2 flex-shrink-0" />
                           {reason}
                         </div>
@@ -262,7 +393,7 @@ const AIFraudDetectionDashboard = () => {
                     <div className="flex flex-wrap gap-2">
                       {alert.actions.map((action, idx) => (
                         <button
-                          key={idx}
+                          key={`compact-action-${idx}-${action.slice(0, 10)}`}
                           onClick={() => handleResolveAlert(alert.id, action)}
                           className="px-3 py-1 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors"
                         >
@@ -295,7 +426,7 @@ const AIFraudDetectionDashboard = () => {
         <div className="p-6">
           <div className="space-y-4">
             {riskScores.map((user) => (
-              <div key={user.borrowerId} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+              <div key={`${user.borrowerId}-${user.loanId || 'default'}`} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
                     <span className="text-blue-600 font-semibold text-sm">
@@ -324,6 +455,12 @@ const AIFraudDetectionDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Fraud Alert Modal */}
+      <FraudAlertModal 
+        alert={selectedAlert} 
+        onClose={() => setSelectedAlert(null)} 
+      />
     </div>
   );
 };

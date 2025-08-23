@@ -10,8 +10,10 @@ import LenderInvestmentDashboard from './LenderInvestmentDashboard';
 import DisputesOverview from './DisputesOverview';
 import { ensureScrollUnlocked } from "../utils/scrollLockGuard";
 import { auth } from "../firebase";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function LenderDashboard() {
+  const { isDark } = useTheme();
   const [loanRequests, setLoanRequests] = useState([]);
   const [filteredLoans, setFilteredLoans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -197,73 +199,124 @@ export default function LenderDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${
+      isDark ? 'bg-gray-900' : 'bg-gray-50'
+    }`}>
       {/* Payment status banner */}
       {paymentBanner && (
-        <div className={`px-4 py-3 ${paymentBanner.type === 'success' ? 'bg-green-50 border-b border-green-200' : 'bg-red-50 border-b border-red-200'} text-sm text-gray-800 flex items-center justify-between`}
+        <div className={`px-4 py-3 text-sm flex items-center justify-between ${
+          paymentBanner.type === 'success' 
+            ? (isDark 
+                ? 'bg-green-900 border-b border-green-700 text-gray-200' 
+                : 'bg-green-50 border-b border-green-200 text-gray-800'
+              )
+            : (isDark 
+                ? 'bg-red-900 border-b border-red-700 text-gray-200' 
+                : 'bg-red-50 border-b border-red-200 text-gray-800'
+              )
+        }`}
              role="status">
           <span>{paymentBanner.message}</span>
-          <button className="text-gray-500 hover:text-gray-700" onClick={() => setPaymentBanner(null)}>Dismiss</button>
+          <button 
+            className={`${
+              isDark 
+                ? 'text-gray-400 hover:text-gray-300' 
+                : 'text-gray-500 hover:text-gray-700'
+            }`} 
+            onClick={() => setPaymentBanner(null)}
+          >
+            Dismiss
+          </button>
         </div>
       )}
       {/* Tiny overlay to indicate progress when opening payment */}
       {redirecting && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[2000]">
-          <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3">
+          <div className={`rounded-lg shadow p-4 flex items-center gap-3 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
             <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent" />
-            <span className="text-sm text-gray-700">Opening secure payment…</span>
+            <span className={`text-sm ${
+              isDark ? 'text-gray-300' : 'text-gray-700'
+            }`}>Opening secure payment…</span>
           </div>
         </div>
       )}
       {/* Header */}
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ">
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`rounded-xl shadow-sm p-6 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Loans</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalLoans}</p>
+                <p className={`text-sm font-medium ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>Total Loans</p>
+                <p className={`text-2xl font-bold ${
+                  isDark ? 'text-gray-100' : 'text-gray-900'
+                }`}>{stats.totalLoans}</p>
               </div>
-              <div className="bg-blue-100 p-3 rounded-full">
+              <div className={`p-3 rounded-full ${
+                isDark ? 'bg-blue-900' : 'bg-blue-100'
+              }`}>
                 <Users className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`rounded-xl shadow-sm p-6 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Unfunded</p>
+                <p className={`text-sm font-medium ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>Unfunded</p>
                 <p className="text-2xl font-bold text-orange-600">{stats.unfundedLoans}</p>
               </div>
-              <div className="bg-orange-100 p-3 rounded-full">
+              <div className={`p-3 rounded-full ${
+                isDark ? 'bg-orange-900' : 'bg-orange-100'
+              }`}>
                 <Clock className="h-6 w-6 text-orange-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`rounded-xl shadow-sm p-6 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Funded</p>
+                <p className={`text-sm font-medium ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>Funded</p>
                 <p className="text-2xl font-bold text-green-600">{stats.fundedLoans}</p>
               </div>
-              <div className="bg-green-100 p-3 rounded-full">
+              <div className={`p-3 rounded-full ${
+                isDark ? 'bg-green-900' : 'bg-green-100'
+              }`}>
                 <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`rounded-xl shadow-sm p-6 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Amount</p>
+                <p className={`text-sm font-medium ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>Total Amount</p>
                 <p className="text-2xl font-bold text-purple-600">₹{stats.totalAmount.toLocaleString()}</p>
               </div>
-              <div className="bg-purple-100 p-3 rounded-full">
+              <div className={`p-3 rounded-full ${
+                isDark ? 'bg-purple-900' : 'bg-purple-100'
+              }`}>
                 <TrendingUp className="h-6 w-6 text-purple-600" />
               </div>
             </div>
@@ -271,15 +324,22 @@ export default function LenderDashboard() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="bg-white rounded-xl shadow-sm mb-8">
-          <div className="border-b border-gray-200">
+        <div className={`rounded-xl shadow-sm mb-8 ${
+          isDark ? 'bg-gray-800' : 'bg-white'
+        }`}>
+          <div className={`border-b ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}>
             <nav className="flex space-x-8 px-6">
               <button
                 onClick={() => setActiveTab('browse')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'browse'
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : (isDark 
+                        ? 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      )
                 }`}
               >
                 <Search className="w-4 h-4 mr-2 inline" />
@@ -301,7 +361,10 @@ export default function LenderDashboard() {
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'investment'
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : (isDark 
+                        ? 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      )
                 }`}
               >
                 <BarChart3 className="w-4 h-4 mr-2 inline" />
@@ -312,7 +375,10 @@ export default function LenderDashboard() {
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === 'disputes'
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : (isDark 
+                        ? 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600' 
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      )
                 }`}
               >
                 <AlertTriangle className="w-4 h-4 mr-2 inline" />
@@ -328,11 +394,17 @@ export default function LenderDashboard() {
               <div className="flex flex-col lg:flex-row gap-4 mb-6">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Search className={`absolute left-3 top-3 h-4 w-4 ${
+                      isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`} />
                     <input
                       type="text"
                       placeholder="Search by name, purpose, or college..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                        isDark 
+                          ? 'border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400' 
+                          : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                      }`}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -341,7 +413,11 @@ export default function LenderDashboard() {
 
                 <div className="flex gap-4">
                   <select
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                      isDark 
+                        ? 'border-gray-600 bg-gray-700 text-gray-100' 
+                        : 'border-gray-300 bg-white text-gray-900'
+                    }`}
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
                   >
@@ -351,7 +427,11 @@ export default function LenderDashboard() {
                   </select>
 
                   <select
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                      isDark 
+                        ? 'border-gray-600 bg-gray-700 text-gray-100' 
+                        : 'border-gray-300 bg-white text-gray-900'
+                    }`}
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
                   >

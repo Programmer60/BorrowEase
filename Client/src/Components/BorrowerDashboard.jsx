@@ -29,35 +29,55 @@ import { loadChatUnreadCounts } from "../api/chatApi";
 import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { useSocket } from "../contexts/SocketContext";
+import { useTheme } from "../contexts/ThemeContext";
 import EnhancedLoanRequestForm from "./EnhancedLoanRequestForm";
 import InteractiveInterestCalculator from "./InteractiveInterestCalculator";
 import DisputesManagement from "./DisputesManagement";
 import EnhancedDisputeForm from "./EnhancedDisputeForm";
 import { ensureScrollUnlocked } from "../utils/scrollLockGuard";
+import DarkModeDebugger from "./DarkModeDebugger";
+import DarkModeTest from "./DarkModeTest";
 
 
 const Toast = ({ message, type, onClose }) => {
+  const { isDark } = useTheme();
+  
   const icons = {
     success: <CheckCircle className="w-5 h-5 text-green-500" />,
     error: <XCircle className="w-5 h-5 text-red-500" />,
     info: <AlertCircle className="w-5 h-5 text-blue-500" />,
   };
 
-  const colors = {
-    success: "bg-green-50 border-green-200",
-    error: "bg-red-50 border-red-200",
-    info: "bg-blue-50 border-blue-200",
+  const getColors = (type) => {
+    const colorMap = {
+      success: isDark 
+        ? "bg-green-900 border-green-700" 
+        : "bg-green-50 border-green-200",
+      error: isDark 
+        ? "bg-red-900 border-red-700" 
+        : "bg-red-50 border-red-200",
+      info: isDark 
+        ? "bg-blue-900 border-blue-700" 
+        : "bg-blue-50 border-blue-200",
+    };
+    return colorMap[type];
   };
 
   return (
     <div
-      className={`fixed top-4 right-4 ${colors[type]} border rounded-lg p-4 shadow-lg z-[100] flex items-center max-w-sm`}
+      className={`fixed top-4 right-4 ${getColors(type)} border rounded-lg p-4 shadow-lg z-[100] flex items-center max-w-sm`}
     >
       {icons[type]}
-      <span className="ml-3 text-sm font-medium">{message}</span>
+      <span className={`ml-3 text-sm font-medium ${
+        isDark ? 'text-gray-100' : 'text-gray-900'
+      }`}>{message}</span>
       <button
         onClick={onClose}
-        className="ml-auto text-gray-400 hover:text-gray-600"
+        className={`ml-auto ${
+          isDark 
+            ? 'text-gray-500 hover:text-gray-300' 
+            : 'text-gray-400 hover:text-gray-600'
+        }`}
       >
         <XCircle className="w-4 h-4" />
       </button>
@@ -67,6 +87,7 @@ const Toast = ({ message, type, onClose }) => {
 
 export default function BorrowerDashboard() {
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   const [loanRequests, setLoanRequests] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
@@ -213,9 +234,6 @@ export default function BorrowerDashboard() {
 
   // Remove the old sequential loadChatUnreadCounts function since we're using the optimized one from chatApi
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
 
   const handleSubmit = async (loanData) => {
     setIsSubmitting(true);
@@ -355,12 +373,34 @@ export default function BorrowerDashboard() {
   };
 
   const getStatusColor = (loan) => {
-    if (loan.repaid) return "text-green-600 bg-green-100";
-    if (loan.funded && loan.status === "approved") return "text-yellow-600 bg-yellow-100";
-    if (loan.status === "approved" && !loan.funded) return "text-blue-600 bg-blue-100";
-    if (loan.status === "rejected") return "text-red-600 bg-red-100";
-    if (loan.status === "pending") return "text-orange-600 bg-orange-100";
-    return "text-gray-600 bg-gray-100";
+    if (loan.repaid) {
+      return isDark 
+        ? "text-green-400 bg-green-900" 
+        : "text-green-600 bg-green-100";
+    }
+    if (loan.funded && loan.status === "approved") {
+      return isDark 
+        ? "text-yellow-400 bg-yellow-900" 
+        : "text-yellow-600 bg-yellow-100";
+    }
+    if (loan.status === "approved" && !loan.funded) {
+      return isDark 
+        ? "text-blue-400 bg-blue-900" 
+        : "text-blue-600 bg-blue-100";
+    }
+    if (loan.status === "rejected") {
+      return isDark 
+        ? "text-red-400 bg-red-900" 
+        : "text-red-600 bg-red-100";
+    }
+    if (loan.status === "pending") {
+      return isDark 
+        ? "text-orange-400 bg-orange-900" 
+        : "text-orange-600 bg-orange-100";
+    }
+    return isDark 
+      ? "text-gray-400 bg-gray-700" 
+      : "text-gray-600 bg-gray-100";
   };
 
   // Order loans newest-first (by createdAt or submittedAt) and then slice for display
@@ -378,10 +418,14 @@ export default function BorrowerDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className={`min-h-screen flex items-center justify-center transition-colors ${
+        isDark 
+          ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
+          : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>Loading...</p>
         </div>
       </div>
     );
@@ -390,19 +434,48 @@ export default function BorrowerDashboard() {
   if (!authorized) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 z-50">
+    <div className={`min-h-screen transition-colors duration-300 z-50 ${
+      isDark 
+        ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
+        : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+    }`}>
       {paymentBanner && (
-        <div className={`px-4 py-3 ${paymentBanner.type === 'success' ? 'bg-green-50 border-b border-green-200' : 'bg-red-50 border-b border-red-200'} text-sm text-gray-800 flex items-center justify-between`}
+        <div className={`px-4 py-3 text-sm flex items-center justify-between ${
+          paymentBanner.type === 'success' 
+            ? (isDark 
+                ? 'bg-green-900 border-b border-green-700 text-gray-200' 
+                : 'bg-green-50 border-b border-green-200 text-gray-800'
+              )
+            : (isDark 
+                ? 'bg-red-900 border-b border-red-700 text-gray-200' 
+                : 'bg-red-50 border-b border-red-200 text-gray-800'
+              )
+        }`}
              role="status">
           <span>{paymentBanner.message}</span>
-          <button className="text-gray-500 hover:text-gray-700" onClick={() => setPaymentBanner(null)}>Dismiss</button>
+          <button 
+            className={`${
+              isDark 
+                ? 'text-gray-400 hover:text-gray-300' 
+                : 'text-gray-500 hover:text-gray-700'
+            }`} 
+            onClick={() => setPaymentBanner(null)}
+          >
+            Dismiss
+          </button>
         </div>
       )}
       {redirectingPayment && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[2000]">
-          <div className="bg-white rounded-lg shadow p-4 flex items-center gap-3">
+          <div className={`rounded-lg shadow p-4 flex items-center gap-3 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
             <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-600 border-t-transparent" />
-            <span className="text-sm text-gray-700">Opening secure payment…</span>
+            <span className={`text-sm ${
+              isDark ? 'text-gray-300' : 'text-gray-700'
+            }`}>
+              Opening secure payment…
+            </span>
           </div>
         </div>
       )}
@@ -412,18 +485,38 @@ export default function BorrowerDashboard() {
       )}
 
       <Navbar />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-transparent">
         {/* Welcome Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
+        <div className={`rounded-2xl shadow-lg p-6 mb-8 ${
+          isDark 
+            ? 'bg-gray-800 shadow-gray-900/50' 
+            : 'bg-white shadow-gray-200/50'
+        }`}>
           <div className="flex items-center mb-4">
-            <div className="bg-indigo-100 rounded-full p-3 mr-4">
-              <User className="w-6 h-6 text-indigo-600" />
+            <div className={`rounded-full p-3 mr-4 ${
+              isDark 
+                ? 'bg-indigo-900' 
+                : 'bg-indigo-100'
+            }`}>
+              <User className={`w-6 h-6 ${
+                isDark 
+                  ? 'text-indigo-400' 
+                  : 'text-indigo-600'
+              }`} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className={`text-2xl font-bold ${
+                isDark 
+                  ? 'text-white' 
+                  : 'text-gray-900'
+              }`}>
                 Welcome back, {formData.name}!
               </h2>
-              <p className="text-gray-600">
+              <p className={`${
+                isDark 
+                  ? 'text-gray-300' 
+                  : 'text-gray-600'
+              }`}>
                 Manage your loans and requests from your dashboard
               </p>
             </div>
@@ -519,7 +612,10 @@ export default function BorrowerDashboard() {
               className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
                 currentView === 'dashboard'
                   ? 'bg-indigo-600 text-white shadow-lg'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  : (isDark 
+                      ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600' 
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    )
               }`}
             >
               <DollarSign className="w-5 h-5 mr-2" />
@@ -531,7 +627,10 @@ export default function BorrowerDashboard() {
               className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
                 currentView === 'newLoan'
                   ? 'bg-green-600 text-white shadow-lg'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  : (isDark 
+                      ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600' 
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    )
               }`}
             >
               <Plus className="w-5 h-5 mr-2" />
@@ -543,7 +642,10 @@ export default function BorrowerDashboard() {
               className={`flex items-center px-6 py-3 rounded-lg font-medium transition-all ${
                 currentView === 'calculator'
                   ? 'bg-purple-600 text-white shadow-lg'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  : (isDark 
+                      ? 'bg-gray-700 text-gray-300 border border-gray-600 hover:bg-gray-600' 
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    )
               }`}
             >
               <Calculator className="w-5 h-5 mr-2" />
@@ -573,12 +675,28 @@ export default function BorrowerDashboard() {
         {currentView === 'dashboard' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Quick Actions Card */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className={`rounded-2xl shadow-lg p-6 ${
+              isDark 
+                ? 'bg-gray-800 shadow-gray-900/50' 
+                : 'bg-white shadow-gray-200/50'
+            }`}>
               <div className="flex items-center mb-6">
-                <div className="bg-indigo-100 rounded-full p-3 mr-4">
-                  <Zap className="w-6 h-6 text-indigo-600" />
+                <div className={`rounded-full p-3 mr-4 ${
+                  isDark 
+                    ? 'bg-indigo-900' 
+                    : 'bg-indigo-100'
+                }`}>
+                  <Zap className={`w-6 h-6 ${
+                    isDark 
+                      ? 'text-indigo-400' 
+                      : 'text-indigo-600'
+                  }`} />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">
+                <h3 className={`text-xl font-bold ${
+                  isDark 
+                    ? 'text-gray-100' 
+                    : 'text-gray-900'
+                }`}>
                   Quick Actions
                 </h3>
               </div>
@@ -586,30 +704,70 @@ export default function BorrowerDashboard() {
               <div className="space-y-4">
                 <button
                   onClick={() => setCurrentView('newLoan')}
-                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg hover:from-green-100 hover:to-emerald-100 transition-all"
+                  className={`w-full flex items-center justify-between p-4 rounded-lg transition-all border ${
+                    isDark 
+                      ? 'bg-gradient-to-r from-green-900 to-emerald-900 border-green-700 hover:from-green-800 hover:to-emerald-800' 
+                      : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:from-green-100 hover:to-emerald-100'
+                  }`}
                 >
                   <div className="flex items-center">
-                    <Plus className="w-5 h-5 text-green-600 mr-3" />
+                    <Plus className={`w-5 h-5 mr-3 ${
+                      isDark 
+                        ? 'text-green-400' 
+                        : 'text-green-600'
+                    }`} />
                     <div className="text-left">
-                      <p className="font-medium text-gray-900">Request New Loan</p>
-                      <p className="text-sm text-gray-600">Quick application with interest preview</p>
+                      <p className={`font-medium ${
+                        isDark 
+                          ? 'text-gray-100' 
+                          : 'text-gray-900'
+                      }`}>Request New Loan</p>
+                      <p className={`text-sm ${
+                        isDark 
+                          ? 'text-gray-300' 
+                          : 'text-gray-600'
+                      }`}>Quick application with interest preview</p>
                     </div>
                   </div>
-                  <div className="text-green-600">→</div>
+                  <div className={`${
+                    isDark 
+                      ? 'text-green-400' 
+                      : 'text-green-600'
+                  }`}>→</div>
                 </button>
 
                 <button
                   onClick={() => setCurrentView('calculator')}
-                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-violet-50 border border-purple-200 rounded-lg hover:from-purple-100 hover:to-violet-100 transition-all"
+                  className={`w-full flex items-center justify-between p-4 rounded-lg transition-all border ${
+                    isDark 
+                      ? 'bg-gradient-to-r from-purple-900 to-violet-900 border-purple-700 hover:from-purple-800 hover:to-violet-800' 
+                      : 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200 hover:from-purple-100 hover:to-violet-100'
+                  }`}
                 >
                   <div className="flex items-center">
-                    <Calculator className="w-5 h-5 text-purple-600 mr-3" />
+                    <Calculator className={`w-5 h-5 mr-3 ${
+                      isDark 
+                        ? 'text-purple-400' 
+                        : 'text-purple-600'
+                    }`} />
                     <div className="text-left">
-                      <p className="font-medium text-gray-900">Interest Calculator</p>
-                      <p className="text-sm text-gray-600">Explore loan scenarios and compare options</p>
+                      <p className={`font-medium ${
+                        isDark 
+                          ? 'text-gray-100' 
+                          : 'text-gray-900'
+                      }`}>Interest Calculator</p>
+                      <p className={`text-sm ${
+                        isDark 
+                          ? 'text-gray-300' 
+                          : 'text-gray-600'
+                      }`}>Explore loan scenarios and compare options</p>
                     </div>
                   </div>
-                  <div className="text-purple-600">→</div>
+                  <div className={`${
+                    isDark 
+                      ? 'text-purple-400' 
+                      : 'text-purple-600'
+                  }`}>→</div>
                 </button>
 
                 {/* <button
@@ -628,29 +786,59 @@ export default function BorrowerDashboard() {
 
                 <button
                   onClick={() => navigate('/credit-score')}
-                  className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg hover:from-yellow-100 hover:to-orange-100 transition-all"
+                  className={`w-full flex items-center justify-between p-4 rounded-lg transition-all ${
+                    isDark 
+                      ? 'bg-gradient-to-r from-yellow-900 to-orange-900 border border-yellow-700 hover:from-yellow-800 hover:to-orange-800' 
+                      : 'bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 hover:from-yellow-100 hover:to-orange-100'
+                  }`}
                 >
                   <div className="flex items-center">
-                    <Star className="w-5 h-5 text-yellow-600 mr-3" />
+                    <Star className={`w-5 h-5 mr-3 ${
+                      isDark ? 'text-yellow-400' : 'text-yellow-600'
+                    }`} />
                     <div className="text-left">
-                      <p className="font-medium text-gray-900">Check Credit Score</p>
-                      <p className="text-sm text-gray-600">View detailed credit analysis</p>
+                      <p className={`font-medium ${
+                        isDark ? 'text-gray-100' : 'text-gray-900'
+                      }`}>
+                        Check Credit Score
+                      </p>
+                      <p className={`text-sm ${
+                        isDark ? 'text-gray-300' : 'text-gray-600'
+                      }`}>
+                        View detailed credit analysis
+                      </p>
                     </div>
                   </div>
-                  <div className="text-yellow-600">→</div>
+                  <div className={isDark ? 'text-yellow-400' : 'text-yellow-600'}>→</div>
                 </button>
               </div>
             </div>
 
             {/* Loan History */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className={`rounded-2xl shadow-lg p-6 ${
+              isDark 
+                ? 'bg-gray-800 shadow-gray-900/50' 
+                : 'bg-white shadow-gray-200/50'
+            }`}>
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center">
-                  <div className="bg-blue-100 rounded-full p-3 mr-4">
-                    <FileText className="w-6 h-6 text-blue-600" />
+                  <div className={`rounded-full p-3 mr-4 ${
+                    isDark 
+                      ? 'bg-blue-900' 
+                      : 'bg-blue-100'
+                  }`}>
+                    <FileText className={`w-6 h-6 ${
+                      isDark 
+                        ? 'text-blue-400' 
+                        : 'text-blue-600'
+                    }`} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">
+                    <h3 className={`text-xl font-bold ${
+                      isDark 
+                        ? 'text-gray-100' 
+                        : 'text-gray-900'
+                    }`}>
                       Recent Loan Requests ({loanRequests.length})
                     </h3>
                   </div>
@@ -659,18 +847,38 @@ export default function BorrowerDashboard() {
 
               {loanRequests.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                    <FileText className="w-8 h-8 text-gray-400" />
+                  <div className={`rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4 ${
+                    isDark 
+                      ? 'bg-gray-700' 
+                      : 'bg-gray-100'
+                  }`}>
+                    <FileText className={`w-8 h-8 ${
+                      isDark 
+                        ? 'text-gray-300' 
+                        : 'text-gray-400'
+                    }`} />
                   </div>
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">
+                  <h4 className={`text-lg font-medium mb-2 ${
+                    isDark 
+                      ? 'text-gray-100' 
+                      : 'text-gray-900'
+                  }`}>
                     No loans yet
                   </h4>
-                  <p className="text-gray-600 mb-4">
+                  <p className={`mb-4 ${
+                    isDark 
+                      ? 'text-gray-300' 
+                      : 'text-gray-600'
+                  }`}>
                     Start by requesting your first loan
                   </p>
                   <button
                     onClick={() => setCurrentView('newLoan')}
-                    className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors ${
+                      isDark 
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Request Loan
@@ -683,7 +891,11 @@ export default function BorrowerDashboard() {
                     {loansToDisplay.map((loan) => (
                       <div
                         key={loan._id}
-                        className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors"
+                        className={`border rounded-lg p-4 transition-colors ${
+                          isDark 
+                            ? 'border-gray-600 bg-gray-700 hover:border-indigo-500' 
+                            : 'border-gray-200 bg-white hover:border-indigo-300'
+                        }`}
                       >
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center">
@@ -696,27 +908,47 @@ export default function BorrowerDashboard() {
                               {getStatusText(loan)}
                             </span>
                           </div>
-                          <span className="text-lg font-bold text-gray-900">
+                          <span className={`text-lg font-bold ${
+                            isDark 
+                              ? 'text-gray-100' 
+                              : 'text-gray-900'
+                          }`}>
                             ₹{loan.amount?.toLocaleString()}
                           </span>
                         </div>
 
-                        <div className="space-y-2 text-sm text-gray-600">
+                        <div className={`space-y-2 text-sm ${
+                          isDark 
+                            ? 'text-gray-300' 
+                            : 'text-gray-600'
+                        }`}>
                           <div className="flex justify-between">
                             <span>Purpose:</span>
-                            <span className="font-medium text-gray-900">
+                            <span className={`font-medium ${
+                              isDark 
+                                ? 'text-gray-100' 
+                                : 'text-gray-900'
+                            }`}>
                               {loan.purpose}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span>Phone:</span>
-                            <span className="font-medium text-gray-900">
+                            <span className={`font-medium ${
+                              isDark 
+                                ? 'text-gray-100' 
+                                : 'text-gray-900'
+                            }`}>
                               {loan.phoneNumber}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span>Repayment Date:</span>
-                            <span className="font-medium text-gray-900">
+                            <span className={`font-medium ${
+                              isDark 
+                                ? 'text-gray-100' 
+                                : 'text-gray-900'
+                            }`}>
                               {new Date(loan.repaymentDate).toLocaleDateString()}
                             </span>
                           </div>
@@ -764,7 +996,11 @@ export default function BorrowerDashboard() {
                                 setDisputeLoan(loan);
                                 setShowDisputeForm(true);
                               }}
-                              className="bg-red-100 text-red-700 py-2 px-4 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center"
+                              className={`py-2 px-4 rounded-lg transition-colors flex items-center justify-center ${
+                                isDark 
+                                  ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50' 
+                                  : 'bg-red-100 text-red-700 hover:bg-red-200'
+                              }`}
                             >
                               <AlertTriangle className="w-4 h-4" />
                             </button>
@@ -778,7 +1014,11 @@ export default function BorrowerDashboard() {
                     <div className="mt-6 text-center">
                       <button
                         onClick={() => setShowAllLoans(!showAllLoans)}
-                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                        className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          isDark 
+                            ? 'text-indigo-400 bg-indigo-900/30 hover:bg-indigo-900/50' 
+                            : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100'
+                        }`}
                       >
                         {showAllLoans ? (
                           <>
@@ -815,6 +1055,10 @@ export default function BorrowerDashboard() {
           }}
         />
       )}
+      
+      {/* Temporary debugger - remove when dark mode is working */}
+      <DarkModeDebugger />
+      <DarkModeTest />
     </div>
   );
 }

@@ -22,8 +22,10 @@ import {
 } from 'lucide-react';
 import Navbar from './Navbar';
 import API from '../api/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const CreditScore = () => {
+  const { isDark } = useTheme();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [creditData, setCreditData] = useState(null);
@@ -147,11 +149,15 @@ const CreditScore = () => {
   };
 
   const ScoreFactor = ({ icon, title, value, impact, description }) => (
-    <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
+    <div className={`rounded-lg p-4 border hover:shadow-md transition-shadow ${
+      isDark 
+        ? 'bg-gray-700 border-gray-600' 
+        : 'bg-white border-gray-200'
+    }`}>
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center">
           {icon}
-          <h4 className="font-semibold text-gray-900 ml-2">{title}</h4>
+          <h4 className={`font-semibold ml-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{title}</h4>
         </div>
         <span className={`text-sm font-medium px-2 py-1 rounded ${
           impact === 'positive' ? 'bg-green-100 text-green-800' :
@@ -162,7 +168,7 @@ const CreditScore = () => {
           {Math.abs(value)}
         </span>
       </div>
-      <p className="text-gray-600 text-sm">{description}</p>
+      <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{description}</p>
     </div>
   );
 
@@ -202,18 +208,22 @@ const CreditScore = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className={`min-h-screen ${
+      isDark 
+        ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
+        : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+    }`}>
       <Navbar />
       
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Credit Score Dashboard</h1>
-          <p className="text-gray-600">Monitor your creditworthiness and financial health</p>
+          <h1 className={`text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Credit Score Dashboard</h1>
+          <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Monitor your creditworthiness and financial health</p>
         </div>
 
         {/* Main Credit Score Card */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+        <div className={`rounded-xl shadow-lg p-8 mb-8 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Credit Score Circle */}
             <div className="flex flex-col items-center">
@@ -221,11 +231,11 @@ const CreditScore = () => {
               <div className="mt-4 text-center">
                 <div className="flex items-center justify-center mb-2">
                   {getScoreIcon(creditData?.score || 300)}
-                  <span className="ml-2 text-lg font-semibold text-gray-900">
+                  <span className={`ml-2 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {getScoreRating(creditData?.score || 300)} Credit Score
                   </span>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                   Last updated: {creditData?.lastUpdated ? new Date(creditData.lastUpdated).toLocaleDateString() : 'Today'}
                 </p>
               </div>
@@ -234,7 +244,7 @@ const CreditScore = () => {
             {/* Score Details */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Score Breakdown</h3>
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Score Breakdown</h3>
                 <button
                   onClick={() => setShowDetails(!showDetails)}
                   className="flex items-center text-blue-600 hover:text-blue-800"
@@ -245,33 +255,33 @@ const CreditScore = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-gray-900">{creditData?.totalLoans || 0}</div>
-                  <div className="text-sm text-gray-600">Total Loans</div>
+                <div className={`rounded-lg p-4 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                  <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{creditData?.totalLoans || 0}</div>
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Total Loans</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className={`rounded-lg p-4 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="text-2xl font-bold text-green-600">{creditData?.repaidLoans || 0}</div>
-                  <div className="text-sm text-gray-600">Loans Repaid</div>
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Loans Repaid</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className={`rounded-lg p-4 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="text-2xl font-bold text-blue-600">
                     {creditData?.totalLoans > 0 ? Math.round((creditData?.repaidLoans / creditData?.totalLoans) * 100) : 0}%
                   </div>
-                  <div className="text-sm text-gray-600">Repayment Rate</div>
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Repayment Rate</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className={`rounded-lg p-4 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="text-2xl font-bold text-purple-600">
                     ₹{(creditData?.totalAmount || 0).toLocaleString()}
                   </div>
-                  <div className="text-sm text-gray-600">Total Borrowed</div>
+                  <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Total Borrowed</div>
                 </div>
               </div>
 
               {/* Score Range */}
               <div className="mt-6">
-                <h4 className="font-medium text-gray-900 mb-3">Credit Score Range</h4>
+                <h4 className={`font-medium mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Credit Score Range</h4>
                 <div className="relative">
-                  <div className="flex justify-between text-xs text-gray-600 mb-1">
+                  <div className={`flex justify-between text-xs mb-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     <span>300</span>
                     <span>500</span>
                     <span>650</span>
@@ -280,11 +290,11 @@ const CreditScore = () => {
                   </div>
                   <div className="h-3 bg-gradient-to-r from-red-400 via-yellow-400 to-green-400 rounded-full relative">
                     <div 
-                      className="absolute top-0 w-3 h-3 bg-white border-2 border-gray-800 rounded-full transform -translate-x-1/2"
+                      className={`absolute top-0 w-3 h-3 ${isDark ? 'bg-gray-900 border-gray-300' : 'bg-white border-gray-800'} border-2 rounded-full transform -translate-x-1/2`}
                       style={{ left: `${((creditData?.score || 300) - 300) / 550 * 100}%` }}
                     ></div>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-600 mt-1">
+                  <div className={`flex justify-between text-xs mt-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     <span>Poor</span>
                     <span>Fair</span>
                     <span>Good</span>
@@ -298,8 +308,8 @@ const CreditScore = () => {
 
         {/* Score Factors */}
         {showDetails && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Factors Affecting Your Score</h3>
+          <div className={`rounded-xl shadow-lg p-6 mb-8 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+            <h3 className={`text-xl font-bold mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>Factors Affecting Your Score</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <ScoreFactor
                 icon={<Clock className="w-5 h-5 text-green-600" />}
@@ -348,84 +358,84 @@ const CreditScore = () => {
         )}
 
         {/* Improvement Tips */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Ways to Improve Your Score</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-start">
-                <CheckCircle className="w-5 h-5 text-green-600 mt-1 mr-3 flex-shrink-0" />
-                <div>
-                  <h4 className="font-medium text-gray-900">Make Timely Payments</h4>
-                  <p className="text-sm text-gray-600">Always repay your loans on or before the due date</p>
-                </div>
-              </div>
-              <div className="flex items-start">
-                <Target className="w-5 h-5 text-blue-600 mt-1 mr-3 flex-shrink-0" />
-                <div>
-                  <h4 className="font-medium text-gray-900">Maintain Low Credit Utilization</h4>
-                  <p className="text-sm text-gray-600">Keep your outstanding loans below 30% of your income</p>
-                </div>
-              </div>
-              <div className="flex items-start">
-                <Award className="w-5 h-5 text-purple-600 mt-1 mr-3 flex-shrink-0" />
-                <div>
-                  <h4 className="font-medium text-gray-900">Build Credit History</h4>
-                  <p className="text-sm text-gray-600">Take smaller loans and repay them consistently</p>
-                </div>
-              </div>
+          <div className={`rounded-xl shadow-lg p-6 mb-8 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+            <h3 className={`text-xl font-bold mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>Ways to Improve Your Score</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="flex items-start">
+            <CheckCircle className="w-5 h-5 text-green-600 mt-1 mr-3 flex-shrink-0" />
+            <div>
+              <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Make Timely Payments</h4>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Always repay your loans on or before the due date</p>
             </div>
-            <div className="space-y-4">
-              <div className="flex items-start">
-                <Star className="w-5 h-5 text-yellow-600 mt-1 mr-3 flex-shrink-0" />
-                <div>
-                  <h4 className="font-medium text-gray-900">Complete KYC Verification</h4>
-                  <p className="text-sm text-gray-600">Verify your identity to boost your trust score</p>
+                </div>
+                <div className="flex items-start">
+            <Target className="w-5 h-5 text-blue-600 mt-1 mr-3 flex-shrink-0" />
+            <div>
+              <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Maintain Low Credit Utilization</h4>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Keep your outstanding loans below 30% of your income</p>
+            </div>
+                </div>
+                <div className="flex items-start">
+            <Award className="w-5 h-5 text-purple-600 mt-1 mr-3 flex-shrink-0" />
+            <div>
+              <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Build Credit History</h4>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Take smaller loans and repay them consistently</p>
+            </div>
                 </div>
               </div>
-              <div className="flex items-start">
-                <Users className="w-5 h-5 text-indigo-600 mt-1 mr-3 flex-shrink-0" />
-                <div>
-                  <h4 className="font-medium text-gray-900">Build Community Trust</h4>
-                  <p className="text-sm text-gray-600">Maintain good relationships with lenders</p>
+              <div className="space-y-4">
+                <div className="flex items-start">
+            <Star className="w-5 h-5 text-yellow-600 mt-1 mr-3 flex-shrink-0" />
+            <div>
+              <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Complete KYC Verification</h4>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Verify your identity to boost your trust score</p>
+            </div>
                 </div>
-              </div>
-              <div className="flex items-start">
-                <Info className="w-5 h-5 text-cyan-600 mt-1 mr-3 flex-shrink-0" />
-                <div>
-                  <h4 className="font-medium text-gray-900">Monitor Regularly</h4>
-                  <p className="text-sm text-gray-600">Check your score monthly to track progress</p>
+                <div className="flex items-start">
+            <Users className="w-5 h-5 text-indigo-600 mt-1 mr-3 flex-shrink-0" />
+            <div>
+              <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Build Community Trust</h4>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Maintain good relationships with lenders</p>
+            </div>
+                </div>
+                <div className="flex items-start">
+            <Info className="w-5 h-5 text-cyan-600 mt-1 mr-3 flex-shrink-0" />
+            <div>
+              <h4 className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Monitor Regularly</h4>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Check your score monthly to track progress</p>
+            </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Recent Credit Activity</h3>
+          {/* Recent Activity */}
+        <div className={`rounded-xl shadow-lg p-6 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+          <h3 className={`text-xl font-bold mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>Recent Credit Activity</h3>
           <div className="space-y-4">
             {creditData?.recentActivity?.length > 0 ? (
               creditData.recentActivity.map((activity, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div key={index} className={`flex items-center justify-between p-4 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                   <div className="flex items-center">
                     <div className={`p-2 rounded-full ${
-                      activity.type === 'payment' ? 'bg-green-100' :
-                      activity.type === 'loan' ? 'bg-blue-100' :
-                      'bg-yellow-100'
+                      activity.type === 'payment' ? (isDark ? 'bg-green-900' : 'bg-green-100') :
+                      activity.type === 'loan' ? (isDark ? 'bg-blue-900' : 'bg-blue-100') :
+                      (isDark ? 'bg-yellow-900' : 'bg-yellow-100')
                     }`}>
                       {activity.type === 'payment' ? <CheckCircle className="w-4 h-4 text-green-600" /> :
                        activity.type === 'loan' ? <DollarSign className="w-4 h-4 text-blue-600" /> :
                        <Clock className="w-4 h-4 text-yellow-600" />}
                     </div>
                     <div className="ml-3">
-                      <p className="font-medium text-gray-900">{activity.description}</p>
-                      <p className="text-sm text-gray-600">{activity.date}</p>
+                      <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{activity.description}</p>
+                      <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{activity.date}</p>
                     </div>
                   </div>
                   <span className={`font-medium ${
                     activity.impact > 0 ? 'text-green-600' : 
                     activity.impact < 0 ? 'text-red-600' : 
-                    'text-gray-600'
+                    (isDark ? 'text-gray-300' : 'text-gray-600')
                   }`}>
                     {activity.impact > 0 ? '+' : ''}{activity.impact}
                   </span>
@@ -434,8 +444,8 @@ const CreditScore = () => {
             ) : (
               <div className="text-center py-8">
                 <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No recent credit activity</p>
-                <p className="text-sm text-gray-500">Take a loan and make payments to build your credit history</p>
+                <p className={isDark ? "text-gray-300" : "text-gray-600"}>No recent credit activity</p>
+                <p className={isDark ? "text-sm text-gray-400" : "text-sm text-gray-500"}>Take a loan and make payments to build your credit history</p>
               </div>
             )}
           </div>

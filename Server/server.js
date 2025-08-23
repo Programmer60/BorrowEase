@@ -13,6 +13,7 @@ import kycRoutes from "./routes/kycRoutes.js";
 import creditRoutes from "./routes/creditRoutes.js";
 import disputeRoutes from "./routes/disputeRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
+import fraudRoutes from "./routes/enhancedFraudDetection.js";
 import ChatMessage from "./models/chatModel.js";
 import Loan from "./models/loanModel.js";
 import User from "./models/userModel.js";
@@ -69,6 +70,7 @@ app.use("/api/kyc", kycRoutes);
 app.use("/api/credit", creditRoutes);
 app.use("/api/disputes", disputeRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/fraud", fraudRoutes);
 
 // Store user-socket mapping to handle multiple tabs per user
 const userSockets = new Map(); // userId -> Set of socketIds

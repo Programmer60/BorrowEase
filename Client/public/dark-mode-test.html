@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Mode Test</title>
+    <style>
+        body {
+            background-color: white;
+            color: black;
+            transition: all 0.3s ease;
+        }
+        
+        .dark body {
+            background-color: #111827;
+            color: #f9fafb;
+        }
+        
+        .test-card {
+            background-color: white;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin: 20px;
+        }
+        
+        .dark .test-card {
+            background-color: #1f2937;
+            border-color: #374151;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-card">
+        <h1>Dark Mode Test</h1>
+        <p>Current class on html: <span id="current-class">none</span></p>
+        <button id="toggle-btn" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+    </div>
+
+    <script>
+        function updateClassDisplay() {
+            const currentClass = document.documentElement.className || 'none';
+            document.getElementById('current-class').textContent = currentClass;
+        }
+
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+            updateClassDisplay();
+        }
+
+        // Initial update
+        updateClassDisplay();
+    </script>
+</body>
+</html>

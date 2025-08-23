@@ -10,8 +10,10 @@ import {
   PieChart
 } from 'lucide-react';
 import API from '../api/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const InteractiveInterestCalculator = () => {
+  const { isDark } = useTheme();
   const [calculatorData, setCalculatorData] = useState({
     amount: 1000,
     tenureMonths: 1,
@@ -116,18 +118,26 @@ const InteractiveInterestCalculator = () => {
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center justify-center">
+        <h1 className={`text-3xl font-bold flex items-center justify-center ${
+          isDark ? 'text-gray-100' : 'text-gray-900'
+        }`}>
           <Calculator className="w-8 h-8 mr-3 text-blue-600" />
           Interest Calculator
         </h1>
-        <p className="text-gray-600 mt-2">Explore different loan scenarios and understand our transparent pricing structure</p>
+        <p className={`mt-2 ${
+          isDark ? 'text-gray-300' : 'text-gray-600'
+        }`}>Explore different loan scenarios and understand our transparent pricing structure</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {/* Calculator Input Panel */}
         <div className="xl:col-span-1">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+          <div className={`rounded-xl shadow-lg p-6 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <h2 className={`text-xl font-semibold mb-6 flex items-center ${
+              isDark ? 'text-gray-100' : 'text-gray-900'
+            }`}>
               <Target className="w-5 h-5 mr-2 text-blue-600" />
               Calculate Interest
             </h2>
@@ -135,7 +145,9 @@ const InteractiveInterestCalculator = () => {
             <div className="space-y-6">
               {/* Amount Slider */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${
+                  isDark ? 'text-gray-300' : 'text-gray-700'
+                }`}>
                   Loan Amount: ₹{calculatorData.amount.toLocaleString()}
                 </label>
                 <input
@@ -147,7 +159,9 @@ const InteractiveInterestCalculator = () => {
                   onChange={(e) => setCalculatorData(prev => ({ ...prev, amount: parseInt(e.target.value) }))}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                 />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <div className={`flex justify-between text-xs mt-1 ${
+                  isDark ? 'text-gray-400' : 'text-gray-500'
+                }`}>
                   <span>₹100</span>
                   <span>₹1,00,000</span>
                 </div>
@@ -155,13 +169,19 @@ const InteractiveInterestCalculator = () => {
 
               {/* Tenure Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${
+                  isDark ? 'text-gray-300' : 'text-gray-700'
+                }`}>
                   Tenure
                 </label>
                 <select
                   value={calculatorData.tenureMonths}
                   onChange={(e) => setCalculatorData(prev => ({ ...prev, tenureMonths: parseInt(e.target.value) }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDark 
+                      ? 'border-gray-600 bg-gray-700 text-gray-100' 
+                      : 'border-gray-300 bg-white text-gray-900'
+                  }`}
                 >
                   {tenureOptions.map(option => (
                     <option key={option.value} value={option.value}>
@@ -173,7 +193,9 @@ const InteractiveInterestCalculator = () => {
 
               {/* Custom Rate Input */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${
+                  isDark ? 'text-gray-300' : 'text-gray-700'
+                }`}>
                   Custom Interest Rate (Optional)
                 </label>
                 <input
@@ -181,19 +203,33 @@ const InteractiveInterestCalculator = () => {
                   placeholder="Enter custom rate %"
                   value={calculatorData.customRate}
                   onChange={(e) => setCalculatorData(prev => ({ ...prev, customRate: e.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    isDark 
+                      ? 'border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400' 
+                      : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                  }`}
                 />
-                <p className="text-xs text-gray-500 mt-1">Leave empty to use standard rates</p>
+                <p className={`text-xs mt-1 ${
+                  isDark ? 'text-gray-400' : 'text-gray-500'
+                }`}>Leave empty to use standard rates</p>
               </div>
 
               {/* Current Tier Info */}
               {currentTier && (
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <h4 className="font-medium text-blue-900 mb-2 flex items-center">
+                <div className={`rounded-lg p-4 border ${
+                  isDark 
+                    ? 'bg-blue-900/30 border-blue-700' 
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <h4 className={`font-medium mb-2 flex items-center ${
+                    isDark ? 'text-blue-300' : 'text-blue-900'
+                  }`}>
                     <Info className="w-4 h-4 mr-1" />
                     Pricing Tier: {currentTier.name}
                   </h4>
-                  <p className="text-sm text-blue-700">
+                  <p className={`text-sm ${
+                    isDark ? 'text-blue-400' : 'text-blue-700'
+                  }`}>
                     {currentTier.type === 'flat' 
                       ? `Flat fee of ₹${currentTier.flatFee} for amounts ₹${currentTier.minAmount}-₹${currentTier.maxAmount}`
                       : `${currentTier.annualRate}% annual interest for amounts above ₹${currentTier.minAmount}`
@@ -216,8 +252,12 @@ const InteractiveInterestCalculator = () => {
 
         {/* Results Panel */}
         <div className="xl:col-span-2">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+          <div className={`rounded-xl shadow-lg p-6 ${
+            isDark ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <h2 className={`text-xl font-semibold mb-6 flex items-center ${
+              isDark ? 'text-gray-100' : 'text-gray-900'
+            }`}>
               <BarChart3 className="w-5 h-5 mr-2 text-green-600" />
               Calculation Results
             </h2>

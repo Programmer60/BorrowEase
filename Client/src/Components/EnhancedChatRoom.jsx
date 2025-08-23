@@ -18,10 +18,12 @@ import { io } from "socket.io-client";
 import API from "../api/api";
 import { auth } from "../firebase";
 import { useSocket } from "../contexts/SocketContext";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function EnhancedChatRoom() {
   const { loanId } = useParams();
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   
   // Get global socket context for notification management
   const { clearNotifications } = useSocket();
@@ -597,7 +599,7 @@ export default function EnhancedChatRoom() {
     if (otherUserOnline) {
       return <span className="text-green-500 text-xs">● Online</span>;
     } else {
-      return <span className="text-gray-400 text-xs">● Last seen recently</span>;
+      return <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>● Last seen recently</span>;
     }
   };
 
@@ -648,12 +650,22 @@ export default function EnhancedChatRoom() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto h-screen flex flex-col bg-white shadow-lg">
+    <div className={`w-full h-screen flex flex-col ${
+      isDark ? 'bg-gray-900' : 'bg-white'
+    }`}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 p-4 flex items-center">
+      <div className={`border-b p-4 flex items-center ${
+        isDark 
+          ? 'bg-gray-800 border-gray-700' 
+          : 'bg-white border-gray-200'
+      }`}>
         <button
           onClick={() => navigate(-1)}
-          className="mr-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+          className={`mr-4 p-2 rounded-full transition-colors ${
+            isDark 
+              ? 'hover:bg-gray-700 text-gray-300' 
+              : 'hover:bg-gray-100 text-gray-700'
+          }`}
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -661,15 +673,21 @@ export default function EnhancedChatRoom() {
         <div className="flex-1">
           <div className="flex items-center">
             <div className="relative mr-3">
-              <div className="w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center text-white font-semibold">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
+                isDark ? 'bg-indigo-600' : 'bg-indigo-500'
+              }`}>
                 {otherParty?.name?.charAt(0).toUpperCase()}
               </div>
               {otherUserOnline && (
-                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                <div className={`absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 rounded-full ${
+                  isDark ? 'border-gray-800' : 'border-white'
+                }`}></div>
               )}
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">
+              <h1 className={`text-lg font-semibold ${
+                isDark ? 'text-gray-100' : 'text-gray-900'
+              }`}>
                 {otherParty?.name}
               </h1>
               <div className="flex items-center space-x-2">
@@ -693,25 +711,45 @@ export default function EnhancedChatRoom() {
         </div>
 
         <div className="flex items-center space-x-2">
-          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <Phone className="w-5 h-5 text-gray-500" />
+          <button className={`p-2 rounded-full transition-colors ${
+            isDark 
+              ? 'hover:bg-gray-700 text-gray-400' 
+              : 'hover:bg-gray-100 text-gray-500'
+          }`}>
+            <Phone className="w-5 h-5" />
           </button>
-          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <Video className="w-5 h-5 text-gray-500" />
+          <button className={`p-2 rounded-full transition-colors ${
+            isDark 
+              ? 'hover:bg-gray-700 text-gray-400' 
+              : 'hover:bg-gray-100 text-gray-500'
+          }`}>
+            <Video className="w-5 h-5" />
           </button>
-          <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <MoreVertical className="w-5 h-5 text-gray-500" />
+          <button className={`p-2 rounded-full transition-colors ${
+            isDark 
+              ? 'hover:bg-gray-700 text-gray-400' 
+              : 'hover:bg-gray-100 text-gray-500'
+          }`}>
+            <MoreVertical className="w-5 h-5" />
           </button>
         </div>
       </div>
 
       {/* Loan Info Bar */}
-      <div className="bg-indigo-50 border-b border-indigo-100 px-4 py-2">
+      <div className={`border-b px-4 py-2 ${
+        isDark 
+          ? 'bg-indigo-900/30 border-indigo-800' 
+          : 'bg-indigo-50 border-indigo-100'
+      }`}>
         <div className="flex items-center justify-between">
-          <p className="text-sm text-indigo-700">
+          <p className={`text-sm ${
+            isDark ? 'text-indigo-300' : 'text-indigo-700'
+          }`}>
             <span className="font-medium">Loan:</span> ₹{loan.amount} for {loan.purpose}
           </p>
-          <div className="flex items-center text-indigo-600">
+          <div className={`flex items-center ${
+            isDark ? 'text-indigo-400' : 'text-indigo-600'
+          }`}>
             <Users className="w-4 h-4 mr-1" />
             <span className="text-sm">Secure Chat</span>
           </div>
@@ -720,20 +758,28 @@ export default function EnhancedChatRoom() {
 
       {/* Messages */}
       <div 
-        className="flex-1 overflow-y-auto p-4 space-y-1 bg-gray-50"
+        className={`flex-1 overflow-y-auto p-4 space-y-1 ${
+          isDark ? 'bg-gray-800' : 'bg-gray-50'
+        }`}
         onScroll={handleScroll}
       >
         {Object.keys(groupedMessages).length === 0 ? (
           <div className="text-center py-12">
-            <MessageCircle className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-500">No messages yet. Start the conversation!</p>
+            <MessageCircle className={`w-12 h-12 mx-auto mb-4 ${
+              isDark ? 'text-gray-600' : 'text-gray-400'
+            }`} />
+            <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>No messages yet. Start the conversation!</p>
           </div>
         ) : (
           Object.entries(groupedMessages).map(([date, dayMessages]) => (
             <div key={date}>
               {/* Date separator */}
               <div className="text-center my-4">
-                <span className="bg-white px-3 py-1 rounded-full text-xs text-gray-500 border">
+                <span className={`px-3 py-1 rounded-full text-xs border ${
+                  isDark 
+                    ? 'bg-gray-700 text-gray-300 border-gray-600' 
+                    : 'bg-white text-gray-500 border-gray-200'
+                }`}>
                   {date}
                 </span>
               </div>
@@ -788,15 +834,23 @@ export default function EnhancedChatRoom() {
                   <div key={message._id} className={`mb-1 ${isLastFromSender ? 'mb-3' : ''}`}>
                     <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                       <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow-sm ${
                           isCurrentUser
-                            ? 'bg-indigo-600 text-white rounded-br-md'
-                            : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'
+                            ? isDark 
+                              ? 'bg-indigo-600 text-white rounded-br-md shadow-lg' 
+                              : 'bg-indigo-600 text-white rounded-br-md shadow-md'
+                            : isDark 
+                              ? 'bg-gray-700 text-gray-100 border border-gray-600 rounded-bl-md' 
+                              : 'bg-white text-gray-900 border border-gray-200 rounded-bl-md shadow-sm'
                         }`}
                       >
                         <p className="text-sm whitespace-pre-wrap">{message.message}</p>
                         <div className={`flex items-center justify-between mt-1 ${
-                          isCurrentUser ? 'text-indigo-200' : 'text-gray-500'
+                          isCurrentUser 
+                            ? 'text-indigo-200' 
+                            : isDark 
+                              ? 'text-gray-400' 
+                              : 'text-gray-500'
                         }`}>
                           <p className="text-xs">
                             {formatTime(message.timestamp)}
@@ -823,14 +877,26 @@ export default function EnhancedChatRoom() {
         {/* Typing indicator */}
         {otherUserTyping && (
           <div className="flex justify-start mb-4">
-            <div className="bg-white border border-gray-200 text-gray-900 px-4 py-2 rounded-2xl rounded-bl-md max-w-xs">
+            <div className={`px-4 py-2 rounded-2xl rounded-bl-md max-w-xs shadow-sm ${
+              isDark 
+                ? 'bg-gray-700 border border-gray-600 text-gray-100' 
+                : 'bg-white border border-gray-200 text-gray-900'
+            }`}>
               <div className="flex items-center space-x-1">
                 <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${
+                    isDark ? 'bg-gray-400' : 'bg-gray-500'
+                  }`}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${
+                    isDark ? 'bg-gray-400' : 'bg-gray-500'
+                  }`} style={{ animationDelay: '0.1s' }}></div>
+                  <div className={`w-2 h-2 rounded-full animate-bounce ${
+                    isDark ? 'bg-gray-400' : 'bg-gray-500'
+                  }`} style={{ animationDelay: '0.2s' }}></div>
                 </div>
-                <span className="text-xs text-gray-500 ml-2">{typingUserName} is typing...</span>
+                <span className={`text-xs ml-2 ${
+                  isDark ? 'text-gray-400' : 'text-gray-500'
+                }`}>{typingUserName} is typing...</span>
               </div>
             </div>
           </div>
@@ -840,16 +906,28 @@ export default function EnhancedChatRoom() {
       </div>
 
       {/* Message Input */}
-      <div className="border-t border-gray-200 bg-white p-4">
+      <div className={`border-t p-4 ${
+        isDark 
+          ? 'bg-gray-800 border-gray-700' 
+          : 'bg-white border-gray-200'
+      }`}>
         {/* Emoji Picker */}
         {showEmojiPicker && (
-          <div className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+          <div className={`mb-3 p-3 border rounded-lg ${
+            isDark 
+              ? 'bg-gray-700 border-gray-600' 
+              : 'bg-gray-50 border-gray-200'
+          }`}>
             <div className="grid grid-cols-8 gap-2">
               {emojis.map((emoji, index) => (
                 <button
                   key={index}
                   onClick={() => handleEmojiSelect(emoji)}
-                  className="text-xl hover:bg-gray-200 rounded p-1 transition-colors"
+                  className={`text-xl rounded p-1 transition-colors ${
+                    isDark 
+                      ? 'hover:bg-gray-600' 
+                      : 'hover:bg-gray-200'
+                  }`}
                 >
                   {emoji}
                 </button>
@@ -862,9 +940,13 @@ export default function EnhancedChatRoom() {
           <button
             type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors mb-1"
+            className={`p-2 rounded-full transition-colors mb-1 ${
+              isDark 
+                ? 'hover:bg-gray-700 text-gray-400' 
+                : 'hover:bg-gray-100 text-gray-500'
+            }`}
           >
-            <Smile className="w-5 h-5 text-gray-500" />
+            <Smile className="w-5 h-5" />
           </button>
           
           <div className="flex-1">
@@ -880,7 +962,11 @@ export default function EnhancedChatRoom() {
                 }
               }}
               placeholder="Type your message... (Press Enter to send, Shift+Enter for new line)"
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition-colors ${
+                isDark 
+                  ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+              }`}
               disabled={sending || !connected}
               rows={1}
               style={{ minHeight: '44px', maxHeight: '120px' }}
@@ -890,7 +976,11 @@ export default function EnhancedChatRoom() {
           <button
             type="submit"
             disabled={!newMessage.trim() || sending || !connected}
-            className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={`p-3 rounded-full transition-colors ${
+              isDark 
+                ? 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed' 
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
           >
             {sending ? (
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -902,16 +992,22 @@ export default function EnhancedChatRoom() {
         
         <div className="flex justify-between items-center mt-2">
           <div className="flex items-center space-x-4">
-            <p className="text-xs text-gray-500">
+            <p className={`text-xs ${
+              isDark ? 'text-gray-400' : 'text-gray-500'
+            }`}>
               {connected ? '🟢 Real-time messaging' : '🔴 Connecting...'}
             </p>
             {typing && (
-              <p className="text-xs text-indigo-600">
+              <p className={`text-xs ${
+                isDark ? 'text-indigo-400' : 'text-indigo-600'
+              }`}>
                 You are typing...
               </p>
             )}
             {otherUserTyping && (
-              <p className="text-xs text-gray-500">
+              <p className={`text-xs ${
+                isDark ? 'text-gray-400' : 'text-gray-500'
+              }`}>
                 {typingUserName} is typing...
               </p>
             )}

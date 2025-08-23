@@ -11,8 +11,10 @@ import {
   Target
 } from 'lucide-react';
 import API from '../api/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
+  const { isDark } = useTheme();
   const [formData, setFormData] = useState({
     phoneNumber: '',
     amount: '',
@@ -172,7 +174,9 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
   const currentTier = getTierInfo(formData.amount);
 
   return (
-    <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+    <div className={`max-w-4xl mx-auto rounded-xl shadow-lg overflow-hidden ${
+      isDark ? 'bg-gray-800' : 'bg-white'
+    }`}>
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
         <h2 className="text-2xl font-bold text-white flex items-center">
@@ -187,119 +191,131 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
           {/* Left Column - Form Fields */}
           <div className="space-y-6">
             {/* Basic Information */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    name="phoneNumber"
-                    value={formData.phoneNumber}
-                    onChange={handleInputChange}
-                    placeholder="10-digit phone number"
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.phoneNumber && (
-                    <p className="text-red-500 text-sm mt-1">{errors.phoneNumber}</p>
-                  )}
-                </div>
+                  <div>
+                    <h3 className={`text-lg font-semibold mb-4 ${
+                    isDark ? 'text-gray-100' : 'text-gray-900'
+                    }`}>Basic Information</h3>
+                    
+                    <div className="space-y-4">
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                      Phone Number *
+                      </label>
+                      <input
+                      type="tel"
+                      name="phoneNumber"
+                      value={formData.phoneNumber}
+                      onChange={handleInputChange}
+                      placeholder="10-digit phone number"
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.phoneNumber ? 'border-red-500' : 'border-gray-300'
+                      } ${isDark ? 'bg-gray-900 text-gray-100 placeholder-gray-400 border-gray-700' : 'bg-white text-gray-900'}`}
+                      />
+                      {errors.phoneNumber && (
+                      <p className="text-red-500 text-sm mt-1">{errors.phoneNumber}</p>
+                      )}
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Loan Amount (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    name="amount"
-                    value={formData.amount}
-                    onChange={handleInputChange}
-                    placeholder="Amount (₹)"
-                    min="100"
-                    max="100000"
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.amount ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.amount && (
-                    <p className="text-red-500 text-sm mt-1">{errors.amount}</p>
-                  )}
-                  {currentTier && (
-                    <div className="mt-2 p-2 bg-blue-50 rounded text-sm text-blue-700">
-                      <Info className="w-4 h-4 inline mr-1" />
-                      {currentTier.type === 'flat' 
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                      Loan Amount (₹) *
+                      </label>
+                      <input
+                      type="number"
+                      name="amount"
+                      value={formData.amount}
+                      onChange={handleInputChange}
+                      placeholder="Amount (₹)"
+                      min="100"
+                      max="100000"
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.amount ? 'border-red-500' : 'border-gray-300'
+                      } ${isDark ? 'bg-gray-900 text-gray-100 placeholder-gray-400 border-gray-700' : 'bg-white text-gray-900'}`}
+                      />
+                      {errors.amount && (
+                      <p className="text-red-500 text-sm mt-1">{errors.amount}</p>
+                      )}
+                      {currentTier && (
+                      <div className="mt-2 p-2 bg-blue-50 rounded text-sm text-blue-700">
+                        <Info className="w-4 h-4 inline mr-1" />
+                        {currentTier.type === 'flat' 
                         ? `Flat fee of ₹${currentTier.flatFee} for amounts ₹${currentTier.minAmount}-₹${currentTier.maxAmount}`
                         : `${currentTier.annualRate}% annual interest for amounts above ₹${currentTier.minAmount}`
-                      }
+                        }
+                      </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tenure *
-                  </label>
-                  <select
-                    name="tenureMonths"
-                    value={formData.tenureMonths}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {tenureOptions.map(option => (
-                      <option key={option.value} value={option.value}>
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                      Tenure *
+                      </label>
+                      <select
+                      name="tenureMonths"
+                      value={formData.tenureMonths}
+                      onChange={handleInputChange}
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        isDark ? 'bg-gray-900 text-gray-100 border-gray-700' : 'bg-white text-gray-900'
+                      }`}
+                      >
+                      {tenureOptions.map(option => (
+                        <option key={option.value} value={option.value}>
                         {option.label} ({option.days} days)
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                        </option>
+                      ))}
+                      </select>
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Purpose *
-                  </label>
-                  <input
-                    type="text"
-                    name="purpose"
-                    value={formData.purpose}
-                    onChange={handleInputChange}
-                    placeholder="e.g., Course Registration Fee, Exam Fee"
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.purpose ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.purpose && (
-                    <p className="text-red-500 text-sm mt-1">{errors.purpose}</p>
-                  )}
-                </div>
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                      Purpose *
+                      </label>
+                      <input
+                      type="text"
+                      name="purpose"
+                      value={formData.purpose}
+                      onChange={handleInputChange}
+                      placeholder="e.g., Course Registration Fee, Exam Fee"
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.purpose ? 'border-red-500' : 'border-gray-300'
+                      } ${isDark ? 'bg-gray-900 text-gray-100 placeholder-gray-400 border-gray-700' : 'bg-white text-gray-900'}`}
+                      />
+                      {errors.purpose && (
+                      <p className="text-red-500 text-sm mt-1">{errors.purpose}</p>
+                      )}
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Repayment Date *
-                  </label>
-                  <input
-                    type="date"
-                    name="repaymentDate"
-                    value={formData.repaymentDate}
-                    onChange={handleInputChange}
-                    min={new Date().toISOString().split('T')[0]}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.repaymentDate ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.repaymentDate && (
-                    <p className="text-red-500 text-sm mt-1">{errors.repaymentDate}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Interest Preview */}
+                    <div>
+                      <label className={`block text-sm font-medium mb-2 ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
+                      Repayment Date *
+                      </label>
+                      <input
+                      type="date"
+                      name="repaymentDate"
+                      value={formData.repaymentDate}
+                      onChange={handleInputChange}
+                      min={new Date().toISOString().split('T')[0]}
+                      className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.repaymentDate ? 'border-red-500' : 'border-gray-300'
+                      } ${isDark ? 'bg-gray-900 text-gray-100 border-gray-700' : 'bg-white text-gray-900'}`}
+                      />
+                      {errors.repaymentDate && (
+                      <p className="text-red-500 text-sm mt-1">{errors.repaymentDate}</p>
+                      )}
+                    </div>
+                    </div>
+                  </div>
+                  </div>
           <div className="lg:border-l lg:border-gray-200 lg:pl-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <Calculator className="w-5 h-5 mr-2" />

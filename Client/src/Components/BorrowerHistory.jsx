@@ -6,8 +6,10 @@ import { getMyLoans } from "../api/loanApi";
 import { loadChatUnreadCounts } from "../api/chatApi";
 import { useSocket } from "../contexts/SocketContext";
 import API from "../api/api";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function BorrowerHistory () {
+    const { isDark } = useTheme();
     const [loans, setLoans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -85,23 +87,35 @@ export default function BorrowerHistory () {
     return (
         <>
             <Navbar />
-            <div className="min-h-screen bg-gray-50">
+            <div className={`min-h-screen ${
+              isDark ? 'bg-gray-900' : 'bg-gray-50'
+            }`}>
                 {/* Header Section */}
-                <div className="bg-white shadow-sm border-b">
+                <div className={`shadow-sm border-b ${
+                  isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                }`}>
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-900">My Loan Requests</h1>
-                                <p className="mt-2 text-gray-600">Track your loan requests and repayment status</p>
+                                <h1 className={`text-3xl font-bold ${
+                                  isDark ? 'text-gray-100' : 'text-gray-900'
+                                }`}>My Loan Requests</h1>
+                                <p className={`mt-2 ${
+                                  isDark ? 'text-gray-300' : 'text-gray-600'
+                                }`}>Track your loan requests and repayment status</p>
                             </div>
                             <div className="hidden md:flex items-center space-x-4">
                                 <div className="text-center">
                                     <div className="text-2xl font-bold text-blue-600">{loans.length}</div>
-                                    <div className="text-sm text-gray-500">Total Requests</div>
+                                    <div className={`text-sm ${
+                                      isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>Total Requests</div>
                                 </div>
                                 <div className="text-center">
                                     <div className="text-2xl font-bold text-purple-600">₹{totalRequested.toLocaleString()}</div>
-                                    <div className="text-sm text-gray-500">Total Requested</div>
+                                    <div className={`text-sm ${
+                                      isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>Total Requested</div>
                                 </div>
                             </div>
                         </div>
@@ -111,104 +125,156 @@ export default function BorrowerHistory () {
                 {/* Stats Cards */}
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                        <div className="bg-white rounded-lg shadow-sm p-6 border">
+                        <div className={`rounded-lg shadow-sm p-6 border ${
+                          isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                        }`}>
                             <div className="flex items-center">
-                                <div className="p-3 bg-blue-100 rounded-full">
+                                <div className={`p-3 rounded-full ${
+                                  isDark ? 'bg-blue-900' : 'bg-blue-100'
+                                }`}>
                                     <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </div>
                                 <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-500">Total Requests</p>
-                                    <p className="text-2xl font-bold text-gray-900">{loans.length}</p>
+                                    <p className={`text-sm font-medium ${
+                                      isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>Total Requests</p>
+                                    <p className={`text-2xl font-bold ${
+                                      isDark ? 'text-gray-100' : 'text-gray-900'
+                                    }`}>{loans.length}</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-lg shadow-sm p-6 border">
+                        <div className={`rounded-lg shadow-sm p-6 border ${
+                          isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                        }`}>
                             <div className="flex items-center">
-                                <div className="p-3 bg-purple-100 rounded-full">
+                                <div className={`p-3 rounded-full ${
+                                  isDark ? 'bg-purple-900' : 'bg-purple-100'
+                                }`}>
                                     <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                                     </svg>
                                 </div>
                                 <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-500">Funded</p>
-                                    <p className="text-2xl font-bold text-gray-900">{fundedLoans.length}</p>
+                                    <p className={`text-sm font-medium ${
+                                      isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>Funded</p>
+                                    <p className={`text-2xl font-bold ${
+                                      isDark ? 'text-gray-100' : 'text-gray-900'
+                                    }`}>{fundedLoans.length}</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-lg shadow-sm p-6 border">
+                        <div className={`rounded-lg shadow-sm p-6 border ${
+                          isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                        }`}>
                             <div className="flex items-center">
-                                <div className="p-3 bg-green-100 rounded-full">
+                                <div className={`p-3 rounded-full ${
+                                  isDark ? 'bg-green-900' : 'bg-green-100'
+                                }`}>
                                     <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
                                 <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-500">Repaid</p>
-                                    <p className="text-2xl font-bold text-gray-900">{repaidLoans.length}</p>
+                                    <p className={`text-sm font-medium ${
+                                      isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>Repaid</p>
+                                    <p className={`text-2xl font-bold ${
+                                      isDark ? 'text-gray-100' : 'text-gray-900'
+                                    }`}>{repaidLoans.length}</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-lg shadow-sm p-6 border">
+                        <div className={`rounded-lg shadow-sm p-6 border ${
+                          isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                        }`}>
                             <div className="flex items-center">
-                                <div className="p-3 bg-yellow-100 rounded-full">
+                                <div className={`p-3 rounded-full ${
+                                  isDark ? 'bg-yellow-900' : 'bg-yellow-100'
+                                }`}>
                                     <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
                                 <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-500">Pending</p>
-                                    <p className="text-2xl font-bold text-gray-900">{pendingLoans.length}</p>
+                                    <p className={`text-sm font-medium ${
+                                      isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>Pending</p>
+                                    <p className={`text-2xl font-bold ${
+                                      isDark ? 'text-gray-100' : 'text-gray-900'
+                                    }`}>{pendingLoans.length}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Loans List */}
-                    <div className="bg-white rounded-lg shadow-sm border">
-                        <div className="px-6 py-4 border-b border-gray-200">
-                            <h2 className="text-xl font-semibold text-gray-900">Your Loan History</h2>
+                    <div className={`rounded-lg shadow-sm border ${
+                      isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                    }`}>
+                        <div className={`px-6 py-4 border-b ${
+                          isDark ? 'border-gray-700' : 'border-gray-200'
+                        }`}>
+                            <h2 className={`text-xl font-semibold ${
+                              isDark ? 'text-gray-100' : 'text-gray-900'
+                            }`}>Your Loan History</h2>
                         </div>
 
                         {loading ? (
                             <div className="flex justify-center items-center py-12">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                                <span className="ml-2 text-gray-600">Loading your loans...</span>
+                                <span className={`ml-2 ${
+                                  isDark ? 'text-gray-300' : 'text-gray-600'
+                                }`}>Loading your loans...</span>
                             </div>
                         ) : error ? (
                             <div className="text-center py-12">
-                                <div className="text-red-600 mb-2">
+                                <div className={`mb-2 ${
+                                  isDark ? 'text-red-400' : 'text-red-600'
+                                }`}>
                                     <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
-                                <p className="text-gray-600">Error loading loans: {error}</p>
+                                <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>Error loading loans: {error}</p>
                             </div>
                         ) : loans.length === 0 ? (
                             <div className="text-center py-12">
-                                <div className="text-gray-400 mb-4">
+                                <div className={`mb-4 ${
+                                  isDark ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
                                     <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </div>
-                                <h3 className="text-lg font-medium text-gray-900 mb-2">No loan requests yet</h3>
-                                <p className="text-gray-500">Create your first loan request to get started</p>
+                                <h3 className={`text-lg font-medium mb-2 ${
+                                  isDark ? 'text-gray-200' : 'text-gray-900'
+                                }`}>No loan requests yet</h3>
+                                <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>Create your first loan request to get started</p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-gray-200">
+                            <div className={`divide-y ${
+                              isDark ? 'divide-gray-700' : 'divide-gray-200'
+                            }`}>
                                 {orderedLoans.map((loan) => {
                                     const statusInfo = getStatusInfo(loan);
                                     return (
-                                        <div key={loan._id} className="p-6 hover:bg-gray-50 transition-colors">
+                                        <div key={loan._id} className={`p-6 transition-colors ${
+                                          isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                                        }`}>
                                             <div className="flex items-center justify-between">
                                                 <div className="flex-1">
                                                     <div className="flex items-center space-x-3">
                                                         <div className="flex-shrink-0">
-                                                            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                                              isDark ? 'bg-purple-900' : 'bg-purple-100'
+                                                            }`}>
                                                                 <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                                                                 </svg>
@@ -216,10 +282,14 @@ export default function BorrowerHistory () {
                                                         </div>
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex items-center space-x-2">
-                                                                <h3 className="text-lg font-medium text-gray-900 truncate">{loan.purpose}</h3>
+                                                                <h3 className={`text-lg font-medium truncate ${
+                                                                  isDark ? 'text-gray-200' : 'text-gray-900'
+                                                                }`}>{loan.purpose}</h3>
                                                                 <span className="text-xl font-bold text-purple-600">₹{loan.amount.toLocaleString()}</span>
                                                             </div>
-                                                            <div className="mt-1 flex items-center space-x-4 text-sm text-gray-500">
+                                                            <div className={`mt-1 flex items-center space-x-4 text-sm ${
+                                                              isDark ? 'text-gray-400' : 'text-gray-500'
+                                                            }`}>
                                                                 <span className="flex items-center">
                                                                     <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -292,13 +362,15 @@ export default function BorrowerHistory () {
                                     className={`px-4 py-2 rounded-lg ${
                                         pagination.hasPrev
                                             ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : isDark 
+                                                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                     }`}
                                 >
                                     Previous
                                 </button>
                                 
-                                <span className="text-gray-600">
+                                <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
                                     Page {pagination.currentPage} of {pagination.totalPages}
                                 </span>
                                 
@@ -308,7 +380,9 @@ export default function BorrowerHistory () {
                                     className={`px-4 py-2 rounded-lg ${
                                         pagination.hasNext
                                             ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : isDark 
+                                                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                     }`}
                                 >
                                     Next
