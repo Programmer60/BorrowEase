@@ -162,6 +162,35 @@ export default function Navbar() {
     },
   ];
 
+  // Public navigation links that show only for non-authenticated users
+  const publicNavLinks = [
+    {
+      label: "About",
+      action: () => scrollToSection('about'),
+      show: !user, // Only show when user is not logged in
+    },
+    {
+      label: "How it Works",
+      action: () => scrollToSection('how-it-works'),
+      show: !user, // Only show when user is not logged in
+    },
+    {
+      label: "Contact",
+      action: () => scrollToSection('contact'),
+      show: !user, // Only show when user is not logged in
+    },
+  ];
+
+  const scrollToSection = (sectionId) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      // If we're not on a page with these sections, navigate to home with hash
+      navigate(`/#${sectionId}`);
+    }
+  };
+
   return (
     <header className={`shadow-lg sticky top-0 z-50 theme-transition ${
       isDark 
@@ -209,6 +238,23 @@ export default function Navbar() {
                       {link.badge > 99 ? '99+' : link.badge}
                     </span>
                   )}
+                </button>
+              ))}
+            
+            {/* Public Navigation Links */}
+            {publicNavLinks
+              .filter((link) => link.show)
+              .map((link) => (
+                <button
+                  key={link.label}
+                  onClick={link.action}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isDark 
+                      ? 'text-gray-300 hover:text-indigo-400 hover:bg-gray-800' 
+                      : 'text-gray-700 hover:text-indigo-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {link.label}
                 </button>
               ))}
           </nav>
@@ -433,6 +479,27 @@ export default function Navbar() {
                 )}
               </button>
             ))}
+          
+          {/* Public Navigation Links in Mobile Menu */}
+          {publicNavLinks
+            .filter((link) => link.show)
+            .map((link) => (
+              <button
+                key={link.label}
+                onClick={() => {
+                  link.action();
+                  setIsMenuOpen(false);
+                }}
+                className={`w-full px-4 py-3 text-left text-sm ${
+                  isDark 
+                    ? 'text-gray-300 hover:bg-gray-700' 
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {link.label}
+              </button>
+            ))}
+          
           {/* Admin Panel only in profile dropdown for admin users */}
           <div className="border-t px-4 py-2">
             {user ? (

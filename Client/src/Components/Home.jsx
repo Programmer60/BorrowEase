@@ -34,10 +34,6 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    navigate("/login");
-  };
 
   return (
     <div className={`min-h-screen ${

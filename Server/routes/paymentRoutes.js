@@ -45,24 +45,55 @@ const renderAutoRedirectPage = (redirectUrl, opts = {}) => {
   const subtitle = opts.subtitle || 'Please wait while we take you back to BorrowEase';
   const statusColor = opts.status === 'success' ? '#16a34a' : opts.status === 'error' ? '#dc2626' : '#4f46e5';
   return `<!doctype html>
-  <html lang="en">
+  <html lang="en" class="dark">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>${title}</title>
       <meta http-equiv="refresh" content="1;url=${redirectUrl}">
       <style>
-        body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#f8fafc;color:#0f172a}
+        :root {
+          color-scheme: light dark;
+        }
+        body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#f8fafc;color:#0f172a;transition:background-color 0.3s ease, color 0.3s ease}
         .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-        .card{background:#fff;border-radius:16px;box-shadow:0 10px 25px rgba(2,6,23,0.08);padding:28px;max-width:520px;width:100%;text-align:center;border:1px solid #e5e7eb}
+        .card{background:#fff;border-radius:16px;box-shadow:0 10px 25px rgba(2,6,23,0.08);padding:28px;max-width:520px;width:100%;text-align:center;border:1px solid #e5e7eb;transition:background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease}
         .logo{font-weight:800;font-size:20px;color:#4f46e5;letter-spacing:0.3px}
         .title{margin:12px 0 6px 0;font-size:20px;font-weight:700}
         .subtitle{margin:0 0 18px 0;color:#475569;font-size:14px}
         .spinner{margin:18px auto 16px auto;width:44px;height:44px;border:4px solid #e5e7eb;border-top-color:${statusColor};border-radius:50%;animation:spin 0.9s linear infinite}
-        .btn{display:inline-block;margin-top:8px;background:${statusColor};color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none;font-weight:600}
+        .btn{display:inline-block;margin-top:8px;background:${statusColor};color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none;font-weight:600;transition:opacity 0.2s ease}
+        .btn:hover{opacity:0.9}
         @keyframes spin{to{transform:rotate(360deg)}}
+        
+        /* Dark mode styles */
+        @media (prefers-color-scheme: dark) {
+          body{background:#0f172a;color:#f1f5f9}
+          .card{background:#1e293b;border-color:#334155;box-shadow:0 10px 25px rgba(0,0,0,0.3)}
+          .subtitle{color:#94a3b8}
+          .spinner{border-color:#334155;border-top-color:${statusColor}}
+        }
+        
+        /* Force dark mode when .dark class is present */
+        .dark body{background:#0f172a;color:#f1f5f9}
+        .dark .card{background:#1e293b;border-color:#334155;box-shadow:0 10px 25px rgba(0,0,0,0.3)}
+        .dark .subtitle{color:#94a3b8}
+        .dark .spinner{border-color:#334155;border-top-color:${statusColor}}
       </style>
       <script>
+        // Dark mode detection and application
+        (function() {
+          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const storedTheme = localStorage.getItem('theme');
+          const shouldUseDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
+          
+          if (shouldUseDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        })();
+        
         // Safety redirect for JS-enabled browsers
         (function(){try{setTimeout(function(){window.location.replace('${redirectUrl}');}, 150);}catch(e){}})();
       </script>
@@ -592,18 +623,110 @@ router.get('/checkout/:orderId', (req, res) => {
   const keyId = RZP_KEY_ID;
   res.setHeader('Content-Type', 'text/html');
   res.send(`<!doctype html>
-  <html>
+  <html lang="en" class="dark">
     <head>
-  <meta charset="utf-8" />
+      <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Processing Payment...</title>
-  <link rel="preconnect" href="https://checkout.razorpay.com" crossorigin>
-  <link rel="dns-prefetch" href="https://checkout.razorpay.com">
-  <link rel="preconnect" href="https://api.razorpay.com" crossorigin>
-  <link rel="dns-prefetch" href="https://api.razorpay.com">
+      <title>Processing Payment - BorrowEase</title>
+      <link rel="preconnect" href="https://checkout.razorpay.com" crossorigin>
+      <link rel="dns-prefetch" href="https://checkout.razorpay.com">
+      <link rel="preconnect" href="https://api.razorpay.com" crossorigin>
+      <link rel="dns-prefetch" href="https://api.razorpay.com">
+      <style>
+        :root {
+          color-scheme: light dark;
+        }
+        body {
+          margin: 0;
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+          background: #f8fafc;
+          color: #0f172a;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .container {
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 10px 25px rgba(2,6,23,0.08);
+          padding: 32px;
+          max-width: 480px;
+          width: 100%;
+          text-align: center;
+          border: 1px solid #e5e7eb;
+          transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .logo {
+          font-weight: 800;
+          font-size: 24px;
+          color: #4f46e5;
+          letter-spacing: 0.3px;
+          margin-bottom: 16px;
+        }
+        .title {
+          font-size: 20px;
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
+        .subtitle {
+          color: #475569;
+          font-size: 14px;
+          margin-bottom: 24px;
+        }
+        .spinner {
+          margin: 20px auto;
+          width: 40px;
+          height: 40px;
+          border: 4px solid #e5e7eb;
+          border-top-color: #4f46e5;
+          border-radius: 50%;
+          animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        /* Dark mode styles */
+        @media (prefers-color-scheme: dark) {
+          body { background: #0f172a; color: #f1f5f9; }
+          .container { background: #1e293b; border-color: #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+          .subtitle { color: #94a3b8; }
+          .spinner { border-color: #334155; border-top-color: #4f46e5; }
+        }
+        
+        /* Force dark mode when .dark class is present */
+        .dark body { background: #0f172a; color: #f1f5f9; }
+        .dark .container { background: #1e293b; border-color: #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .dark .subtitle { color: #94a3b8; }
+        .dark .spinner { border-color: #334155; border-top-color: #4f46e5; }
+      </style>
     </head>
-    <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
-      <p>Opening secure checkout...</p>
+    <body>
+      <div class="container">
+        <div class="logo">BorrowEase</div>
+        <div class="spinner"></div>
+        <div class="title">Processing Payment</div>
+        <div class="subtitle">Opening secure checkout...</div>
+      </div>
+      
+      <script>
+        // Dark mode detection and application
+        (function() {
+          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const storedTheme = localStorage.getItem('theme');
+          const shouldUseDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
+          
+          if (shouldUseDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        })();
+      </script>
+      
       <script src="https://checkout.razorpay.com/v1/checkout.js"
         data-key="${keyId}"
         data-order_id="${orderId}"
@@ -637,14 +760,106 @@ router.get('/checkout', (req, res) => {
   const keyId = RZP_KEY_ID;
   res.setHeader('Content-Type', 'text/html');
   res.send(`<!doctype html>
-  <html>
+  <html lang="en" class="dark">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Processing Payment...</title>
+      <title>Processing Payment - BorrowEase</title>
+      <style>
+        :root {
+          color-scheme: light dark;
+        }
+        body {
+          margin: 0;
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+          background: #f8fafc;
+          color: #0f172a;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .container {
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 10px 25px rgba(2,6,23,0.08);
+          padding: 32px;
+          max-width: 480px;
+          width: 100%;
+          text-align: center;
+          border: 1px solid #e5e7eb;
+          transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .logo {
+          font-weight: 800;
+          font-size: 24px;
+          color: #4f46e5;
+          letter-spacing: 0.3px;
+          margin-bottom: 16px;
+        }
+        .title {
+          font-size: 20px;
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
+        .subtitle {
+          color: #475569;
+          font-size: 14px;
+          margin-bottom: 24px;
+        }
+        .spinner {
+          margin: 20px auto;
+          width: 40px;
+          height: 40px;
+          border: 4px solid #e5e7eb;
+          border-top-color: #4f46e5;
+          border-radius: 50%;
+          animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        /* Dark mode styles */
+        @media (prefers-color-scheme: dark) {
+          body { background: #0f172a; color: #f1f5f9; }
+          .container { background: #1e293b; border-color: #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+          .subtitle { color: #94a3b8; }
+          .spinner { border-color: #334155; border-top-color: #4f46e5; }
+        }
+        
+        /* Force dark mode when .dark class is present */
+        .dark body { background: #0f172a; color: #f1f5f9; }
+        .dark .container { background: #1e293b; border-color: #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .dark .subtitle { color: #94a3b8; }
+        .dark .spinner { border-color: #334155; border-top-color: #4f46e5; }
+      </style>
     </head>
-    <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
-      <p>Opening secure checkout...</p>
+    <body>
+      <div class="container">
+        <div class="logo">BorrowEase</div>
+        <div class="spinner"></div>
+        <div class="title">Processing Payment</div>
+        <div class="subtitle">Opening secure checkout...</div>
+      </div>
+      
+      <script>
+        // Dark mode detection and application
+        (function() {
+          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const storedTheme = localStorage.getItem('theme');
+          const shouldUseDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
+          
+          if (shouldUseDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        })();
+      </script>
+      
       <script src="https://checkout.razorpay.com/v1/checkout.js"
         data-key="${keyId}"
         data-order_id="${orderId}"
@@ -676,21 +891,113 @@ router.get('/checkout/*', (req, res) => {
   const keyId = RZP_KEY_ID;
   res.setHeader('Content-Type', 'text/html');
   res.send(`<!doctype html>
-  <html>
+  <html lang="en" class="dark">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Processing Payment...</title>
+      <title>Processing Payment - BorrowEase</title>
+      <style>
+        :root {
+          color-scheme: light dark;
+        }
+        body {
+          margin: 0;
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+          background: #f8fafc;
+          color: #0f172a;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .container {
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 10px 25px rgba(2,6,23,0.08);
+          padding: 32px;
+          max-width: 480px;
+          width: 100%;
+          text-align: center;
+          border: 1px solid #e5e7eb;
+          transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        .logo {
+          font-weight: 800;
+          font-size: 24px;
+          color: #4f46e5;
+          letter-spacing: 0.3px;
+          margin-bottom: 16px;
+        }
+        .title {
+          font-size: 20px;
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
+        .subtitle {
+          color: #475569;
+          font-size: 14px;
+          margin-bottom: 24px;
+        }
+        .spinner {
+          margin: 20px auto;
+          width: 40px;
+          height: 40px;
+          border: 4px solid #e5e7eb;
+          border-top-color: #4f46e5;
+          border-radius: 50%;
+          animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        /* Dark mode styles */
+        @media (prefers-color-scheme: dark) {
+          body { background: #0f172a; color: #f1f5f9; }
+          .container { background: #1e293b; border-color: #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+          .subtitle { color: #94a3b8; }
+          .spinner { border-color: #334155; border-top-color: #4f46e5; }
+        }
+        
+        /* Force dark mode when .dark class is present */
+        .dark body { background: #0f172a; color: #f1f5f9; }
+        .dark .container { background: #1e293b; border-color: #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .dark .subtitle { color: #94a3b8; }
+        .dark .spinner { border-color: #334155; border-top-color: #4f46e5; }
+      </style>
     </head>
-    <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;">
-      <p>Opening secure checkout...</p>
+    <body>
+      <div class="container">
+        <div class="logo">BorrowEase</div>
+        <div class="spinner"></div>
+        <div class="title">Processing Payment</div>
+        <div class="subtitle">Opening secure checkout...</div>
+      </div>
+      
+      <script>
+        // Dark mode detection and application
+        (function() {
+          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const storedTheme = localStorage.getItem('theme');
+          const shouldUseDark = storedTheme === 'dark' || (!storedTheme && prefersDark);
+          
+          if (shouldUseDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        })();
+      </script>
+      
       <script src="https://checkout.razorpay.com/v1/checkout.js"
         data-key="${keyId}"
         data-order_id="${orderId}"
         data-name="BorrowEase"
         data-description="Fund Loan"
         data-redirect="true"
-  data-callback_url="${callbackUrl}"></script>
+        data-callback_url="${callbackUrl}"></script>
       <script>
         (function(){
           if (window.Razorpay && typeof Razorpay === 'function') {
