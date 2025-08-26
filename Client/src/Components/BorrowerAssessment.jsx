@@ -184,7 +184,7 @@ const BorrowerAssessment = () => {
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Navbar />
       
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${isDark ? 'bg-gray-900' : ''}`}>
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center mb-4">
@@ -522,28 +522,28 @@ const BorrowerAssessment = () => {
 
                     {/* Credit Score Breakdown */}
                     {assessment.creditProfile.creditBreakdown && (
-                      <div className="mt-6 pt-6 border-t border-gray-200">
-                        <h4 className="font-medium text-gray-700 mb-3">Score Breakdown</h4>
+                      <div className={`mt-6 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                        <h4 className={`font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Score Breakdown</h4>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-                          <div className="text-center p-2 bg-gray-50 rounded">
+                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
                             <div className="font-medium">{assessment.creditProfile.creditBreakdown.paymentHistory || 0}</div>
-                            <div className="text-xs text-gray-600">Payment History</div>
+                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Payment History</div>
                           </div>
-                          <div className="text-center p-2 bg-gray-50 rounded">
+                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
                             <div className="font-medium">{assessment.creditProfile.creditBreakdown.creditUtilization || 0}</div>
-                            <div className="text-xs text-gray-600">Credit Utilization</div>
+                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Credit Utilization</div>
                           </div>
-                          <div className="text-center p-2 bg-gray-50 rounded">
+                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
                             <div className="font-medium">{assessment.creditProfile.creditBreakdown.creditHistoryLength || 0}</div>
-                            <div className="text-xs text-gray-600">Credit History</div>
+                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Credit History</div>
                           </div>
-                          <div className="text-center p-2 bg-gray-50 rounded">
+                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
                             <div className="font-medium">{assessment.creditProfile.creditBreakdown.loanDiversity || 0}</div>
-                            <div className="text-xs text-gray-600">Loan Diversity</div>
+                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loan Diversity</div>
                           </div>
-                          <div className="text-center p-2 bg-gray-50 rounded">
+                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
                             <div className="font-medium">{assessment.creditProfile.creditBreakdown.trustFactors || 0}</div>
-                            <div className="text-xs text-gray-600">Trust Factors</div>
+                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Trust Factors</div>
                           </div>
                         </div>
                       </div>
@@ -606,18 +606,18 @@ const BorrowerAssessment = () => {
 
                 {/* Suggested Modifications */}
                 {assessment.suggestedModifications && (
-                  <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-6">
-                    <h3 className="text-lg font-semibold text-yellow-800 mb-4">Suggested Loan Modifications</h3>
+                  <div className={`rounded-xl border p-6 ${isDark ? 'bg-yellow-900/30 border-yellow-700' : 'bg-yellow-50 border-yellow-200'}`}>
+                    <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-yellow-200' : 'text-yellow-800'}`}>Suggested Loan Modifications</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <span className="text-sm text-yellow-700">Recommended Max Amount:</span>
-                        <p className="text-lg font-bold text-yellow-800">
+                        <span className={`text-sm ${isDark ? 'text-yellow-200' : 'text-yellow-700'}`}>Recommended Max Amount:</span>
+                        <p className={`text-lg font-bold ${isDark ? 'text-yellow-200' : 'text-yellow-800'}`}>
                           ₹{assessment.suggestedModifications.maxAmount?.toLocaleString()}
                         </p>
                       </div>
                       <div>
-                        <span className="text-sm text-yellow-700">Adjusted Interest Rate:</span>
-                        <p className="text-lg font-bold text-yellow-800">
+                        <span className={`text-sm ${isDark ? 'text-yellow-200' : 'text-yellow-700'}`}>Adjusted Interest Rate:</span>
+                        <p className={`text-lg font-bold ${isDark ? 'text-yellow-200' : 'text-yellow-800'}`}>
                           {assessment.suggestedModifications.suggestedRate}%
                         </p>
                       </div>
@@ -628,10 +628,10 @@ const BorrowerAssessment = () => {
             )}
 
             {!assessment && !loading && (
-              <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+              <div className={`rounded-xl shadow-sm p-8 text-center ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
                 <Target className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready for Assessment</h3>
-                <p className="text-gray-600">Fill in the loan details and click "Assess Risk" to get AI-powered evaluation</p>
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>Ready for Assessment</h3>
+                <p className={`${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Fill in the loan details and click "Assess Risk" to get AI-powered evaluation</p>
               </div>
             )}
           </div>

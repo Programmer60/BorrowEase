@@ -166,30 +166,20 @@ export default function Navbar() {
   const publicNavLinks = [
     {
       label: "About",
-      action: () => scrollToSection('about'),
+      path: "/about",
       show: !user, // Only show when user is not logged in
     },
     {
       label: "How it Works",
-      action: () => scrollToSection('how-it-works'),
+      path: "/how-it-works",
       show: !user, // Only show when user is not logged in
     },
     {
       label: "Contact",
-      action: () => scrollToSection('contact'),
+      path: "/contact",
       show: !user, // Only show when user is not logged in
     },
   ];
-
-  const scrollToSection = (sectionId) => {
-    const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      // If we're not on a page with these sections, navigate to home with hash
-      navigate(`/#${sectionId}`);
-    }
-  };
 
   return (
     <header className={`shadow-lg sticky top-0 z-50 theme-transition ${
@@ -245,9 +235,9 @@ export default function Navbar() {
             {publicNavLinks
               .filter((link) => link.show)
               .map((link) => (
-                <button
+                <Link
                   key={link.label}
-                  onClick={link.action}
+                  to={link.path}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     isDark 
                       ? 'text-gray-300 hover:text-indigo-400 hover:bg-gray-800' 
@@ -255,7 +245,7 @@ export default function Navbar() {
                   }`}
                 >
                   {link.label}
-                </button>
+                </Link>
               ))}
           </nav>
 
@@ -484,20 +474,18 @@ export default function Navbar() {
           {publicNavLinks
             .filter((link) => link.show)
             .map((link) => (
-              <button
+              <Link
                 key={link.label}
-                onClick={() => {
-                  link.action();
-                  setIsMenuOpen(false);
-                }}
-                className={`w-full px-4 py-3 text-left text-sm ${
+                to={link.path}
+                onClick={() => setIsMenuOpen(false)}
+                className={`block w-full px-4 py-3 text-left text-sm ${
                   isDark 
                     ? 'text-gray-300 hover:bg-gray-700' 
                     : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
                 {link.label}
-              </button>
+              </Link>
             ))}
           
           {/* Admin Panel only in profile dropdown for admin users */}

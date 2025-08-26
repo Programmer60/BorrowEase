@@ -23,9 +23,11 @@ import {
 } from 'lucide-react';
 import Navbar from './Navbar';
 import API from '../api/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const [stats, setStats] = useState({
@@ -183,7 +185,7 @@ const AdminDashboard = () => {
   if (!authorized) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Navbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -193,8 +195,8 @@ const AdminDashboard = () => {
             <div className="flex items-center">
               <Shield className="w-8 h-8 text-blue-600 mr-3" />
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-                <p className="text-gray-600">Monitor and manage BorrowEase platform</p>
+                <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Admin Dashboard</h1>
+                <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Monitor and manage BorrowEase platform</p>
               </div>
             </div>
             <button
@@ -244,163 +246,179 @@ const AdminDashboard = () => {
         {/* Main Stats Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
           {/* User Stats */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Users</h3>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Users</h3>
               <Users className="w-6 h-6 text-blue-600" />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Total</span>
-                <span className="font-semibold">{stats.users.total}</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total</span>
+                <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{stats.users.total}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Borrowers</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Borrowers</span>
                 <span className="text-blue-600 font-medium">{stats.users.borrowers}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Lenders</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Lenders</span>
                 <span className="text-green-600 font-medium">{stats.users.lenders}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Admins</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Admins</span>
                 <span className="text-purple-600 font-medium">{stats.users.admins}</span>
               </div>
             </div>
             <button 
               onClick={() => navigate('/admin/users')}
-              className="w-full mt-4 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+              className={`w-full mt-4 py-2 text-sm rounded-lg hover:bg-opacity-80 ${
+                isDark 
+                  ? 'bg-blue-900/20 text-blue-400 hover:bg-blue-900/30' 
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+              }`}
             >
               Manage Users
             </button>
           </div>
 
           {/* Loan Stats */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Loans</h3>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loans</h3>
               <DollarSign className="w-6 h-6 text-green-600" />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Total</span>
-                <span className="font-semibold">{stats.loans.total}</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total</span>
+                <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{stats.loans.total}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Pending</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending</span>
                 <span className="text-yellow-600 font-medium">{stats.loans.pending}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Funded</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Funded</span>
                 <span className="text-blue-600 font-medium">{stats.loans.funded}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Repaid</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Repaid</span>
                 <span className="text-green-600 font-medium">{stats.loans.repaid}</span>
               </div>
               {stats.loans.flagged > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Flagged</span>
+                  <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Flagged</span>
                   <span className="text-red-600 font-medium">{stats.loans.flagged}</span>
                 </div>
               )}
             </div>
             <button 
               onClick={() => navigate('/admin/loans')}
-              className="w-full mt-4 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100"
+              className={`w-full mt-4 py-2 text-sm rounded-lg hover:bg-opacity-80 ${
+                isDark 
+                  ? 'bg-green-900/20 text-green-400 hover:bg-green-900/30' 
+                  : 'bg-green-50 text-green-700 hover:bg-green-100'
+              }`}
             >
               Moderate Loans
             </button>
           </div>
 
           {/* KYC Stats */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">KYC</h3>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>KYC</h3>
               <Shield className="w-6 h-6 text-purple-600" />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Total</span>
-                <span className="font-semibold">{stats.kyc.total}</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total</span>
+                <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{stats.kyc.total}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Pending</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending</span>
                 <span className="text-yellow-600 font-medium">{stats.kyc.pending}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Verified</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Verified</span>
                 <span className="text-green-600 font-medium">{stats.kyc.verified}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Rejected</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Rejected</span>
                 <span className="text-red-600 font-medium">{stats.kyc.rejected}</span>
               </div>
             </div>
             <button 
               onClick={() => navigate('/admin/kyc')}
-              className="w-full mt-4 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100"
+              className={`w-full mt-4 py-2 text-sm rounded-lg hover:bg-opacity-80 ${
+                isDark 
+                  ? 'bg-purple-900/20 text-purple-400 hover:bg-purple-900/30' 
+                  : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+              }`}
             >
               Review KYC
             </button>
           </div>
 
           {/* Financial Stats */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Financials</h3>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Financials</h3>
               <TrendingUp className="w-6 h-6 text-indigo-600" />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Loan Volume</span>
-                <span className="font-semibold">₹{stats.loans.totalAmount.toLocaleString()}</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loan Volume</span>
+                <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>₹{stats.loans.totalAmount.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Payments</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Payments</span>
                 <span className="text-green-600 font-medium">{stats.payments.successful}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Failed</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Failed</span>
                 <span className="text-red-600 font-medium">{stats.payments.failed}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Success Rate</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Success Rate</span>
                 <span className="text-blue-600 font-medium">
                   {stats.payments.total > 0 ? Math.round((stats.payments.successful / stats.payments.total) * 100) : 0}%
                 </span>
               </div>
             </div>
-            <button className="w-full mt-4 py-2 text-sm bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100">
+            <button className={`w-full mt-4 py-2 text-sm rounded-lg hover:bg-opacity-80 ${
+              isDark 
+                ? 'bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/30' 
+                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+            }`}>
               View Reports
             </button>
           </div>
 
           {/* Credit Score Stats */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Credit Scores</h3>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Credit Scores</h3>
               <CreditCard className="w-6 h-6 text-yellow-600" />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Average</span>
-                <span className="font-semibold">{stats.credit.averageScore}</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Average</span>
+                <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{stats.credit.averageScore}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Excellent</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Excellent</span>
                 <span className="text-green-600 font-medium">{stats.credit.excellent}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Good</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Good</span>
                 <span className="text-blue-600 font-medium">{stats.credit.good}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Fair</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Fair</span>
                 <span className="text-yellow-600 font-medium">{stats.credit.fair}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-gray-600">Poor</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Poor</span>
                 <span className="text-red-600 font-medium">{stats.credit.poor}</span>
               </div>
             </div>
@@ -417,48 +435,54 @@ const AdminDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <button
             onClick={() => navigate('/admin/disputes')}
-            className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow text-left"
+            className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow text-left`}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Manage Disputes</h3>
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Manage Disputes</h3>
               <AlertTriangle className="w-6 h-6 text-orange-500" />
             </div>
-            <p className="text-gray-600 text-sm">
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Review and resolve user disputes and issues
             </p>
           </button>
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Quick Actions</h3>
             <div className="space-y-3">
               <button 
                 onClick={() => navigate('/admin/users')}
-                className="w-full flex items-center px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg"
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg ${
+                  isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
+                }`}
               >
                 <Users className="w-5 h-5 text-blue-600 mr-3" />
-                <span className="text-sm font-medium">Manage Users</span>
+                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Manage Users</span>
               </button>
               <button 
                 onClick={() => navigate('/admin/loans')}
-                className="w-full flex items-center px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg"
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg ${
+                  isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
+                }`}
               >
                 <DollarSign className="w-5 h-5 text-green-600 mr-3" />
-                <span className="text-sm font-medium">Review Loans</span>
+                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Review Loans</span>
               </button>
               <button 
                 onClick={() => navigate('/admin/kyc')}
-                className="w-full flex items-center px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg"
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg ${
+                  isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
+                }`}
               >
                 <Shield className="w-5 h-5 text-purple-600 mr-3" />
-                <span className="text-sm font-medium">Verify KYC</span>
+                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Verify KYC</span>
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">System Health</h3>
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>System Health</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Database</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Database</span>
                 <span className="flex items-center text-green-600">
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                   Online

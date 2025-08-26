@@ -29,9 +29,10 @@ import Navbar from './Navbar';
 import API from '../api/api';
 import { auth } from '../firebase';
 import { onAuthStateChanged, RecaptchaVerifier, PhoneAuthProvider, linkWithCredential } from 'firebase/auth';
-
+import { useTheme } from '../contexts/ThemeContext';
 
 const EnhancedKYCPage = () => {
+  const { isDark } = useTheme();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1135,10 +1136,16 @@ const EnhancedKYCPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className={`min-h-screen flex items-center justify-center ${
+        isDark 
+          ? 'bg-gray-900' 
+          : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className={`animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4 ${
+            isDark ? 'border-indigo-400' : 'border-indigo-600'
+          }`}></div>
+          <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>Loading...</p>
         </div>
       </div>
     );
@@ -1146,11 +1153,19 @@ const EnhancedKYCPage = () => {
 
   if (!authorized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className={`min-h-screen flex items-center justify-center ${
+        isDark 
+          ? 'bg-gray-900' 
+          : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
         <div className="text-center">
-          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You need to be a borrower to access KYC verification.</p>
+          <Shield className={`w-16 h-16 mx-auto mb-4 ${
+            isDark ? 'text-red-400' : 'text-red-500'
+          }`} />
+          <h2 className={`text-2xl font-bold mb-2 ${
+            isDark ? 'text-white' : 'text-gray-900'
+          }`}>Access Denied</h2>
+          <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>You need to be a borrower to access KYC verification.</p>
         </div>
       </div>
     );
@@ -1163,96 +1178,123 @@ const EnhancedKYCPage = () => {
       `${user.kyc.submissionAttempts}/3` : '';
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:bg-gray-900">
-        <Navbar />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="text-center mb-8">
-              <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${
-                user.kyc.status === 'verified' ? 'bg-green-100' :
-                user.kyc.status === 'rejected' ? 'bg-red-100' : 'bg-yellow-100'
+      <div className={`min-h-screen ${
+        isDark 
+          ? 'bg-gray-900' 
+          : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
+      <Navbar />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className={`rounded-2xl shadow-xl p-8 ${
+          isDark ? 'bg-gray-800' : 'bg-white'
+        }`}>
+        <div className="text-center mb-8">
+          <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 ${
+            user.kyc.status === 'verified' 
+              ? isDark ? 'bg-green-900/30' : 'bg-green-100'
+              : user.kyc.status === 'rejected' 
+              ? isDark ? 'bg-red-900/30' : 'bg-red-100' 
+              : isDark ? 'bg-yellow-900/30' : 'bg-yellow-100'
+          }`}>
+          {user.kyc.status === 'verified' ? (
+            <CheckCircle className={`w-10 h-10 ${
+              isDark ? 'text-green-400' : 'text-green-600'
+            }`} />
+          ) : user.kyc.status === 'rejected' ? (
+            <X className={`w-10 h-10 ${
+              isDark ? 'text-red-400' : 'text-red-600'
+            }`} />
+          ) : (
+            <Clock className={`w-10 h-10 ${
+              isDark ? 'text-yellow-400' : 'text-yellow-600'
+            }`} />
+          )}
+          </div>
+          <h1 className={`text-3xl font-bold mb-2 ${
+            isDark ? 'text-white' : 'text-gray-900'
+          }`}>
+            KYC Status: {user.kyc.status.charAt(0).toUpperCase() + user.kyc.status.slice(1)}
+          </h1>
+          <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>
+            {user.kyc.status === 'verified' && 'Your identity has been successfully verified!'}
+            {user.kyc.status === 'rejected' && 'Your KYC submission needs attention.'}
+            {user.kyc.status === 'pending' && 'Your documents are being reviewed.'}
+          </p>
+          
+          {/* Show attempt information */}
+          {attemptInfo && (
+            <div className="mt-2">
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                isDark 
+                  ? 'bg-gray-700 text-gray-200' 
+                  : 'bg-gray-100 text-gray-800'
               }`}>
-                {user.kyc.status === 'verified' ? (
-                  <CheckCircle className="w-10 h-10 text-green-600" />
-                ) : user.kyc.status === 'rejected' ? (
-                  <X className="w-10 h-10 text-red-600" />
-                ) : (
-                  <Clock className="w-10 h-10 text-yellow-600" />
-                )}
+                Attempt {attemptInfo}
+              </span>
+            </div>
+          )}
+
+          {/* Show rejection reason */}
+          {user.kyc.reason && (
+            <div className={`mt-4 p-4 rounded-lg ${
+              isDark ? 'bg-gray-700' : 'bg-gray-50'
+            }`}>
+              <h3 className={`text-sm font-medium mb-2 ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>Review Comments:</h3>
+              <p className={`text-sm ${
+                isDark ? 'text-gray-300' : 'text-gray-700'
+              }`}>{user.kyc.reason}</p>
+            </div>
+          )}
+
+          {/* Show resubmission options */}
+          {user.kyc.status === 'rejected' && (
+          <div className="mt-6">
+            {canResubmit ? (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6">
+              <div className="flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-3" />
+              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300">
+                Resubmission Available
+              </h3>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                KYC Status: {user.kyc.status.charAt(0).toUpperCase() + user.kyc.status.slice(1)}
-              </h1>
-              <p className="text-gray-600">
-                {user.kyc.status === 'verified' && 'Your identity has been successfully verified!'}
-                {user.kyc.status === 'rejected' && 'Your KYC submission needs attention.'}
-                {user.kyc.status === 'pending' && 'Your documents are being reviewed.'}
+              <p className="text-blue-700 dark:text-blue-300 mb-4 text-sm">
+              You can resubmit your KYC documents after addressing the issues mentioned above.
+              {attemptInfo && ` You have ${3 - user.kyc.submissionAttempts} attempts remaining.`}
               </p>
-              
-              {/* Show attempt information */}
-              {attemptInfo && (
-                <div className="mt-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    Attempt {attemptInfo}
-                  </span>
-                </div>
-              )}
-
-              {/* Show rejection reason */}
-              {user.kyc.reason && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Review Comments:</h3>
-                  <p className="text-sm text-gray-700">{user.kyc.reason}</p>
-                </div>
-              )}
-
-              {/* Show resubmission options */}
-              {user.kyc.status === 'rejected' && (
-                <div className="mt-6">
-                  {canResubmit ? (
-                    <div className="bg-blue-50 rounded-lg p-6">
-                      <div className="flex items-center justify-center mb-4">
-                        <AlertCircle className="w-8 h-8 text-blue-600 mr-3" />
-                        <h3 className="text-lg font-semibold text-blue-900">
-                          Resubmission Available
-                        </h3>
-                      </div>
-                      <p className="text-blue-700 mb-4 text-sm">
-                        You can resubmit your KYC documents after addressing the issues mentioned above.
-                        {attemptInfo && ` You have ${3 - user.kyc.submissionAttempts} attempts remaining.`}
-                      </p>
-                      <button
-                        onClick={() => {
-                          // Reset the form and allow resubmission
-                          setUser(prev => ({ ...prev, kyc: null }));
-                        }}
-                        className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                      >
-                        Resubmit KYC Documents
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-red-50 rounded-lg p-6">
-                      <div className="flex items-center justify-center mb-4">
-                        <X className="w-8 h-8 text-red-600 mr-3" />
-                        <h3 className="text-lg font-semibold text-red-900">
-                          Maximum Attempts Reached
-                        </h3>
-                      </div>
-                      <p className="text-red-700 mb-4 text-sm">
-                        You have reached the maximum number of KYC submission attempts (3). 
-                        Please contact our support team for further assistance with your verification process.
-                      </p>
-                      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                        <a
+              <button
+              onClick={() => {
+                // Reset the form and allow resubmission
+                setUser(prev => ({ ...prev, kyc: null }));
+              }}
+              className="bg-blue-600 dark:bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors font-medium"
+              >
+              Resubmit KYC Documents
+              </button>
+            </div>
+            ) : (
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-6">
+              <div className="flex items-center justify-center mb-4">
+              <X className="w-8 h-8 text-red-600 dark:text-red-400 mr-3" />
+              <h3 className="text-lg font-semibold text-red-900 dark:text-red-300">
+                Maximum Attempts Reached
+              </h3>
+              </div>
+              <p className="text-red-700 dark:text-red-300 mb-4 text-sm">
+              You have reached the maximum number of KYC submission attempts (3). 
+              Please contact our support team for further assistance with your verification process.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <a
                           href="mailto:admin@borrowease.com?subject=KYC%20Assistance%20Required&body=Hello,%0D%0A%0D%0AI%20have%20reached%20the%20maximum%20number%20of%20KYC%20submission%20attempts%20and%20need%20assistance%20with%20my%20verification%20process.%0D%0A%0D%0AUser%20Email:%20${encodeURIComponent(user?.email || '')}%0D%0AUser%20Name:%20${encodeURIComponent(user?.name || '')}%0D%0A%0D%0APlease%20help%20me%20complete%20my%20KYC%20verification.%0D%0A%0D%0AThank%20you."
-                          className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-medium text-center"
+                          className="bg-red-600 dark:bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors font-medium text-center"
                         >
                           Contact Support
                         </a>
                         <button
                           onClick={() => navigate('/borrower')}
-                          className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                          className="bg-gray-600 dark:bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
                         >
                           Back to Dashboard
                         </button>
@@ -1265,10 +1307,10 @@ const EnhancedKYCPage = () => {
               {/* Show previous submission history if available */}
               {user.kyc.previousSubmissions && user.kyc.previousSubmissions.length > 0 && (
                 <div className="mt-6 text-left">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Previous Submissions</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Previous Submissions</h3>
                   <div className="space-y-3">
                     {user.kyc.previousSubmissions.map((submission, index) => (
-                      <div key={index} className="bg-gray-50 rounded-lg p-4">
+                      <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             submission.status === 'verified' ? 'bg-green-100 text-green-800' :
@@ -1277,12 +1319,12 @@ const EnhancedKYCPage = () => {
                           }`}>
                             Attempt {index + 1}: {submission.status.charAt(0).toUpperCase() + submission.status.slice(1)}
                           </span>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
                             {new Date(submission.submittedAt).toLocaleDateString()}
                           </span>
                         </div>
                         {submission.reason && (
-                          <p className="text-sm text-gray-600">{submission.reason}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">{submission.reason}</p>
                         )}
                       </div>
                     ))}

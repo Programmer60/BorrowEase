@@ -18,9 +18,11 @@ import {
 } from 'lucide-react';
 import Navbar from './Navbar';
 import API from '../api/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const DisputesManagement = () => {
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   const [disputes, setDisputes] = useState([]);
   const [filteredDisputes, setFilteredDisputes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -182,15 +184,17 @@ const DisputesManagement = () => {
   };
 
   const DisputeCard = ({ dispute }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow overflow-hidden">
+    <div className={`rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow overflow-hidden ${
+      isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+    }`}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className={`p-2 rounded-lg ${getPriorityColor(dispute.priority)}`}>
             <Flag className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">{dispute.subject}</h3>
-            <p className="text-sm text-gray-600">
+            <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dispute.subject}</h3>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               {formatCategory(dispute.category)} • {dispute.priority} priority
             </p>
           </div>
@@ -297,31 +301,37 @@ const DisputesManagement = () => {
   if (!authorized) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Navbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div className={`rounded-xl shadow-sm p-6 mb-6 ${
+          isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'
+        }`}>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center">
+              <h1 className={`text-2xl font-bold flex items-center ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>
                 <AlertTriangle className="w-8 h-8 text-orange-500 mr-3" />
                 {userRole === 'admin' ? 'Dispute Management' : 'Dispute Overview'}
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className={`mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 {userRole === 'admin' ? 'Manage and resolve user disputes' : 'View and track disputes'}
               </p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-gray-900">{disputes.length}</div>
-              <div className="text-sm text-gray-600">Total Disputes</div>
+              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{disputes.length}</div>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Disputes</div>
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div className={`rounded-xl shadow-sm p-6 mb-6 ${
+          isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'
+        }`}>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>

@@ -16,8 +16,12 @@ import {
   X
 } from 'lucide-react';
 import API from '../api/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const DisputesOverview = ({ embedded = false }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  
   const [disputes, setDisputes] = useState([]);
   const [filteredDisputes, setFilteredDisputes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,21 +131,21 @@ const DisputesOverview = ({ embedded = false }) => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'open': return 'bg-yellow-100 text-yellow-800';
-      case 'in-progress': return 'bg-blue-100 text-blue-800';
-      case 'resolved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'open': return isDark ? 'bg-yellow-900/20 text-yellow-300' : 'bg-yellow-100 text-yellow-800';
+      case 'in-progress': return isDark ? 'bg-blue-900/20 text-blue-300' : 'bg-blue-100 text-blue-800';
+      case 'resolved': return isDark ? 'bg-green-900/20 text-green-300' : 'bg-green-100 text-green-800';
+      case 'rejected': return isDark ? 'bg-red-900/20 text-red-300' : 'bg-red-100 text-red-800';
+      default: return isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-800';
     }
   };
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'urgent': return 'text-red-600 bg-red-50';
-      case 'high': return 'text-orange-600 bg-orange-50';
-      case 'medium': return 'text-yellow-600 bg-yellow-50';
-      case 'low': return 'text-gray-600 bg-gray-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'urgent': return isDark ? 'text-red-400 bg-red-900/20' : 'text-red-600 bg-red-50';
+      case 'high': return isDark ? 'text-orange-400 bg-orange-900/20' : 'text-orange-600 bg-orange-50';
+      case 'medium': return isDark ? 'text-yellow-400 bg-yellow-900/20' : 'text-yellow-600 bg-yellow-50';
+      case 'low': return isDark ? 'text-gray-400 bg-gray-800' : 'text-gray-600 bg-gray-50';
+      default: return isDark ? 'text-gray-400 bg-gray-800' : 'text-gray-600 bg-gray-50';
     }
   };
 
@@ -165,15 +169,15 @@ const DisputesOverview = ({ embedded = false }) => {
   };
 
   const DisputeCard = ({ dispute }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+    <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow`}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className={`p-2 rounded-lg ${getPriorityColor(dispute.priority)}`}>
             <Flag className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">{dispute.subject}</h3>
-            <p className="text-sm text-gray-600">
+            <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dispute.subject}</h3>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               {formatCategory(dispute.category)} • {dispute.priority} priority
             </p>
           </div>
@@ -186,7 +190,7 @@ const DisputesOverview = ({ embedded = false }) => {
         </div>
       </div>
 
-      <div className="flex items-center space-x-4 text-sm text-gray-600 mb-4">
+      <div className={`flex items-center space-x-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
         <div className="flex items-center">
           <User className="w-4 h-4 mr-1" />
           {dispute.role ? dispute.role.charAt(0).toUpperCase() + dispute.role.slice(1) : 'User'}
@@ -203,13 +207,13 @@ const DisputesOverview = ({ embedded = false }) => {
         )}
       </div>
 
-      <p className="text-gray-700 text-sm mb-4 line-clamp-2">
+      <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm mb-4 line-clamp-2`}>
         {dispute.message}
       </p>
 
       {dispute.adminResponse && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-          <p className="text-sm text-blue-800">
+        <div className={`${isDark ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'} border rounded-lg p-3 mb-4`}>
+          <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
             <strong>Admin Response:</strong> {dispute.adminResponse}
           </p>
         </div>
@@ -218,7 +222,7 @@ const DisputesOverview = ({ embedded = false }) => {
       <div className="flex justify-between items-center">
         <button
           onClick={() => setSelectedDispute(dispute)}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
+          className={`${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} text-sm font-medium flex items-center`}
         >
           <Eye className="w-4 h-4 mr-1" />
           View Details
@@ -243,56 +247,56 @@ const DisputesOverview = ({ embedded = false }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDark ? 'border-blue-400' : 'border-blue-600'}`}></div>
       </div>
     );
   }
 
   return (
-    <div className={embedded ? "" : "min-h-screen bg-gray-50"}>
+    <div className={embedded ? "" : `min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className={embedded ? "" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"}>
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6 mb-6 border`}>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center">
+              <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'} flex items-center`}>
                 <AlertTriangle className="w-8 h-8 text-orange-500 mr-3" />
                 {userRole === 'admin' ? 'Dispute Management' : 'Dispute Overview'}
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
                 {userRole === 'admin' ? 'Manage and resolve user disputes' : 'View and track disputes'}
               </p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-gray-900">{disputes.length}</div>
-              <div className="text-sm text-gray-600">Total Disputes</div>
+              <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{disputes.length}</div>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Disputes</div>
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6 mb-6 border`}>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Search</label>
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Search className={`absolute left-3 top-3 h-4 w-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                 <input
                   type="text"
                   placeholder="Search disputes..."
                   value={filters.search}
                   onChange={(e) => setFilters({...filters, search: e.target.value})}
-                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`pl-10 w-full px-3 py-2 border ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500' : 'border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'} rounded-lg`}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Status</label>
               <select
                 value={filters.status}
                 onChange={(e) => setFilters({...filters, status: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 border ${isDark ? 'border-gray-600 bg-gray-700 text-white focus:ring-blue-500 focus:border-blue-500' : 'border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'} rounded-lg`}
               >
                 <option value="all">All Status</option>
                 <option value="open">Open</option>
@@ -303,11 +307,11 @@ const DisputesOverview = ({ embedded = false }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Category</label>
               <select
                 value={filters.category}
                 onChange={(e) => setFilters({...filters, category: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 border ${isDark ? 'border-gray-600 bg-gray-700 text-white focus:ring-blue-500 focus:border-blue-500' : 'border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'} rounded-lg`}
               >
                 <option value="all">All Categories</option>
                 <option value="payment">Payment</option>
@@ -319,11 +323,11 @@ const DisputesOverview = ({ embedded = false }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+              <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>Priority</label>
               <select
                 value={filters.priority}
                 onChange={(e) => setFilters({...filters, priority: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 border ${isDark ? 'border-gray-600 bg-gray-700 text-white focus:ring-blue-500 focus:border-blue-500' : 'border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'} rounded-lg`}
               >
                 <option value="all">All Priorities</option>
                 <option value="urgent">Urgent</option>
@@ -337,10 +341,10 @@ const DisputesOverview = ({ embedded = false }) => {
 
         {/* Disputes Grid */}
         {filteredDisputes.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
-            <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No disputes found</h3>
-            <p className="text-gray-600">No disputes match your current filters.</p>
+          <div className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-12 text-center border`}>
+            <AlertTriangle className={`w-12 h-12 ${isDark ? 'text-gray-600' : 'text-gray-400'} mx-auto mb-4`} />
+            <h3 className={`text-lg font-medium ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>No disputes found</h3>
+            <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>No disputes match your current filters.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -353,12 +357,12 @@ const DisputesOverview = ({ embedded = false }) => {
         {/* Resolve Modal */}
         {showResolveModal && selectedDispute && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-6 border-b">
-                <h2 className="text-xl font-bold text-gray-900">Resolve Dispute</h2>
+            <div className={`${isDark ? 'bg-gray-800' : 'bg-white'} rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
+              <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Resolve Dispute</h2>
                 <button
                   onClick={() => setShowResolveModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className={`${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -366,18 +370,18 @@ const DisputesOverview = ({ embedded = false }) => {
 
               <div className="p-6">
                 <div className="mb-6">
-                  <h3 className="font-semibold text-gray-900 mb-2">{selectedDispute.subject}</h3>
-                  <p className="text-gray-700 text-sm">{selectedDispute.message}</p>
+                  <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'} mb-2`}>{selectedDispute.subject}</h3>
+                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} text-sm`}>{selectedDispute.message}</p>
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                     Resolution Status
                   </label>
                   <select
                     value={resolveData.status}
                     onChange={(e) => setResolveData({...resolveData, status: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border ${isDark ? 'border-gray-600 bg-gray-700 text-white focus:ring-blue-500 focus:border-blue-500' : 'border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'} rounded-lg`}
                   >
                     <option value="resolved">Resolved</option>
                     <option value="rejected">Rejected</option>
@@ -386,7 +390,7 @@ const DisputesOverview = ({ embedded = false }) => {
                 </div>
 
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'} mb-2`}>
                     Admin Response *
                   </label>
                   <textarea
@@ -394,11 +398,11 @@ const DisputesOverview = ({ embedded = false }) => {
                     onChange={(e) => setResolveData({...resolveData, adminResponse: e.target.value})}
                     placeholder="Provide your response to the user..."
                     rows={5}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    className={`w-full px-3 py-2 border ${isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500' : 'border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'} rounded-lg resize-none`}
                     maxLength={1000}
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'} mt-1`}>
                     {resolveData.adminResponse.length}/1000 characters
                   </p>
                 </div>
@@ -406,7 +410,7 @@ const DisputesOverview = ({ embedded = false }) => {
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setShowResolveModal(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                    className={`px-4 py-2 ${isDark ? 'text-gray-300 bg-gray-700 hover:bg-gray-600' : 'text-gray-700 bg-gray-100 hover:bg-gray-200'} rounded-lg`}
                   >
                     Cancel
                   </button>

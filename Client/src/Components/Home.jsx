@@ -34,6 +34,10 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate("/login");
+  };
 
   return (
     <div className={`min-h-screen ${
@@ -525,7 +529,7 @@ export default function Home() {
               <ul className="space-y-2 text-gray-400">
                 <li><a href="#" className="hover:text-white transition-colors">For Students</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">For Lenders</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">How it Works</a></li>
+                <li><a href="/how-it-works" className="hover:text-white transition-colors">How it Works</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
               </ul>
             </div>
@@ -534,7 +538,7 @@ export default function Home() {
               <h4 className="font-semibold mb-4">Support</h4>
               <ul className="space-y-2 text-gray-400">
                 <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
+                <li><a href="contact" className="hover:text-white transition-colors">Contact Us</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
               </ul>

@@ -566,7 +566,7 @@ export default function Login() {
             </div>
 
             {/* About Section */}
-            <section id="about" className={`py-20 px-4 ${
+            {/* <section id="about" className={`py-20 px-4 ${
                 isDark 
                     ? 'bg-gray-800' 
                     : 'bg-gray-50'
@@ -634,10 +634,10 @@ export default function Login() {
                         </div>
                     </div>
                 </div>
-            </section>
+            </section> */}
 
             {/* How it Works Section */}
-            <section id="how-it-works" className="py-20 px-4">
+            {/* <section id="how-it-works" className="py-20 px-4">
                 <div className="max-w-6xl mx-auto">
                     <div className="text-center mb-16">
                         <h2 className={`text-4xl font-bold mb-6 ${
@@ -708,10 +708,10 @@ export default function Login() {
                         </div>
                     </div>
                 </div>
-            </section>
+            </section> */}
 
             {/* Contact Section */}
-            <section id="contact" className={`py-20 px-4 ${
+            {/* <section id="contact" className={`py-20 px-4 ${
                 isDark 
                     ? 'bg-gray-800' 
                     : 'bg-gray-50'
@@ -811,7 +811,7 @@ export default function Login() {
                         </div>
                     </div>
                 </div>
-            </section>
+            </section> */}
         </div>
     );
 }

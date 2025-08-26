@@ -6,6 +6,9 @@ import { SocketProvider } from "./contexts/SocketContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./Components/Home";
 import Login from "./Components/Login";
+import About from "./Components/About";
+import HowItWorks from "./Components/HowItWorks";
+import Contact from "./Components/Contact";
 import BorrowerDashboard from "./Components/BorrowerDashBoard";
 import LenderDashboard from "./Components/LenderDashboard";
 import BorrowerHistory from "./Components/BorrowerHistory";
@@ -47,6 +50,9 @@ function App() {
         <Router>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<Login />} />
             <Route path="/borrower" element={<ProtectedRoute element={BorrowerDashboard} requiredRole="borrower" />} />
             <Route path="/lender" element={<ProtectedRoute element={LenderDashboard} requiredRole="lender" />} />
