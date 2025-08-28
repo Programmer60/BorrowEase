@@ -35,8 +35,6 @@ import InteractiveInterestCalculator from "./InteractiveInterestCalculator";
 import DisputesManagement from "./DisputesManagement";
 import EnhancedDisputeForm from "./EnhancedDisputeForm";
 import { ensureScrollUnlocked } from "../utils/scrollLockGuard";
-import DarkModeDebugger from "./DarkModeDebugger";
-import DarkModeTest from "./DarkModeTest";
 
 
 const Toast = ({ message, type, onClose }) => {
@@ -1056,9 +1054,7 @@ export default function BorrowerDashboard() {
         />
       )}
       
-      {/* Temporary debugger - remove when dark mode is working */}
-      <DarkModeDebugger />
-      <DarkModeTest />
+      
     </div>
   );
 }

@@ -8,17 +8,53 @@ import { logAdminAction } from "../utils/auditLogger.js";
 
 const router = express.Router();
 
-// First login: save role
+// Test connection endpoint - no auth required
+router.get("/test-connection", (req, res) => {
+  console.log('🔍 Test connection endpoint hit');
+  res.json({ 
+    status: 'success', 
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// First login: save role with duplicate prevention
 router.post("/setup", verifyToken, async (req, res) => {
-  const { role } = req.body;
-  const { name, email } = req.user;
+  const { role, verified = false } = req.body; // Accept verification status from client
+  const { name, email, uid } = req.user;
 
-  // Check if this is the first user ever (make them admin)
-  const userCount = await User.countDocuments();
-  const isFirstUser = userCount === 0;
+  try {
+    // Check if this is the first user ever (make them admin)
+    const userCount = await User.countDocuments();
+    const isFirstUser = userCount === 0;
 
-  let user = await User.findOne({ email });
-  if (!user) {
+    // Check if user already exists by email (primary identifier)
+    let user = await User.findOne({ email });
+    
+    if (user) {
+      console.log('🔍 User already exists with email:', email);
+      
+      // If user exists but doesn't have this Firebase UID, add it as an alternative login method
+      if (!user.firebaseUids.includes(uid)) {
+        console.log('🔗 Adding new Firebase UID to existing user');
+        user.firebaseUids.push(uid);
+        await user.save();
+      }
+      
+      // Update name if it's better than what we have
+      if (name && (!user.name || user.name === 'Gamer' || user.name.toLowerCase().includes('user'))) {
+        console.log('📝 Updating user name from', user.name, 'to', name);
+        user.name = name;
+        await user.save();
+      }
+      
+      console.log('✅ Returning existing user with updated UIDs');
+      return res.json(user);
+    }
+
+    // Create new user
+    console.log('👤 Creating new user for email:', email);
+    
     // Use a better name fallback - if Firebase name is generic, use email prefix
     let userName = name;
     if (!name || name === 'Gamer' || name.toLowerCase().includes('user')) {
@@ -28,15 +64,123 @@ router.post("/setup", verifyToken, async (req, res) => {
     
     // If it's the first user, make them admin regardless of requested role
     const assignedRole = isFirstUser ? "admin" : role;
-    user = await User.create({ name: userName, email, role: assignedRole });
+    
+    user = await User.create({ 
+      name: userName, 
+      email, 
+      role: assignedRole,
+      verified: verified || isFirstUser, // Admin users are automatically verified, others follow verification flow
+      firebaseUids: [uid], // Store as array to support multiple login methods
+      createdAt: new Date()
+    });
+    
+    console.log('✅ Created new user:', user.email, 'with role:', assignedRole, 'verified:', user.verified);
     return res.json(user);
+    
+  } catch (error) {
+    console.error('❌ Error in user setup:', error);
+    return res.status(500).json({ error: 'Failed to setup user account' });
   }
-
-  // User exists → return their role
-  return res.json(user);
 });
 
-// Get my user profile
+// Check if email exists (for duplicate user detection)
+router.get("/check-email", async (req, res) => {
+  try {
+    const { email } = req.query;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+    
+    console.log('🔍 Checking if email exists:', email);
+    
+    const user = await User.findOne({ email });
+    
+    if (user) {
+      res.json({ 
+        exists: true, 
+        loginMethods: user.loginMethods || [],
+        message: `Account found with ${user.loginMethods?.join(' and ') || 'unknown'} authentication`
+      });
+    } else {
+      res.status(404).json({ exists: false, message: "No account found with this email" });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error checking email:', error);
+    res.status(500).json({ error: 'Failed to check email' });
+  }
+});
+
+// Link authentication methods (for when user wants to add email login to Google account or vice versa)
+router.post("/link-auth-method", verifyToken, async (req, res) => {
+  try {
+    const { email, uid } = req.user;
+    const { method } = req.body; // 'google', 'email', or 'phone'
+    
+    console.log('🔗 Linking authentication method:', method, 'for user:', email);
+    
+    let user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    // Add the Firebase UID if not already present
+    if (!user.firebaseUids.includes(uid)) {
+      user.firebaseUids.push(uid);
+    }
+    
+    // Add the login method if not already present
+    if (!user.loginMethods.includes(method)) {
+      user.loginMethods.push(method);
+    }
+    
+    await user.save();
+    
+    console.log('✅ Authentication method linked successfully');
+    res.json({ 
+      message: 'Authentication method linked successfully',
+      user: {
+        email: user.email,
+        loginMethods: user.loginMethods,
+        firebaseUids: user.firebaseUids.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error linking auth method:', error);
+    res.status(500).json({ error: 'Failed to link authentication method' });
+  }
+});
+
+// Update email verification status (Industry Standard)
+router.patch("/verify", verifyToken, async (req, res) => {
+  try {
+    console.log('📧 Updating verification status for user:', req.user?.email);
+    
+    const user = await User.findOne({ email: req.user.email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    // Update verification status
+    user.verified = true;
+    user.lastLogin = new Date();
+    await user.save();
+    
+    console.log('✅ User verification status updated');
+    res.json({ 
+      message: 'Email verification confirmed',
+      verified: true
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating verification status:', error);
+    res.status(500).json({ error: 'Failed to update verification status' });
+  }
+});
+
+// Get user statistics endpoint
 router.get("/me", verifyToken, async (req, res) => {
   try {
     console.log('👤 /users/me endpoint hit');

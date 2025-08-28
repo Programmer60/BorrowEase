@@ -22,3 +22,77 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+.nyc_output
+
+# Production build
+build/
+dist/
+dist-ssr/
+*.local
+
+# Vite cache
+.vite
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ESLint cache
+.eslintcache
+
+# Optional npm cache directory
+.npm
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Temporary folders
+tmp/
+temp/
+
+# Firebase cache
+.firebase/
+
+# Vercel
+.vercel
+
+# Netlify
+.netlify
+
+# Backup files
+*.backup
+*.bak
+*.old
+

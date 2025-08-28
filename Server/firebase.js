@@ -23,7 +23,10 @@ export const verifyToken = async (req, res, next) => {
   
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     console.log('❌ No valid auth header found');
-    return res.status(401).json({ error: "No token provided" });
+    return res.status(401).json({ 
+      error: "No token provided",
+      code: "NO_TOKEN"
+    });
   }
 
   const idToken = authHeader.split(" ")[1];
@@ -37,33 +40,88 @@ export const verifyToken = async (req, res, next) => {
     // Only check user in database for non-setup routes
     if (!req.path.endsWith('/setup')) {
       console.log('👤 Looking up user in database...');
-      const user = await User.findOne({ email: decodedToken.email });
+      
+      // First try to find by email (primary identifier)
+      let user = await User.findOne({ email: decodedToken.email });
+      
+      // If not found by email, try to find by Firebase UID (backup)
+      if (!user) {
+        user = await User.findOne({ firebaseUids: decodedToken.uid });
+      }
       
       if (!user) {
         console.log('❌ User not found in database for email:', decodedToken.email);
-        return res.status(404).json({ error: "User not found" });
+        return res.status(404).json({ 
+          error: "User not found in database",
+          code: "USER_NOT_FOUND"
+        });
       }
       
-      console.log('✅ User found in database:', user.email, 'Role:', user.role);
-          req.user = { 
-            id: user._id,       
-            uid: decodedToken.uid, // for backward compatibility
-            name: decodedToken.name, 
-            email: decodedToken.email, 
-            role: user.role 
-          };
+      // If user was found by UID but email doesn't match, update the email
+      if (user.email !== decodedToken.email) {
+        console.log('📧 Updating user email from', user.email, 'to', decodedToken.email);
+        user.email = decodedToken.email;
+        await user.save();
+      }
+      
+      // If this Firebase UID isn't in the user's UID array, add it
+      if (!user.firebaseUids || !user.firebaseUids.includes(decodedToken.uid)) {
+        console.log('🔗 Adding Firebase UID to user account');
+        if (!user.firebaseUids) user.firebaseUids = [];
+        user.firebaseUids.push(decodedToken.uid);
+        await user.save();
+      }
+      
+      console.log('✅ User found in database:', user.email, 'Role:', user.role, 'Verified:', user.verified);
+      req.user = { 
+        id: user._id,       
+        uid: decodedToken.uid, // for backward compatibility
+        name: decodedToken.name, 
+        email: decodedToken.email, 
+        role: user.role,
+        verified: user.verified || false, // Include verification status
+        firebaseUids: user.firebaseUids
+      };
       console.log('👤 User object set:', req.user);
     } else {
-      // For /setup route, just pass the decoded token info
-      console.log('⚙️ Setup route - using token data only');
-      req.user = { name: decodedToken.name, email: decodedToken.email };
+      // For setup routes, just attach Firebase data
+      req.user = {
+        email: decodedToken.email,
+        uid: decodedToken.uid,
+        name: decodedToken.name,
+        picture: decodedToken.picture
+      };
+      console.log('✅ Firebase user data attached for setup route');
     }
     
     next();
   } catch (error) {
-    console.error("❌ Token verification failed:", error);
-    console.error("❌ Error type:", error.constructor.name);
-    console.error("❌ Error message:", error.message);
-    res.status(401).json({ error: "Invalid token" });
+    console.error('🚨 Token verification failed:', error.message);
+    
+    // Handle different types of Firebase errors
+    let errorResponse = {
+      error: "Invalid token",
+      code: "INVALID_TOKEN"
+    };
+    
+    if (error.code === 'auth/id-token-expired') {
+      errorResponse = {
+        error: "Token expired",
+        code: "TOKEN_EXPIRED",
+        message: "Your session has expired. Please sign in again."
+      };
+    } else if (error.code === 'auth/invalid-id-token') {
+      errorResponse = {
+        error: "Invalid token format",
+        code: "INVALID_TOKEN_FORMAT"
+      };
+    } else if (error.code === 'auth/argument-error') {
+      errorResponse = {
+        error: "Malformed token",
+        code: "MALFORMED_TOKEN"
+      };
+    }
+    
+    return res.status(401).json(errorResponse);
   }
 };

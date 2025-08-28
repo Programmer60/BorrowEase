@@ -31,6 +31,295 @@ import { auth } from '../firebase';
 import { onAuthStateChanged, RecaptchaVerifier, PhoneAuthProvider, linkWithCredential } from 'firebase/auth';
 import { useTheme } from '../contexts/ThemeContext';
 
+// ====================================================================
+// STEP 1: Define DocumentUploadCard OUTSIDE the main component
+// It now receives all its data and handlers as props.
+// ====================================================================
+const DocumentUploadCard = ({ 
+  type, 
+  title, 
+  description, 
+  icon: Icon, 
+  required = true,
+  kycData,
+  errors,
+  handleFileUpload,
+  formattedAadhar,
+  setFormattedAadhar,
+  setKycData,
+  setErrors,
+  setPreviewModal
+}) => {
+  const doc = kycData.documents[type];
+  const error = errors[`documents.${type}`];
+  
+  // Define requirements for each document type - PRODUCTION LEVEL
+  const requirements = {
+    aadharCard: {
+      size: '100KB - 2MB',
+      resolution: 'Minimum 800x500px, landscape orientation',
+      format: 'JPEG, PNG, PDF',
+      tips: 'Ensure both sides are clearly visible, no glare or blur, and all details are readable.'
+    },
+    panCard: {
+      size: '100KB - 2MB',
+      resolution: 'Minimum 800x500px, landscape orientation',
+      format: 'JPEG, PNG, PDF',
+      tips: 'Upload a clear image with all text and photo visible. Avoid cropped or unclear images.'
+    },
+    selfie: {
+      size: '50KB - 3MB',
+      resolution: 'Minimum 400x400px, portrait orientation',
+      format: 'JPEG, PNG',
+      tips: 'Take a selfie in good lighting, holding your Aadhar card next to your face. Face and card details must be visible.'
+    },
+    bankStatement: {
+      size: '200KB - 5MB',
+      resolution: 'Minimum 600x800px, portrait orientation',
+      format: 'JPEG, PNG, PDF',
+      tips: 'Upload last 3 months statement. All pages must be clear and readable. PDF preferred.'
+    },
+    salarySlip: {
+      size: '100KB - 3MB',
+      resolution: 'Minimum 600x800px, portrait orientation',
+      format: 'JPEG, PNG, PDF',
+      tips: 'Upload latest salary slip with all details visible. PDF or clear image required.'
+    }
+  };
+
+  const req = requirements[type];
+  
+  return (
+    <div className={`border-2 border-dashed rounded-xl p-6 transition-all ${
+      doc.file ? 'border-green-500 bg-green-50' : 
+      error ? 'border-red-500 bg-red-50' : 
+      'border-gray-300 hover:border-blue-500'
+    }`}>
+      <div className="text-center">
+        <Icon className={`w-12 h-12 mx-auto mb-4 ${
+          doc.file ? 'text-green-600' : 'text-gray-400'
+        }`} />
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+        <p className="text-sm text-gray-600 mb-4">{description}</p>
+        
+        {/* Requirements Display */}
+        <div className="mb-4 p-3 bg-gray-50 rounded-lg text-left">
+          <h4 className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Requirements:</h4>
+          <div className="space-y-1 text-xs text-gray-600">
+            <div className="flex items-center">
+              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+              <span><strong>Size:</strong> {req.size}</span>
+            </div>
+            <div className="flex items-center">
+              <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+              <span><strong>Resolution:</strong> {req.resolution}</span>
+            </div>
+            <div className="flex items-center">
+              <span className="w-2 h-2 bg-purple-400 rounded-full mr-2"></span>
+              <span><strong>Format:</strong> {req.format}</span>
+            </div>
+          </div>
+          <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+            <span className="font-medium">💡 Tip:</span> {req.tips}
+          </div>
+        </div>
+        
+        {doc.file ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-center space-x-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <span className="text-green-600 font-medium">Uploaded Successfully</span>
+            </div>
+            
+            {/* File Info Display */}
+            {doc.fileInfo && (
+              <div className="p-2 bg-green-50 rounded-lg text-xs text-green-700">
+                <div className="flex justify-between items-center">
+                  <span>📄 {doc.fileInfo.name}</span>
+                  <span>{doc.fileInfo.sizeText}</span>
+                </div>
+                {doc.fileInfo.dimensions && (
+                  <div className="mt-1 text-center">
+                    📐 {doc.fileInfo.dimensions}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="flex justify-center space-x-2">
+              <button
+                onClick={() => {
+                  // Handle PDF files differently - open in new tab
+                  if (doc.fileType === 'application/pdf') {
+                    // For PDF files, create a direct download/view link
+                    let pdfUrl = doc.file;
+                    
+                    // For Cloudinary URLs, we need to ensure proper access
+                    if (pdfUrl && pdfUrl.includes('cloudinary.com')) {
+                      // If it's uploaded as raw, it should work directly
+                      // If it has /image/upload/, it might need transformation
+                      if (pdfUrl.includes('/image/upload/')) {
+                        console.warn('PDF was uploaded to image endpoint, trying to access anyway');
+                      }
+                    }
+                    
+                    // Try to open the PDF directly
+                    window.open(pdfUrl, '_blank');
+                  } else {
+                    setPreviewModal({ 
+                      open: true, 
+                      image: doc.preview, 
+                      title: title,
+                      fileType: doc.fileType
+                    });
+                  }
+                }}
+                className="flex items-center px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+              >
+                <Eye className="w-4 h-4 mr-1" />
+                {doc.fileType === 'application/pdf' ? 'View PDF' : 'Preview'}
+              </button>
+              <button
+                onClick={() => document.getElementById(`file-${type}`).click()}
+                className="flex items-center px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                <Upload className="w-4 h-4 mr-1" />
+                Replace
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => document.getElementById(`file-${type}`).click()}
+            className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Upload {title}
+          </button>
+        )}
+        
+        <input
+          id={`file-${type}`}
+          type="file"
+          accept="image/*,application/pdf"
+          onChange={(e) => handleFileUpload(type, e.target.files[0])}
+          className="hidden"
+        />
+        
+        {type === 'aadharCard' && (
+          <div>
+            <input
+              type="text"
+              placeholder="Aadhar Number (12 digits) *"
+              value={formattedAadhar}
+              onChange={(e) => {
+                const inputValue = e.target.value;
+                const raw = inputValue.replace(/\D/g, '');
+                
+                if (raw.length <= 12) {
+                  const formatted = raw.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+                  setFormattedAadhar(formatted);
+                  setKycData(prev => ({
+                    ...prev,
+                    documents: {
+                      ...prev.documents,
+                      aadharCard: { 
+                        ...(prev.documents?.aadharCard || {}), 
+                        number: raw
+                      }
+                    }
+                  }));
+                  if (errors['documents.aadharCard.number']) {
+                    setErrors(prev => {
+                      const newErrors = { ...prev };
+                      delete newErrors['documents.aadharCard.number'];
+                      return newErrors;
+                    });
+                  }
+                }
+              }}
+              inputMode="numeric"
+              maxLength={14}
+              pattern="[0-9\s]*"
+              autoComplete="off"
+              className={`mt-3 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors ${
+                errors['documents.aadharCard.number'] ? 'border-red-500' : 'border-gray-300'
+              }`}
+            />
+            {errors['documents.aadharCard.number'] && (
+              <p className="text-red-600 text-sm mt-1">{errors['documents.aadharCard.number']}</p>
+            )}
+            {doc.number && doc.number.length < 12 && (
+              <p className="text-yellow-600 text-sm mt-1">
+                Aadhar number must be exactly 12 digits ({doc.number.length}/12)
+              </p>
+            )}
+          </div>
+        )}
+        
+        {type === 'panCard' && (
+          <div>
+            <input
+              type="text"
+              placeholder="PAN Number (10 characters) *"
+              value={doc.number || ''}
+              onChange={(e) => {
+                const inputValue = e.target.value.toUpperCase();
+                const value = inputValue.replace(/[^A-Z0-9]/g, '');
+                
+                if (value.length <= 10) {
+                  setKycData(prev => ({
+                    ...prev,
+                    documents: {
+                      ...prev.documents,
+                      panCard: { 
+                        ...(prev.documents?.panCard || {}), 
+                        number: value 
+                      }
+                    }
+                  }));
+                  if (errors['documents.panCard.number']) {
+                    setErrors(prev => {
+                      const newErrors = { ...prev };
+                      delete newErrors['documents.panCard.number'];
+                      return newErrors;
+                    });
+                  }
+                }
+              }}
+              maxLength={10}
+              pattern="[A-Z0-9]*"
+              autoComplete="off"
+              style={{ textTransform: 'uppercase' }}
+              className={`mt-3 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors ${
+                errors['documents.panCard.number'] ? 'border-red-500' : 'border-gray-300'
+              }`}
+            />
+            {errors['documents.panCard.number'] && (
+              <p className="text-red-600 text-sm mt-1">{errors['documents.panCard.number']}</p>
+            )}
+            {doc.number && doc.number.length < 10 && (
+              <p className="text-yellow-600 text-sm mt-1">
+                PAN number must be exactly 10 characters ({doc.number.length}/10)
+              </p>
+            )}
+            {doc.number && doc.number.length === 10 && (
+              <p className="text-green-600 text-sm mt-1 flex items-center">
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Valid PAN format
+              </p>
+            )}
+          </div>
+        )}
+        
+        {error && (
+          <p className="text-red-600 text-sm mt-2">{error}</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const EnhancedKYCPage = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
@@ -262,24 +551,29 @@ const EnhancedKYCPage = () => {
         preview = URL.createObjectURL(file);
       }
 
-      // Determine upload endpoint and resource type based on file type
+      // For PDF files, we need to upload them properly to Cloudinary
       const isPDF = file.type === 'application/pdf';
-      const uploadEndpoint = 'image/upload';
       
-      // Upload to Cloudinary using environment variables
+      // Create the upload request
+      let uploadUrl;
       const formData = new FormData();
       formData.append('file', file);
       formData.append('upload_preset', uploadPreset);
       formData.append('tags', 'kyc_document');
       formData.append('folder', 'borrowease/kyc');
       
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/${uploadEndpoint}`,
-        {
-          method: 'POST',
-          body: formData,
-        }
-      );
+      if (isPDF) {
+        // For PDFs, use raw/upload endpoint
+        uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`;
+      } else {
+        // For images, use image/upload endpoint
+        uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+      }
+      
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData,
+      });
 
       const data = await response.json();
       
@@ -806,258 +1100,6 @@ const EnhancedKYCPage = () => {
     }
   };
 
-  const DocumentUploadCard = ({ type, title, description, icon: Icon, required = true }) => {
-    const doc = kycData.documents[type];
-    const error = errors[`documents.${type}`];
-    
-    // Define requirements for each document type - UPDATED FOR TESTING
-    const requirements = {
-      aadharCard: {
-        size: 'Any size (testing mode)',
-        resolution: 'Any resolution (testing mode)',
-        format: 'JPEG, PNG, PDF',
-        tips: 'Upload any clear image - size and resolution requirements disabled for testing'
-      },
-      panCard: {
-        size: 'Any size (testing mode)',
-        resolution: 'Any resolution (testing mode)',
-        format: 'JPEG, PNG, PDF',
-        tips: 'Upload any clear image - size and resolution requirements disabled for testing'
-      },
-      selfie: {
-        size: 'Any size (testing mode)',
-        resolution: 'Any resolution (testing mode)',
-        format: 'JPEG, PNG',
-        tips: 'Upload any clear image - size and resolution requirements disabled for testing'
-      },
-      bankStatement: {
-        size: 'Any size (testing mode)',
-        resolution: 'Any resolution (testing mode)',
-        format: 'JPEG, PNG, PDF',
-        tips: 'Upload any clear document - size and resolution requirements disabled for testing'
-      },
-      salarySlip: {
-        size: 'Any size (testing mode)',
-        resolution: 'Any resolution (testing mode)',
-        format: 'JPEG, PNG, PDF',
-        tips: 'Upload any clear document - size and resolution requirements disabled for testing'
-      }
-    };
-
-    const req = requirements[type];
-    
-    return (
-      <div className={`border-2 border-dashed rounded-xl p-6 transition-all ${
-        doc.file ? 'border-green-500 bg-green-50' : 
-        error ? 'border-red-500 bg-red-50' : 
-        'border-gray-300 hover:border-blue-500'
-      }`}>
-        <div className="text-center">
-          <Icon className={`w-12 h-12 mx-auto mb-4 ${
-            doc.file ? 'text-green-600' : 'text-gray-400'
-          }`} />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-          <p className="text-sm text-gray-600 mb-4">{description}</p>
-          
-          {/* Requirements Display */}
-          <div className="mb-4 p-3 bg-gray-50 rounded-lg text-left">
-            <h4 className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Requirements:</h4>
-            <div className="space-y-1 text-xs text-gray-600">
-              <div className="flex items-center">
-                <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
-                <span><strong>Size:</strong> {req.size}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                <span><strong>Resolution:</strong> {req.resolution}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="w-2 h-2 bg-purple-400 rounded-full mr-2"></span>
-                <span><strong>Format:</strong> {req.format}</span>
-              </div>
-            </div>
-            <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
-              <span className="font-medium">💡 Tip:</span> {req.tips}
-            </div>
-          </div>
-          
-          {doc.file ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-center space-x-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-green-600 font-medium">Uploaded Successfully</span>
-              </div>
-              
-              {/* File Info Display */}
-              {doc.fileInfo && (
-                <div className="p-2 bg-green-50 rounded-lg text-xs text-green-700">
-                  <div className="flex justify-between items-center">
-                    <span>📄 {doc.fileInfo.name}</span>
-                    <span>{doc.fileInfo.sizeText}</span>
-                  </div>
-                  {doc.fileInfo.dimensions && (
-                    <div className="mt-1 text-center">
-                      📐 {doc.fileInfo.dimensions}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <div className="flex justify-center space-x-2">
-                <button
-                  onClick={() => {
-                    // Handle PDF files differently - open in new tab
-                    if (doc.fileType === 'application/pdf') {
-                      window.open(doc.file, '_blank');
-                    } else {
-                      setPreviewModal({ 
-                        open: true, 
-                        image: doc.preview, 
-                        title: title,
-                        fileType: doc.fileType
-                      });
-                    }
-                  }}
-                  className="flex items-center px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-                >
-                  <Eye className="w-4 h-4 mr-1" />
-                  {doc.fileType === 'application/pdf' ? 'View PDF' : 'Preview'}
-                </button>
-                <button
-                  onClick={() => document.getElementById(`file-${type}`).click()}
-                  className="flex items-center px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                >
-                  <Upload className="w-4 h-4 mr-1" />
-                  Replace
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => document.getElementById(`file-${type}`).click()}
-              className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Upload {title}
-            </button>
-          )}
-          
-          <input
-            id={`file-${type}`}
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={(e) => handleFileUpload(type, e.target.files[0])}
-            className="hidden"
-          />
-          
-          {type === 'aadharCard' && (
-            <div>
-              <input
-                type="text"
-                placeholder="Aadhar Number (12 digits) *"
-                value={formattedAadhar}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/\D/g, ''); // Remove all non-digits
-                  const formatted = raw.replace(/(\d{4})(?=\d)/g, '$1 ').trim(); // Add spaces after every 4 digits
-                  
-                  if (raw.length <= 12) {
-                    setFormattedAadhar(formatted); // Display with spaces
-                    setKycData(prev => ({
-                      ...prev,
-                      documents: {
-                        ...prev.documents,
-                        aadharCard: { 
-                          ...(prev.documents?.aadharCard || {}), 
-                          number: raw // Store without spaces for backend
-                        }
-                      }
-                    }));
-                    // Clear number-specific error
-                    if (errors['documents.aadharCard.number']) {
-                      setErrors(prev => ({
-                        ...prev,
-                        'documents.aadharCard.number': null
-                      }));
-                    }
-                  }
-                }}
-                maxLength={14} // 12 digits + 2 spaces
-                pattern="[0-9\s]*"
-                className={`mt-3 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                  errors['documents.aadharCard.number'] ? 'border-red-500' : 'border-gray-300'
-                }`}
-              />
-              {errors['documents.aadharCard.number'] && (
-                <p className="text-red-600 text-sm mt-1">{errors['documents.aadharCard.number']}</p>
-              )}
-              {doc.number && doc.number.length < 12 && (
-                <p className="text-yellow-600 text-sm mt-1">
-                  Aadhar number must be exactly 12 digits ({doc.number.length}/12)
-                </p>
-              )}
-            </div>
-          )}
-          
-          {type === 'panCard' && (
-            <div>
-              <input
-                type="text"
-                placeholder="PAN Number (10 characters) *"
-                value={doc.number || ''}
-                onChange={(e) => {
-                  const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); // Only allow alphanumeric
-                  if (value.length <= 10) {
-                    setKycData(prev => ({
-                      ...prev,
-                      documents: {
-                        ...prev.documents,
-                        panCard: { 
-                          ...(prev.documents?.panCard || {}), 
-                          number: value 
-                        }
-                      }
-                    }));
-                    // Clear number-specific error
-                    if (errors['documents.panCard.number']) {
-                      setErrors(prev => ({
-                        ...prev,
-                        'documents.panCard.number': null
-                      }));
-                    }
-                  }
-                }}
-                maxLength={10}
-                pattern="[A-Z0-9]*"
-                style={{ textTransform: 'uppercase' }}
-                className={`mt-3 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                  errors['documents.panCard.number'] ? 'border-red-500' : 'border-gray-300'
-                }`}
-              />
-              {errors['documents.panCard.number'] && (
-                <p className="text-red-600 text-sm mt-1">{errors['documents.panCard.number']}</p>
-              )}
-              {doc.number && doc.number.length < 10 && (
-                <p className="text-yellow-600 text-sm mt-1">
-                  PAN number must be exactly 10 characters ({doc.number.length}/10)
-                </p>
-              )}
-              {doc.number && doc.number.length === 10 && (
-                <p className="text-green-600 text-sm mt-1 flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                  Valid PAN format
-                </p>
-              )}
-            </div>
-          )}
-          
-          {error && (
-            <p className="text-red-600 text-sm mt-2">{error}</p>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const PreviewModal = () => (
     previewModal.open && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1066,15 +1108,34 @@ const EnhancedKYCPage = () => {
             <h3 className="text-lg font-semibold">{previewModal.title}</h3>
             <div className="flex items-center space-x-2">
               {previewModal.fileType === 'application/pdf' && (
-                <a
-                  href={previewModal.image}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => {
+                    let pdfUrl = previewModal.image;
+                    
+                    // Handle Cloudinary URLs properly
+                    if (pdfUrl && pdfUrl.includes('cloudinary.com')) {
+                      pdfUrl = pdfUrl.replace('/image/upload/', '/raw/upload/');
+                    }
+                    
+                    try {
+                      window.open(pdfUrl, '_blank');
+                    } catch (error) {
+                      console.error('Error opening PDF:', error);
+                      // Fallback
+                      const link = document.createElement('a');
+                      link.href = pdfUrl;
+                      link.target = '_blank';
+                      link.rel = 'noopener noreferrer';
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
+                  }}
                   className="flex items-center px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
                 >
                   <ExternalLink className="w-4 h-4 mr-1" />
                   Open in New Tab
-                </a>
+                </button>
               )}
               <button
                 onClick={() => setPreviewModal({ open: false, image: null, title: '', fileType: null })}
@@ -1091,34 +1152,71 @@ const EnhancedKYCPage = () => {
                   <FileText className="w-8 h-8 mx-auto text-gray-600 mb-2" />
                   <p className="text-sm text-gray-600 mb-3">PDF Document Preview</p>
                   <div className="flex justify-center space-x-3">
-                    <a
-                      href={previewModal.image}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => {
+                        let pdfUrl = previewModal.image;
+                        
+                        // Handle Cloudinary URLs properly
+                        if (pdfUrl && pdfUrl.includes('cloudinary.com')) {
+                          pdfUrl = pdfUrl.replace('/image/upload/', '/raw/upload/');
+                        }
+                        
+                        try {
+                          window.open(pdfUrl, '_blank');
+                        } catch (error) {
+                          console.error('Error opening PDF:', error);
+                          // Fallback: create download link
+                          const link = document.createElement('a');
+                          link.href = pdfUrl;
+                          link.target = '_blank';
+                          link.rel = 'noopener noreferrer';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }
+                      }}
                       className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
                       Open PDF in New Tab
-                    </a>
-                    <a
-                      href={previewModal.image}
-                      download
+                    </button>
+                    <button
+                      onClick={() => {
+                        let downloadUrl = previewModal.image;
+                        
+                        // Handle Cloudinary URLs for download
+                        if (downloadUrl && downloadUrl.includes('cloudinary.com')) {
+                          downloadUrl = downloadUrl.replace('/image/upload/', '/raw/upload/fl_attachment/');
+                        }
+                        
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = 'document.pdf';
+                        link.target = '_blank';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
                       className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       Download PDF
-                    </a>
+                    </button>
                   </div>
                 </div>
-                <div className="w-full h-96 border rounded-lg overflow-hidden">
-                  <iframe
-                    src={previewModal.image}
-                    className="w-full h-full"
-                    title={previewModal.title}
-                    onError={() => {
-                      console.log('PDF iframe failed to load');
-                    }}
-                  />
+                <div className="w-full h-96 border rounded-lg overflow-hidden bg-gray-100">
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="text-center text-gray-600">
+                      <FileText className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                      <p className="text-lg font-medium mb-2">PDF Document</p>
+                      <p className="text-sm mb-4">
+                        Click "Open PDF in New Tab" to view the document in your browser
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Some browsers may not support inline PDF viewing
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1579,6 +1677,14 @@ const EnhancedKYCPage = () => {
                   description="Upload clear image of your Aadhar card (both sides)"
                   icon={CreditCard}
                   required
+                  kycData={kycData}
+                  errors={errors}
+                  handleFileUpload={handleFileUpload}
+                  formattedAadhar={formattedAadhar}
+                  setFormattedAadhar={setFormattedAadhar}
+                  setKycData={setKycData}
+                  setErrors={setErrors}
+                  setPreviewModal={setPreviewModal}
                 />
                 <DocumentUploadCard
                   type="panCard"
@@ -1586,6 +1692,12 @@ const EnhancedKYCPage = () => {
                   description="Upload clear image of your PAN card"
                   icon={CreditCard}
                   required
+                  kycData={kycData}
+                  errors={errors}
+                  handleFileUpload={handleFileUpload}
+                  setKycData={setKycData}
+                  setErrors={setErrors}
+                  setPreviewModal={setPreviewModal}
                 />
                 <DocumentUploadCard
                   type="selfie"
@@ -1593,6 +1705,12 @@ const EnhancedKYCPage = () => {
                   description="Take a clear selfie holding your Aadhar card"
                   icon={Camera}
                   required
+                  kycData={kycData}
+                  errors={errors}
+                  handleFileUpload={handleFileUpload}
+                  setKycData={setKycData}
+                  setErrors={setErrors}
+                  setPreviewModal={setPreviewModal}
                 />
                 <DocumentUploadCard
                   type="bankStatement"
@@ -1600,6 +1718,12 @@ const EnhancedKYCPage = () => {
                   description="Upload last 3 months bank statement (Optional)"
                   icon={FileText}
                   required={false}
+                  kycData={kycData}
+                  errors={errors}
+                  handleFileUpload={handleFileUpload}
+                  setKycData={setKycData}
+                  setErrors={setErrors}
+                  setPreviewModal={setPreviewModal}
                 />
               </div>
             </div>

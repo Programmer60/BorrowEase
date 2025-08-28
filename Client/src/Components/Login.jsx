@@ -1,12 +1,60 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Mail, Lock, CreditCard, Users, TrendingUp, Shield, CheckCircle, ArrowRight, Star, MessageCircle, Zap, DollarSign, Clock } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, CreditCard, Users, TrendingUp, Shield, CheckCircle, ArrowRight, Star, MessageCircle, Zap, DollarSign, Clock, XCircle, AlertCircle } from 'lucide-react';
 
 // Import your Firebase auth (you'll need to import these from your actual firebase config)
-import { auth, provider, signInWithPopup } from "../firebase";
+import { auth, provider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import API from "../api/api";
 import { useTheme } from '../contexts/ThemeContext';
+import { formatAuthError, showNotification } from '../utils/authUtils';
 import Navbar from './Navbar';
+
+// Toast component for notifications
+const Toast = ({ message, type, onClose }) => {
+  const { isDark } = useTheme();
+  
+  const icons = {
+    success: <CheckCircle className="w-5 h-5 text-green-500" />,
+    error: <XCircle className="w-5 h-5 text-red-500" />,
+    info: <AlertCircle className="w-5 h-5 text-blue-500" />,
+  };
+
+  const getColors = (type) => {
+    const colorMap = {
+      success: isDark 
+        ? "bg-green-900 border-green-700" 
+        : "bg-green-50 border-green-200",
+      error: isDark 
+        ? "bg-red-900 border-red-700" 
+        : "bg-red-50 border-red-200",
+      info: isDark 
+        ? "bg-blue-900 border-blue-700" 
+        : "bg-blue-50 border-blue-200",
+    };
+    return colorMap[type];
+  };
+
+  return (
+    <div
+      className={`fixed top-4 right-4 ${getColors(type)} border rounded-lg p-4 shadow-lg z-[100] flex items-center max-w-sm`}
+    >
+      {icons[type]}
+      <span className={`ml-3 text-sm font-medium ${
+        isDark ? 'text-gray-100' : 'text-gray-900'
+      }`}>{message}</span>
+      <button
+        onClick={onClose}
+        className={`ml-auto ${
+          isDark 
+            ? 'text-gray-500 hover:text-gray-300' 
+            : 'text-gray-400 hover:text-gray-600'
+        }`}
+      >
+        <XCircle className="w-4 h-4" />
+      </button>
+    </div>
+  );
+};
 
 export default function Login() {
     const { isDark } = useTheme();
@@ -19,11 +67,24 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [loginMethod, setLoginMethod] = useState('google'); // 'google' or 'email'
+    const [isSignUp, setIsSignUp] = useState(false); // Toggle between login and signup
     const [formData, setFormData] = useState({
         email: '',
-        password: ''
+        password: '',
+        confirmPassword: ''
     });
-    const navigate = useNavigate(); // Uncomment when using with React Router
+    const [toast, setToast] = useState(null);
+    const navigate = useNavigate();
+
+    // Toast helper function
+    const showToast = (message, type = 'info') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 5000);
+    };
+
+    const closeToast = () => {
+        setToast(null);
+    };
 
     // Check if user is already logged in
     useEffect(() => {
@@ -52,80 +113,173 @@ export default function Login() {
             API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
             
             let userRole;
+            let isExistingUser = false;
+            
             try {
                 const res = await API.get("/users/me");
                 userRole = res.data.role;
+                isExistingUser = true;
+                console.log("Existing Google user found with role:", userRole);
             } catch (err) {
                 if (err.response?.status === 404) {
+                    console.log("New Google user, setting up account...");
                     await API.post("/users/setup", { role });
                     userRole = role;
                     console.log("User role saved:", userRole);
+                    showToast(`Welcome! Your ${role} account has been created successfully.`, 'success');
                 } else {
                     throw err;
                 }
             }
             
+            if (isExistingUser) {
+                showToast(`Welcome back! Signing you in...`, 'success');
+            }
+            
             // Navigate based on saved role
             if (userRole === "borrower") navigate("/borrower");
             else if (userRole === "lender") navigate("/lender");
+            else if (userRole === "admin") navigate("/admin");
             else {
-                alert("Invalid role detected.");
+                showToast("Invalid role detected. Please contact support.", 'error');
                 navigate("/");
             }
             
             setIsLoggedIn(true);
             
-            
         } catch (error) {
-            console.error("Login failed:", error);
-            alert("Login failed. Please try again.");
+            console.error("Google login failed:", error);
+            const errorMessage = formatAuthError(error);
+            showToast(errorMessage, 'error');
+        } finally {
             setLoading(false);
         }
     };
 
-    const handleEmailLogin = async () => {
+    const handleEmailSignUp = async (e) => {
+        e.preventDefault();
         if (loading) return;
         setLoading(true);
         
         try {
-            // Add your email login logic here
-            // This could be Firebase email/password or your custom auth
-            const { email, password } = formData;
-            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            // Validate form data
+            const { email, password, confirmPassword } = formData;
+            if (!email || !password || !confirmPassword) {
+                showToast("Please fill in all fields", 'error');
+                setLoading(false);
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showToast("Passwords do not match", 'error');
+                setLoading(false);
+                return;
+            }
+            
+            if (password.length < 6) {
+                showToast("Password must be at least 6 characters long", 'error');
+                setLoading(false);
+                return;
+            }
+            
+            // Firebase email/password sign up
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const token = await userCredential.user.getIdToken();
             
             // Store token in localStorage for persistence
             localStorage.setItem('token', token);
             
             API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-            let userRole;
-            try {
-                const res = await API.get("/users/me");
-                userRole = res.data.role;
-            } catch (err) {
-                if (err.response?.status === 404) {
-                    await API.post("/users/setup", { role });
-                    userRole = role;
-                    console.log("User role saved:", userRole);
-                } else {
-                    throw err;
-                }
-            }
             
-            // Navigate based on saved role
-            if (userRole === "borrower") navigate("/borrower");
-            else if (userRole === "lender") navigate("/lender");
+            // Set up user with selected role
+            await API.post("/users/setup", { role });
+            console.log("User created and role saved:", role);
+            
+            showToast(`Welcome! Your ${role} account has been created successfully.`, 'success');
+            
+            // Navigate based on role
+            if (role === "borrower") navigate("/borrower");
+            else if (role === "lender") navigate("/lender");
+            else if (role === "admin") navigate("/admin");
             else {
-                alert("Invalid role detected.");
+                showToast("Invalid role detected. Please contact support.", 'error');
                 navigate("/");
             }
             
             setIsLoggedIn(true);
             
+        } catch (error) {
+            console.error("Email signup failed:", error);
+            const errorMessage = formatAuthError(error);
+            showToast(errorMessage, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEmailLogin = async (e) => {
+        e.preventDefault();
+        if (loading) return;
+        setLoading(true);
+        
+        try {
+            // Validate form data
+            const { email, password } = formData;
+            if (!email || !password) {
+                showToast("Please fill in all fields", 'error');
+                setLoading(false);
+                return;
+            }
+            
+            // Firebase email/password sign in
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const token = await userCredential.user.getIdToken();
+            
+            // Store token in localStorage for persistence
+            localStorage.setItem('token', token);
+            
+            API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+            
+            let userRole;
+            let isExistingUser = false;
+            
+            try {
+                const res = await API.get("/users/me");
+                userRole = res.data.role;
+                isExistingUser = true;
+                console.log("Existing email user found with role:", userRole);
+            } catch (err) {
+                if (err.response?.status === 404) {
+                    console.log("New email user, setting up account...");
+                    await API.post("/users/setup", { role });
+                    userRole = role;
+                    console.log("User role saved:", userRole);
+                    showToast(`Welcome! Your ${role} account has been created successfully.`, 'success');
+                } else {
+                    throw err;
+                }
+            }
+            
+            if (isExistingUser) {
+                showToast(`Welcome back! Signing you in...`, 'success');
+            }
+            
+            // Navigate based on saved role
+            if (userRole === "borrower") navigate("/borrower");
+            else if (userRole === "lender") navigate("/lender");
+            else if (userRole === "admin") navigate("/admin");
+            else {
+                showToast("Invalid role detected. Please contact support.", 'error');
+                navigate("/");
+            }
+            
+            setIsLoggedIn(true);
             
         } catch (error) {
             console.error("Email login failed:", error);
-            alert("Login failed. Please try again.");
+            const errorMessage = formatAuthError(error);
+            showToast(errorMessage, 'error');
+        } finally {
             setLoading(false);
         }
     };
@@ -184,6 +338,11 @@ export default function Login() {
                 ? 'bg-gradient-to-br from-gray-900 via-slate-900 to-indigo-950' 
                 : 'bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100'
         } transition-all duration-300`}>
+            {/* Toast Notification */}
+            {toast && (
+                <Toast message={toast.message} type={toast.type} onClose={closeToast} />
+            )}
+            
             <Navbar />
             
             <div className="flex flex-col lg:flex-row min-h-screen">
@@ -311,10 +470,14 @@ export default function Login() {
                             <div className="text-center mb-8">
                                 <h2 className={`text-3xl font-bold mb-2 transition-colors duration-300 ${
                                     isDark ? 'text-white' : 'text-gray-900'
-                                }`}>Welcome Back!</h2>
+                                }`}>
+                                    {isSignUp ? "Create Account" : "Welcome Back!"}
+                                </h2>
                                 <p className={`transition-colors duration-300 ${
                                     isDark ? 'text-gray-400' : 'text-gray-600'
-                                }`}>Sign in to your account</p>
+                                }`}>
+                                    {isSignUp ? "Join BorrowEase today" : "Sign in to your account"}
+                                </p>
                             </div>
 
                             {/* Role Selection */}
@@ -404,8 +567,8 @@ export default function Login() {
                                     </button>
                                 </div>
                             ) : (
-                                /* Email Login Form */
-                                <div className="space-y-4">
+                                /* Email Login/Signup Form */
+                                <form onSubmit={isSignUp ? handleEmailSignUp : handleEmailLogin} className="space-y-4">
                                     <div>
                                         <label className={`block text-sm font-medium mb-2 transition-colors duration-300 ${
                                             isDark ? 'text-gray-300' : 'text-gray-700'
@@ -420,8 +583,8 @@ export default function Login() {
                                                 onChange={(e) => handleInputChange('email', e.target.value)}
                                                 className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
                                                     isDark 
-                                                        ? 'border-gray-600 bg-gray-800 text-white' 
-                                                        : 'border-gray-300 bg-white text-gray-900'
+                                                        ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' 
+                                                        : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
                                                 }`}
                                                 placeholder="Enter your email"
                                                 required
@@ -443,10 +606,10 @@ export default function Login() {
                                                 onChange={(e) => handleInputChange('password', e.target.value)}
                                                 className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
                                                     isDark 
-                                                        ? 'border-gray-600 bg-gray-800 text-white' 
-                                                        : 'border-gray-300 bg-white text-gray-900'
+                                                        ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' 
+                                                        : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
                                                 }`}
-                                                placeholder="Enter your password"
+                                                placeholder={isSignUp ? "Create a password (min 6 characters)" : "Enter your password"}
                                                 required
                                             />
                                             <button
@@ -463,19 +626,48 @@ export default function Login() {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between">
-                                        <label className="flex items-center">
-                                            <input type="checkbox" className={`rounded border text-purple-600 shadow-sm focus:border-purple-300 focus:ring focus:ring-purple-200 focus:ring-opacity-50 ${
-                                                isDark 
-                                                    ? 'border-gray-600 bg-gray-800' 
-                                                    : 'border-gray-300 bg-gray-100'
-                                            }`} />
-                                            <span className={`ml-2 text-sm transition-colors duration-300 ${
-                                                isDark ? 'text-gray-400' : 'text-gray-600'
-                                            }`}>Remember me</span>
-                                        </label>
-                                        <a href="#" className="text-sm text-purple-600 hover:text-purple-500 transition-colors duration-300">Forgot password?</a>
-                                    </div>
+                                    {/* Confirm Password - Only show during signup */}
+                                    {isSignUp && (
+                                        <div>
+                                            <label className={`block text-sm font-medium mb-2 transition-colors duration-300 ${
+                                                isDark ? 'text-gray-300' : 'text-gray-700'
+                                            }`}>Confirm Password</label>
+                                            <div className="relative">
+                                                <Lock className={`absolute left-3 top-3 w-5 h-5 ${
+                                                    isDark ? 'text-gray-500' : 'text-gray-400'
+                                                }`} />
+                                                <input
+                                                    type="password"
+                                                    value={formData.confirmPassword}
+                                                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                                                    className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
+                                                        isDark 
+                                                            ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' 
+                                                            : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
+                                                    }`}
+                                                    placeholder="Confirm your password"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Remember me and Forgot password - Only show during login */}
+                                    {!isSignUp && (
+                                        <div className="flex items-center justify-between">
+                                            <label className="flex items-center">
+                                                <input type="checkbox" className={`rounded border text-purple-600 shadow-sm focus:border-purple-300 focus:ring focus:ring-purple-200 focus:ring-opacity-50 ${
+                                                    isDark 
+                                                        ? 'border-gray-600 bg-gray-800' 
+                                                        : 'border-gray-300 bg-gray-100'
+                                                }`} />
+                                                <span className={`ml-2 text-sm transition-colors duration-300 ${
+                                                    isDark ? 'text-gray-400' : 'text-gray-600'
+                                                }`}>Remember me</span>
+                                            </label>
+                                            <a href="#" className="text-sm text-purple-600 hover:text-purple-500 transition-colors duration-300">Forgot password?</a>
+                                        </div>
+                                    )}
 
                                     <button
                                         type="submit"
@@ -489,9 +681,12 @@ export default function Login() {
                                         ) : (
                                             <ArrowRight className="w-5 h-5 mr-2" />
                                         )}
-                                        {loading ? "Signing in..." : "Sign In"}
+                                        {loading 
+                                            ? (isSignUp ? "Creating account..." : "Signing in...")
+                                            : (isSignUp ? "Create Account" : "Sign In")
+                                        }
                                     </button>
-                                </div>
+                                </form>
                             )}
 
                             {/* Divider */}
@@ -507,15 +702,22 @@ export default function Login() {
                                 }`}></div>
                             </div>
 
-                            {/* Sign Up Link */}
+                            {/* Sign Up/Login Toggle */}
                             <div className="text-center">
                                 <p className={`text-sm transition-colors duration-300 ${
                                     isDark ? 'text-gray-400' : 'text-gray-600'
                                 }`}>
-                                    Don't have an account?{' '}
-                                    <a href="#" className="text-purple-600 hover:text-purple-500 font-medium transition-colors duration-300">
-                                        Sign up for free
-                                    </a>
+                                    {isSignUp ? "Already have an account?" : "Don't have an account?"}{' '}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsSignUp(!isSignUp);
+                                            setFormData({ email: '', password: '', confirmPassword: '' });
+                                        }}
+                                        className="text-purple-600 hover:text-purple-500 font-medium transition-colors duration-300"
+                                    >
+                                        {isSignUp ? "Sign in here" : "Sign up for free"}
+                                    </button>
                                 </p>
                             </div>
 
