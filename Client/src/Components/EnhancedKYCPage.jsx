@@ -13,7 +13,6 @@ import {
   MapPin,
   CreditCard,
   Phone,
-  Mail,
   Eye,
   X,
   Calendar,
@@ -31,10 +30,28 @@ import { auth } from '../firebase';
 import { onAuthStateChanged, RecaptchaVerifier, PhoneAuthProvider, linkWithCredential } from 'firebase/auth';
 import { useTheme } from '../contexts/ThemeContext';
 
-// ====================================================================
-// STEP 1: Define DocumentUploadCard OUTSIDE the main component
-// It now receives all its data and handlers as props.
-// ====================================================================
+// Enhanced ValidationSummary Component for better UX
+const ValidationSummary = ({ errors, isDark }) => {
+  const errorEntries = Object.entries(errors).filter(([key, value]) => value);
+  
+  if (errorEntries.length === 0) return null;
+  
+  return (
+    <div className={`mb-6 p-4 rounded-lg border ${
+      isDark ? 'bg-red-900/20 border-red-800 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
+    }`}>
+      <div className="flex items-center mb-2">
+        <AlertCircle className="w-5 h-5 mr-2" />
+        <h3 className="font-medium">Please fix the following issues:</h3>
+      </div>
+      <ul className="list-disc list-inside space-y-1 text-sm">
+        {errorEntries.map(([key, error]) => (
+          <li key={key}>{error}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
 const DocumentUploadCard = ({ 
   type, 
   title, 
@@ -48,9 +65,12 @@ const DocumentUploadCard = ({
   setFormattedAadhar,
   setKycData,
   setErrors,
-  setPreviewModal
+  openImagePreview,
+  uploadProgress,
+  retryUpload,
+  isDark
 }) => {
-  const doc = kycData.documents[type];
+  const doc = kycData.documents[type] || { file: null, number: '', preview: null };
   const error = errors[`documents.${type}`];
   
   // Define requirements for each document type - PRODUCTION LEVEL
@@ -58,13 +78,13 @@ const DocumentUploadCard = ({
     aadharCard: {
       size: '100KB - 2MB',
       resolution: 'Minimum 800x500px, landscape orientation',
-      format: 'JPEG, PNG, PDF',
+      format: 'JPEG, PNG',
       tips: 'Ensure both sides are clearly visible, no glare or blur, and all details are readable.'
     },
     panCard: {
       size: '100KB - 2MB',
       resolution: 'Minimum 800x500px, landscape orientation',
-      format: 'JPEG, PNG, PDF',
+      format: 'JPEG, PNG',
       tips: 'Upload a clear image with all text and photo visible. Avoid cropped or unclear images.'
     },
     selfie: {
@@ -74,16 +94,16 @@ const DocumentUploadCard = ({
       tips: 'Take a selfie in good lighting, holding your Aadhar card next to your face. Face and card details must be visible.'
     },
     bankStatement: {
-      size: '200KB - 5MB',
+      size: '100KB - 5MB',
       resolution: 'Minimum 600x800px, portrait orientation',
-      format: 'JPEG, PNG, PDF',
-      tips: 'Upload last 3 months statement. All pages must be clear and readable. PDF preferred.'
+      format: 'JPEG, PNG',
+      tips: 'Upload a clear image of your latest bank statement showing transactions and account details.'
     },
     salarySlip: {
-      size: '100KB - 3MB',
+      size: '100KB - 5MB',
       resolution: 'Minimum 600x800px, portrait orientation',
-      format: 'JPEG, PNG, PDF',
-      tips: 'Upload latest salary slip with all details visible. PDF or clear image required.'
+      format: 'JPEG, PNG',
+      tips: 'Upload a clear image of your latest salary slip showing earnings and deductions.'
     }
   };
 
@@ -91,97 +111,105 @@ const DocumentUploadCard = ({
   
   return (
     <div className={`border-2 border-dashed rounded-xl p-6 transition-all ${
-      doc.file ? 'border-green-500 bg-green-50' : 
-      error ? 'border-red-500 bg-red-50' : 
-      'border-gray-300 hover:border-blue-500'
+      doc.file 
+        ? isDark ? 'border-green-400 bg-green-900/20' : 'border-green-500 bg-green-50'
+        : error 
+        ? isDark ? 'border-red-400 bg-red-900/20' : 'border-red-500 bg-red-50'
+        : isDark ? 'border-gray-600 hover:border-blue-400 bg-gray-800/50' : 'border-gray-300 hover:border-blue-500'
     }`}>
       <div className="text-center">
         <Icon className={`w-12 h-12 mx-auto mb-4 ${
-          doc.file ? 'text-green-600' : 'text-gray-400'
+          doc.file 
+            ? isDark ? 'text-green-400' : 'text-green-600'
+            : isDark ? 'text-gray-500' : 'text-gray-400'
         }`} />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-        <p className="text-sm text-gray-600 mb-4">{description}</p>
+        <h3 className={`text-lg font-semibold mb-2 ${
+          isDark ? 'text-white' : 'text-gray-900'
+        }`}>{title}</h3>
+        <p className={`text-sm mb-4 ${
+          isDark ? 'text-gray-300' : 'text-gray-600'
+        }`}>{description}</p>
         
         {/* Requirements Display */}
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg text-left">
-          <h4 className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Requirements:</h4>
-          <div className="space-y-1 text-xs text-gray-600">
-            <div className="flex items-center">
-              <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
-              <span><strong>Size:</strong> {req.size}</span>
-            </div>
-            <div className="flex items-center">
-              <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-              <span><strong>Resolution:</strong> {req.resolution}</span>
-            </div>
-            <div className="flex items-center">
-              <span className="w-2 h-2 bg-purple-400 rounded-full mr-2"></span>
-              <span><strong>Format:</strong> {req.format}</span>
-            </div>
+        <div className={`mb-4 p-3 rounded-lg text-left ${
+          isDark ? 'bg-gray-700/50' : 'bg-gray-50'
+        }`}>
+          <h4 className={`text-xs font-semibold mb-2 uppercase tracking-wide ${
+            isDark ? 'text-gray-300' : 'text-gray-700'
+          }`}>Requirements:</h4>
+          <div className={`space-y-1 text-xs ${
+            isDark ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            {req ? (
+              <>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                  <span><strong>Size:</strong> {req.size}</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                  <span><strong>Resolution:</strong> {req.resolution}</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-2 h-2 bg-purple-400 rounded-full mr-2"></span>
+                  <span><strong>Format:</strong> {req.format}</span>
+                </div>
+              </>
+            ) : (
+              <div className="text-red-500">No requirements available for this document type.</div>
+            )}
           </div>
-          <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
-            <span className="font-medium">💡 Tip:</span> {req.tips}
-          </div>
+          {req && (
+            <div className={`mt-2 p-2 rounded text-xs ${
+              isDark ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-50 text-blue-700'
+            }`}>
+              <span className="font-medium">💡 Tip:</span> {req.tips}
+            </div>
+          )}
         </div>
         
         {doc.file ? (
           <div className="space-y-3">
             <div className="flex items-center justify-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <span className="text-green-600 font-medium">Uploaded Successfully</span>
+              <CheckCircle className={`w-5 h-5 ${
+                isDark ? 'text-green-400' : 'text-green-600'
+              }`} />
+              <span className={`font-medium ${
+                isDark ? 'text-green-400' : 'text-green-600'
+              }`}>Uploaded Successfully</span>
             </div>
             
             {/* File Info Display */}
             {doc.fileInfo && (
-              <div className="p-2 bg-green-50 rounded-lg text-xs text-green-700">
+              <div className={`p-2 rounded-lg text-xs ${
+                isDark ? 'bg-green-900/30 text-green-300' : 'bg-green-50 text-green-700'
+              }`}>
                 <div className="flex justify-between items-center">
                   <span>📄 {doc.fileInfo.name}</span>
                   <span>{doc.fileInfo.sizeText}</span>
                 </div>
-                {doc.fileInfo.dimensions && (
-                  <div className="mt-1 text-center">
-                    📐 {doc.fileInfo.dimensions}
-                  </div>
-                )}
               </div>
             )}
             
             <div className="flex justify-center space-x-2">
               <button
-                onClick={() => {
-                  // Handle PDF files differently - open in new tab
-                  if (doc.fileType === 'application/pdf') {
-                    // For PDF files, create a direct download/view link
-                    let pdfUrl = doc.file;
-                    
-                    // For Cloudinary URLs, we need to ensure proper access
-                    if (pdfUrl && pdfUrl.includes('cloudinary.com')) {
-                      // If it's uploaded as raw, it should work directly
-                      // If it has /image/upload/, it might need transformation
-                      if (pdfUrl.includes('/image/upload/')) {
-                        console.warn('PDF was uploaded to image endpoint, trying to access anyway');
-                      }
-                    }
-                    
-                    // Try to open the PDF directly
-                    window.open(pdfUrl, '_blank');
-                  } else {
-                    setPreviewModal({ 
-                      open: true, 
-                      image: doc.preview, 
-                      title: title,
-                      fileType: doc.fileType
-                    });
-                  }
-                }}
-                className="flex items-center px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                onClick={() => openImagePreview(doc.file, title)}
+                className={`flex items-center px-3 py-1 text-sm rounded-lg transition-colors cursor-pointer ${
+                  isDark 
+                    ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/50' 
+                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                }`}
               >
                 <Eye className="w-4 h-4 mr-1" />
-                {doc.fileType === 'application/pdf' ? 'View PDF' : 'Preview'}
+                Preview Image
               </button>
               <button
                 onClick={() => document.getElementById(`file-${type}`).click()}
-                className="flex items-center px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                className={`flex items-center px-3 py-1 text-sm rounded-lg transition-colors cursor-pointer ${
+                  isDark 
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
                 <Upload className="w-4 h-4 mr-1" />
                 Replace
@@ -189,19 +217,49 @@ const DocumentUploadCard = ({
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => document.getElementById(`file-${type}`).click()}
-            className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload {title}
-          </button>
+          <div className="space-y-3">
+            {/* Upload Progress Bar */}
+            {uploadProgress[type] && uploadProgress[type] > 0 && uploadProgress[type] < 100 && (
+              <div className="w-full">
+                <div className={`flex justify-between text-sm mb-1 ${
+                  isDark ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  <span>Uploading...</span>
+                  <span>{uploadProgress[type]}%</span>
+                </div>
+                <div className={`w-full bg-gray-200 rounded-full h-2 ${
+                  isDark ? 'bg-gray-700' : 'bg-gray-200'
+                }`}>
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress[type]}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+            
+            <button
+              onClick={() => document.getElementById(`file-${type}`).click()}
+              disabled={uploadProgress[type] && uploadProgress[type] > 0 && uploadProgress[type] < 100}
+              className={`flex items-center justify-center px-4 py-2 rounded-lg mx-auto transition-colors cursor-pointer ${
+                uploadProgress[type] && uploadProgress[type] > 0 && uploadProgress[type] < 100
+                  ? isDark ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : isDark ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {uploadProgress[type] && uploadProgress[type] > 0 && uploadProgress[type] < 100 
+                ? 'Uploading...' 
+                : `Upload ${title}`
+              }
+            </button>
+          </div>
         )}
         
         <input
           id={`file-${type}`}
           type="file"
-          accept="image/*,application/pdf"
+          accept="image/*"
           onChange={(e) => handleFileUpload(type, e.target.files[0])}
           className="hidden"
         />
@@ -243,14 +301,20 @@ const DocumentUploadCard = ({
               pattern="[0-9\s]*"
               autoComplete="off"
               className={`mt-3 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors ${
-                errors['documents.aadharCard.number'] ? 'border-red-500' : 'border-gray-300'
+                errors['documents.aadharCard.number'] 
+                  ? isDark ? 'border-red-400 bg-gray-800 text-white' : 'border-red-500'
+                  : isDark ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' : 'border-gray-300'
               }`}
             />
             {errors['documents.aadharCard.number'] && (
-              <p className="text-red-600 text-sm mt-1">{errors['documents.aadharCard.number']}</p>
+              <p className={`text-sm mt-1 ${
+                isDark ? 'text-red-400' : 'text-red-600'
+              }`}>{errors['documents.aadharCard.number']}</p>
             )}
             {doc.number && doc.number.length < 12 && (
-              <p className="text-yellow-600 text-sm mt-1">
+              <p className={`text-sm mt-1 ${
+                isDark ? 'text-yellow-400' : 'text-yellow-600'
+              }`}>
                 Aadhar number must be exactly 12 digits ({doc.number.length}/12)
               </p>
             )}
@@ -292,19 +356,27 @@ const DocumentUploadCard = ({
               autoComplete="off"
               style={{ textTransform: 'uppercase' }}
               className={`mt-3 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors ${
-                errors['documents.panCard.number'] ? 'border-red-500' : 'border-gray-300'
+                errors['documents.panCard.number'] 
+                  ? isDark ? 'border-red-400 bg-gray-800 text-white' : 'border-red-500'
+                  : isDark ? 'border-gray-600 bg-gray-800 text-white placeholder-gray-400' : 'border-gray-300'
               }`}
             />
             {errors['documents.panCard.number'] && (
-              <p className="text-red-600 text-sm mt-1">{errors['documents.panCard.number']}</p>
+              <p className={`text-sm mt-1 ${
+                isDark ? 'text-red-400' : 'text-red-600'
+              }`}>{errors['documents.panCard.number']}</p>
             )}
             {doc.number && doc.number.length < 10 && (
-              <p className="text-yellow-600 text-sm mt-1">
+              <p className={`text-sm mt-1 ${
+                isDark ? 'text-yellow-400' : 'text-yellow-600'
+              }`}>
                 PAN number must be exactly 10 characters ({doc.number.length}/10)
               </p>
             )}
             {doc.number && doc.number.length === 10 && (
-              <p className="text-green-600 text-sm mt-1 flex items-center">
+              <p className={`text-sm mt-1 flex items-center ${
+                isDark ? 'text-green-400' : 'text-green-600'
+              }`}>
                 <CheckCircle className="w-4 h-4 mr-1" />
                 Valid PAN format
               </p>
@@ -312,8 +384,24 @@ const DocumentUploadCard = ({
           </div>
         )}
         
-        {error && (
-          <p className="text-red-600 text-sm mt-2">{error}</p>
+        {error && !doc.file && (
+          <div className={`text-sm mt-2 space-y-2 ${
+            isDark ? 'text-red-400' : 'text-red-600'
+          }`}>
+            <p>{error}</p>
+            {error.includes('failed') && !error.includes('multiple attempts') && (
+              <button
+                onClick={() => retryUpload && retryUpload(type, kycData.documents[type]?.lastFile)}
+                className={`px-3 py-1 text-xs rounded transition-colors ${
+                  isDark 
+                    ? 'bg-red-900/50 text-red-300 hover:bg-red-800/50' 
+                    : 'bg-red-100 text-red-700 hover:bg-red-200'
+                }`}
+              >
+                Retry Upload
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -323,6 +411,11 @@ const DocumentUploadCard = ({
 const EnhancedKYCPage = () => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  
+  // Error boundary state
+  const [hasError, setHasError] = useState(false);
+  const [errorInfo, setErrorInfo] = useState(null);
+  
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(1);
@@ -356,11 +449,320 @@ const EnhancedKYCPage = () => {
       status: 'pending' // 'pending', 'submitted', 'verified', 'rejected'
     }
   });
-  const [uploading, setUploading] = useState(false);
-  const [authorized, setAuthorized] = useState(false);
+  
+  // Missing state declarations - ADD these:
   const [errors, setErrors] = useState({});
-  const [previewModal, setPreviewModal] = useState({ open: false, image: null, title: '', fileType: null });
+  const [authorized, setAuthorized] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({});
   const [formattedAadhar, setFormattedAadhar] = useState('');
+  const [previewModal, setPreviewModal] = useState({
+    open: false,
+    image: null,
+    title: '',
+    fileType: null
+  });
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+
+  // Missing steps definition - ADD this:
+  const steps = [
+    { id: 1, title: "Personal Info", icon: User },
+    { id: 2, title: "Documents", icon: FileText },
+    { id: 3, title: "Verification", icon: Shield },
+    { id: 4, title: "Review", icon: CheckCircle }
+  ];
+
+  
+  // Enhanced loading and error states
+
+  const [retryCount, setRetryCount] = useState({});
+  const [uploading, setUploading] = useState(false);
+
+  
+
+  // Image compression utility
+  const compressImage = (file, maxWidth = 1920, maxHeight = 1080, quality = 0.8) => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        // Calculate new dimensions
+        let { width, height } = img;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            const compressedFile = new File([blob], file.name, {
+              type: file.type,
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          },
+          file.type,
+          quality
+        );
+      };
+      
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // ADD these missing functions:
+  const calculateAge = (dateOfBirth) => {
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    
+    if (isNaN(birthDate.getTime()) || birthDate > today) return null;
+    
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  };
+
+  const nextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(prev => Math.min(prev + 1, 4));
+    }
+  };
+
+  const prevStep = () => {
+    setCurrentStep(prev => Math.max(prev - 1, 1));
+  };
+
+  const openImagePreview = (imageFile, title) => {
+    // Check if imageFile is a File object or URL string
+    let imageUrl;
+    if (imageFile instanceof File) {
+      imageUrl = URL.createObjectURL(imageFile);
+    } else {
+      imageUrl = imageFile; // Assume it's already a URL string
+    }
+    
+    setPreviewModal({
+      open: true,
+      image: imageUrl,
+      title: title,
+      fileType: imageFile instanceof File ? imageFile.type : 'image'
+    });
+  };
+
+  // Enhanced retry logic
+
+  // Security: Sanitize input to prevent XSS
+  const sanitizeInput = (input) => {
+    if (typeof input !== 'string') return input;
+    return input
+      .replace(/[<>]/g, '') // Remove potential HTML tags
+      .trim();
+  };
+
+  // Enhanced validation with security checks
+  const validateSecureInput = (value, type) => {
+    const sanitized = sanitizeInput(value);
+    
+    // Check for suspicious patterns
+    const suspiciousPatterns = [
+      /<script/i,
+      /javascript:/i,
+      /on\w+\s*=/i,
+      /data:text\/html/i
+    ];
+    
+    for (const pattern of suspiciousPatterns) {
+      if (pattern.test(sanitized)) {
+        return { isValid: false, error: 'Invalid characters detected' };
+      }
+    }
+    
+    return { isValid: true, value: sanitized };
+  };
+
+  // Critical File Upload Handler Missing
+  const handleFileUpload = async (documentType, file) => {
+    if (!file) return;
+
+    // Validate file
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      setErrors(prev => ({
+        ...prev,
+        [`documents.${documentType}`]: 'File size must be less than 5MB'
+      }));
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      setErrors(prev => ({
+        ...prev,
+        [`documents.${documentType}`]: 'Only JPEG, PNG, and PDF files are allowed'
+      }));
+      return;
+    }
+
+    try {
+      setUploadProgress(prev => ({ ...prev, [documentType]: 0 }));
+
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+
+      // Compress image if needed
+      let processedFile = file;
+      if (file.type.startsWith('image/')) {
+        processedFile = await compressImage(file);
+      }
+
+      // Validate dimensions
+      if (file.type.startsWith('image/')) {
+        const isValidDimension = await validateImageDimensions(processedFile, documentType);
+        if (!isValidDimension) return;
+      }
+
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          const current = prev[documentType] || 0;
+          if (current >= 100) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return { ...prev, [documentType]: Math.min(current + 10, 100) };
+        });
+      }, 100);
+
+      // Update document state
+      setKycData(prev => ({
+        ...prev,
+        documents: {
+          ...prev.documents,
+          [documentType]: {
+            file: processedFile,
+            preview: previewUrl,
+            fileInfo: {
+              name: file.name,
+              size: file.size,
+              sizeText: formatFileSize(file.size)
+            },
+            lastFile: file
+          }
+        }
+      }));
+
+      // Clear any existing errors
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[`documents.${documentType}`];
+        return newErrors;
+      });
+
+      setTimeout(() => {
+        setUploadProgress(prev => ({ ...prev, [documentType]: 100 }));
+      }, 1000);
+
+    } catch (error) {
+      console.error('File upload error:', error);
+      setErrors(prev => ({
+        ...prev,
+        [`documents.${documentType}`]: 'Upload failed. Please try again.'
+      }));
+      setUploadProgress(prev => ({ ...prev, [documentType]: 0 }));
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const retryUpload = (documentType, file) => {
+    if (file && retryCount[documentType] < 3) {
+      setRetryCount(prev => ({
+        ...prev,
+        [documentType]: (prev[documentType] || 0) + 1
+      }));
+      handleFileUpload(documentType, file);
+    }
+  };
+
+  // Missing validation functions
+  const validateStep = (step) => {
+    // Basic step validation - can be enhanced
+    switch (step) {
+      case 1:
+        return kycData.personalInfo.fullName && 
+               kycData.personalInfo.dateOfBirth && 
+               kycData.personalInfo.phoneNumber;
+      case 2:
+        return kycData.documents.aadharCard.file && 
+               kycData.documents.panCard.file && 
+               kycData.documents.selfie.file;
+      case 3:
+        return phoneVerification.step === 'verified';
+      default:
+        return true;
+    }
+  };
+
+  const validateImageDimensions = async (file, documentType) => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) {
+        resolve(true);
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        const minDimensions = {
+          aadharCard: { width: 800, height: 500 },
+          panCard: { width: 800, height: 500 },
+          selfie: { width: 400, height: 400 },
+          bankStatement: { width: 600, height: 800 }
+        };
+
+        const required = minDimensions[documentType];
+        if (required && (img.width < required.width || img.height < required.height)) {
+          setErrors(prev => ({
+            ...prev,
+            [`documents.${documentType}`]: `Image must be at least ${required.width}x${required.height}px`
+          }));
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      };
+      img.onerror = () => resolve(false);
+      img.src = URL.createObjectURL(file);
+    });
+  };
+  
   
   // Phone verification states
   const [phoneVerification, setPhoneVerification] = useState({
@@ -385,21 +787,23 @@ const EnhancedKYCPage = () => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          const res = await API.get("/users/me");
-          if (res.data.role === "borrower") {
-            setAuthorized(true);
-            setUser(res.data);
-            // Pre-fill basic info if available
-            if (res.data.name) {
-              setKycData(prev => ({
-                ...prev,
-                personalInfo: {
-                  ...prev.personalInfo,
-                  fullName: res.data.name,
-                }
-              }));
+          await handleAPICall(async () => {
+            const res = await API.get("/users/me");
+            if (res.data.role === "borrower") {
+              setAuthorized(true);
+              setUser(res.data);
+              // Pre-fill basic info if available
+              if (res.data.name) {
+                setKycData(prev => ({
+                  ...prev,
+                  personalInfo: {
+                    ...prev.personalInfo,
+                    fullName: res.data.name,
+                  }
+                }));
+              }
             }
-          }
+          }, "Failed to verify user credentials");
         } catch (error) {
           console.error("Error verifying user:", error);
         } finally {
@@ -450,309 +854,354 @@ const EnhancedKYCPage = () => {
     };
   }, []);
 
-  const steps = [
-    { id: 1, title: 'Personal Information', icon: User, status: 'current' },
-    { id: 2, title: 'Document Upload', icon: FileText, status: 'upcoming' },
-    { id: 3, title: 'Verification', icon: Shield, status: 'upcoming' },
-    { id: 4, title: 'Review & Submit', icon: CheckCircle, status: 'upcoming' },
-  ];
+  // Auto-save form data to localStorage
+  useEffect(() => {
+    const saveData = {
+      personalInfo: kycData.personalInfo,
+      currentStep,
+      lastSaved: new Date().toISOString()
+    };
+    localStorage.setItem('kycFormData', JSON.stringify(saveData));
+  }, [kycData.personalInfo, currentStep]);
 
-  // Duplicate validateImageDimensions removed to fix redeclaration error.
-
-  const handleInputChange = (section, field, value) => {
-    setKycData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
+  // Load saved form data on component mount
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem('kycFormData');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        const lastSaved = new Date(parsed.lastSaved);
+        const now = new Date();
+        const hoursDiff = (now - lastSaved) / (1000 * 60 * 60);
+        
+        // Only restore if saved within last 24 hours
+        if (hoursDiff < 24 && parsed.personalInfo) {
+          setKycData(prev => ({
+            ...prev,
+            personalInfo: { ...prev.personalInfo, ...parsed.personalInfo }
+          }));
+          
+          // Optionally restore step if not completed
+          if (parsed.currentStep && parsed.currentStep > currentStep) {
+            setCurrentStep(parsed.currentStep);
+          }
+        }
       }
-    }));
+    } catch (error) {
+      console.log('Error loading saved data:', error);
+    }
+  }, []);
+
+  // Cleanup object URLs on component unmount
+  useEffect(() => {
+    return () => {
+      // Clean up any active preview URLs
+      if (previewModal.image && previewModal.image.startsWith('blob:')) {
+        URL.revokeObjectURL(previewModal.image);
+      }
+    };
+  }, [previewModal.image]);
+
+  // Comprehensive cleanup for document URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Cleanup preview URLs to prevent memory leaks
+      Object.values(kycData.documents).forEach(doc => {
+        if (doc.preview && doc.preview.startsWith('blob:')) {
+          URL.revokeObjectURL(doc.preview);
+        }
+      });
+    };
+  }, []);
+
+  // Firebase configuration validation
+  useEffect(() => {
+    if (!auth) {
+      console.error('Firebase auth not initialized');
+      alert('Authentication service unavailable. Please refresh the page.');
+      return;
+    }
+  }, []);
+
+  // Global error handler for unhandled errors
+  useEffect(() => {
+    const handleGlobalError = (event) => {
+      console.error('Global error:', event.error);
+      handleComponentError(event.error, { type: 'global' });
+    };
+
+    const handleUnhandledRejection = (event) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      handleComponentError(new Error(event.reason), { type: 'promise' });
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
+
+  // Validation helper functions
+  const validatePhoneNumber = (phone) => {
+    // Remove all non-numeric characters and handle +91
+    const cleanPhone = phone.replace(/\D/g, '');
     
-    // Clear error when user starts typing
-    if (errors[`${section}.${field}`]) {
-      setErrors(prev => ({
-        ...prev,
-        [`${section}.${field}`]: null
-      }));
+    // Handle +91 prefix (12 total digits including country code)
+    if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
+      const actualNumber = cleanPhone.slice(2);
+      return actualNumber.length === 10 && /^[6-9]/.test(actualNumber);
+    }
+    
+    // Standard 10-digit Indian mobile number (should start with 6, 7, 8, or 9)
+    return cleanPhone.length === 10 && /^[6-9]/.test(cleanPhone);
+  };
+
+  const validateAge = (dateOfBirth) => {
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    
+    // Check if date is valid
+    if (isNaN(birthDate.getTime())) return false;
+    
+    // Check if date is not in future
+    if (birthDate > today) return false;
+    
+    // Calculate age precisely
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age >= 18 && age <= 100; // Reasonable age limits
+  };
+
+  const validateAlphabetsOnly = (text) => {
+    if (!text || text.trim().length < 2) return false;
+    // Allow alphabets and spaces only, minimum 2 characters
+    return /^[a-zA-Z\s]{2,}$/.test(text.trim());
+  };
+
+  const validatePincode = (pincode) => {
+    // Indian pincode: 6 digits, cannot start with 0
+    const cleanPincode = pincode.replace(/\D/g, '');
+    return cleanPincode.length === 6 && !cleanPincode.startsWith('0') && /^[1-9]\d{5}$/.test(cleanPincode);
+  };
+
+  const validateIncome = (income) => {
+    const numericIncome = parseFloat(income.toString().replace(/[₹,\s]/g, ''));
+    return !isNaN(numericIncome) && numericIncome >= 1 && numericIncome <= 10000000; // 1 rupee to 1 crore
+  };
+
+  const validateName = (name) => {
+    if (!name || name.trim().length < 2) return false;
+    // Allow alphabets, spaces, dots, and hyphens for names
+    return /^[a-zA-Z\s.-]{2,}$/.test(name.trim());
+  };
+
+  // Add error handling wrapper for API calls
+  const handleAPICall = async (apiCall, errorMessage = 'Operation failed') => {
+    try {
+      return await apiCall();
+    } catch (error) {
+      console.error('API Error:', error);
+      
+      if (error.response?.status === 401) {
+        // Unauthorized - redirect to login
+        navigate('/login');
+        return;
+      }
+      
+      if (error.response?.status === 403) {
+        setAuthorized(false);
+        return;
+      }
+      
+      if (error.response?.status >= 500) {
+        alert('Server error. Please try again later.');
+        return;
+      }
+      
+      alert(error.response?.data?.error || errorMessage);
+      throw error;
     }
   };
 
-  const handleFileUpload = async (documentType, file) => {
-    if (!file) return;
+  // Global error handler
+  const handleComponentError = (error, errorInfo) => {
+    console.error('Component Error:', error, errorInfo);
+    setHasError(true);
+    setErrorInfo(error.message || 'An unexpected error occurred');
+  };
 
-    // Validate file size based on document type - COMMENTED OUT FOR TESTING
-    // const sizeValidation = {
-    //   aadharCard: { min: 100 * 1024, max: 2 * 1024 * 1024 }, // 100KB - 2MB
-    //   panCard: { min: 100 * 1024, max: 2 * 1024 * 1024 },    // 100KB - 2MB
-    //   selfie: { min: 50 * 1024, max: 3 * 1024 * 1024 },      // 50KB - 3MB
-    //   bankStatement: { min: 200 * 1024, max: 5 * 1024 * 1024 }, // 200KB - 5MB
-    //   salarySlip: { min: 100 * 1024, max: 3 * 1024 * 1024 }   // 100KB - 3MB
-    // };
+  // Wrap potentially error-prone operations
+  const safeExecute = (fn, fallback = null) => {
+    try {
+      return fn();
+    } catch (error) {
+      handleComponentError(error, { componentStack: error.stack });
+      return fallback;
+    }
+  };
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-    // const validation = sizeValidation[documentType];
-    
-    // Check file type
-    if (!allowedTypes.includes(file.type)) {
+
+  const handleInputChange = (section, field, value) => {
+    // Security validation
+    const securityCheck = validateSecureInput(value, field);
+    if (!securityCheck.isValid) {
       setErrors(prev => ({
         ...prev,
-        [`documents.${documentType}`]: 'Only JPEG, PNG, and PDF files are allowed'
+        [`${section}.${field}`]: securityCheck.error
       }));
       return;
     }
 
-    // Check file size range - COMMENTED OUT FOR TESTING
-    // if (file.size < validation.min) {
-    //   setErrors(prev => ({
-    //     ...prev,
-    //     [`documents.${documentType}`]: `File too small. Minimum size: ${Math.round(validation.min / 1024)}KB for clear visibility`
-    //   }));
-    //   return;
-    // }
+    let processedValue = securityCheck.value;
+    let error = null;
 
-    // if (file.size > validation.max) {
-    //   setErrors(prev => ({
-    //     ...prev,
-    //     [`documents.${documentType}`]: `File too large. Maximum size: ${Math.round(validation.max / (1024 * 1024))}MB`
-    //   }));
-    //   return;
-    // }
-
-    // For images, validate dimensions - COMMENTED OUT FOR TESTING
-    // if (file.type.startsWith('image/')) {
-    //   const isValidDimensions = await validateImageDimensions(file, documentType);
-    //   if (!isValidDimensions) {
-    //     return; // Error already set in validateImageDimensions
-    //   }
-    // }
-
-    setUploading(true);
-    try {
-      // Load environment variables
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-      
-      // Validate environment variables
-      if (!cloudName || cloudName === 'undefined') {
-        alert('Configuration Error: Cloudinary cloud name not found.');
-        setUploading(false);
-        return;
-      }
-      
-      if (!uploadPreset || uploadPreset === 'undefined') {
-        alert('Configuration Error: Cloudinary upload preset not found.');
-        setUploading(false);
-        return;
+    // Field-specific validation and processing
+    if (section === 'personalInfo') {
+      // Log user interaction for analytics (non-PII)
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('event', 'form_field_interaction', {
+          field_name: field,
+          section: section
+        });
       }
 
-      // Create preview for images
-      let preview = null;
-      if (file.type.startsWith('image/')) {
-        preview = URL.createObjectURL(file);
-      }
+      switch (field) {
+        case 'fullName':
+          // Allow only alphabets, spaces, dots, hyphens, and apostrophes
+          processedValue = value.replace(/[^a-zA-Z\s.'-]/g, '');
+          if (processedValue && !validateName(processedValue)) {
+            error = 'Name should contain only alphabets and be at least 2 characters long';
+          }
+          if (processedValue.length > 50) {
+            processedValue = processedValue.substring(0, 50);
+            error = 'Name cannot exceed 50 characters';
+          }
+          break;
 
-      // For PDF files, we need to upload them properly to Cloudinary
-      const isPDF = file.type === 'application/pdf';
-      
-      // Create the upload request
-      let uploadUrl;
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', uploadPreset);
-      formData.append('tags', 'kyc_document');
-      formData.append('folder', 'borrowease/kyc');
-      
-      if (isPDF) {
-        // For PDFs, use raw/upload endpoint
-        uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`;
-      } else {
-        // For images, use image/upload endpoint
-        uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
-      }
-      
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        body: formData,
-      });
+        case 'phoneNumber':
+          // Allow only numeric characters and + at the beginning
+          processedValue = value.replace(/[^\d+]/g, '');
+          
+          // Ensure + is only at the beginning
+          if (processedValue.includes('+')) {
+            const parts = processedValue.split('+');
+            processedValue = '+' + parts.join('').replace(/\D/g, '');
+          }
+          
+          // Limit length
+          if (processedValue.startsWith('+91')) {
+            processedValue = processedValue.substring(0, 15); // +91 + 10 digits
+          } else if (processedValue.startsWith('+')) {
+            processedValue = processedValue.substring(0, 15);
+          } else {
+            processedValue = processedValue.substring(0, 10);
+          }
+          
+          if (processedValue && !validatePhoneNumber(processedValue)) {
+            error = 'Please enter a valid 10-digit mobile number or include country code (+91)';
+          }
+          break;
 
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${data.error?.message || data.message || 'Unknown error'}`);
-      }
-      
-      if (data.secure_url) {
-        // Get file info for display
-        const fileSizeText = file.size > 1024 * 1024 
-          ? `${(file.size / (1024 * 1024)).toFixed(1)}MB`
-          : `${Math.round(file.size / 1024)}KB`;
-        
-        // Get image dimensions if it's an image
-        let dimensions = null;
-        if (file.type.startsWith('image/')) {
-          const img = new Image();
-          const url = URL.createObjectURL(file);
-          await new Promise((resolve) => {
-            img.onload = () => {
-              dimensions = `${img.width}x${img.height}px`;
-              URL.revokeObjectURL(url);
-              resolve();
-            };
-            img.src = url;
-          });
-        }
-        
-        setKycData(prev => ({
-          ...prev,
-          documents: {
-            ...prev.documents,
-            [documentType]: {
-              ...prev.documents[documentType],
-              file: data.secure_url,
-              preview: isPDF ? data.secure_url : (preview || data.secure_url),
-              fileType: file.type, // Store file type for preview handling
-              fileInfo: {
-                name: file.name,
-                size: file.size,
-                sizeText: fileSizeText,
-                dimensions: dimensions
-              }
+        case 'dateOfBirth':
+          if (processedValue) {
+            const selectedDate = new Date(processedValue);
+            const today = new Date();
+            
+            if (selectedDate > today) {
+              error = 'Date of birth cannot be in the future';
+            } else if (!validateAge(processedValue)) {
+              error = 'You must be at least 18 years old';
             }
           }
-        }));
-        
-        // Clear any previous errors
-        setErrors(prev => ({
-          ...prev,
-          [`documents.${documentType}`]: null
-        }));
+          break;
+
+        case 'city':
+        case 'state':
+          // Allow only alphabets and spaces
+          processedValue = value.replace(/[^a-zA-Z\s]/g, '');
+          if (processedValue.length > 30) {
+            processedValue = processedValue.substring(0, 30);
+          }
+          if (processedValue && !validateAlphabetsOnly(processedValue)) {
+            error = `${field === 'city' ? 'City' : 'State'} should contain only alphabets and be at least 2 characters long`;
+          }
+          break;
+
+        case 'pincode':
+          // Allow only numeric characters
+          processedValue = value.replace(/\D/g, '');
+          if (processedValue.length > 6) {
+            processedValue = processedValue.substring(0, 6);
+          }
+          if (processedValue && !validatePincode(processedValue)) {
+            error = 'Please enter a valid 6-digit pincode (cannot start with 0)';
+          }
+          break;
+
+        case 'address':
+          // Allow all characters except < and > for security, but do not remove spaces
+          processedValue = value.replace(/[<>]/g, '');
+          if (processedValue.length > 200) {
+            processedValue = processedValue.substring(0, 200);
+            error = 'Address cannot exceed 200 characters';
+          }
+          if (processedValue && processedValue.trim().length < 10) {
+            error = 'Please provide a complete address (minimum 10 characters)';
+          }
+          break;
+
+        case 'occupation':
+          // Allow alphabets, spaces, and common occupation characters
+          processedValue = value.replace(/[^a-zA-Z\s.-]/g, '');
+          if (processedValue.length > 50) {
+            processedValue = processedValue.substring(0, 50);
+          }
+          if (processedValue && processedValue.trim().length < 2) {
+            error = 'Occupation should be at least 2 characters long';
+          }
+          break;
+
+        case 'monthlyIncome':
+          // Allow only numeric characters
+          processedValue = value.replace(/\D/g, '');
+          if (processedValue && !validateIncome(processedValue)) {
+            error = 'Please enter a valid monthly income (₹1 - ₹1,00,00,000)';
+          }
+          break;
+
+        default:
+          break;
       }
-    } catch (error) {
-      let errorMessage = 'Upload failed. ';
-      if (error.message.includes('401')) {
-        errorMessage += 'Authentication error. Please check your configuration.';
-      } else if (error.message.includes('400')) {
-        errorMessage += 'Invalid request. Please check the file format and size.';
-      } else {
-        errorMessage += 'Please try again or contact support if the problem persists.';
+    }
+
+    // Update the state with processed value
+    setKycData(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: processedValue
       }
-      
-      setErrors(prev => ({
-        ...prev,
-        [`documents.${documentType}`]: errorMessage
-      }));
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const validateImageDimensions = (file, documentType) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      
-      img.onload = () => {
-        const { width, height } = img;
-        URL.revokeObjectURL(url);
-        
-        // Define minimum dimensions for different document types
-        const dimensionRequirements = {
-          aadharCard: { minWidth: 800, minHeight: 500, aspectRatio: { min: 1.4, max: 1.8 } },
-          panCard: { minWidth: 800, minHeight: 500, aspectRatio: { min: 1.4, max: 1.8 } },
-          selfie: { minWidth: 400, minHeight: 400, aspectRatio: { min: 0.7, max: 1.4 } },
-          bankStatement: { minWidth: 600, minHeight: 800, aspectRatio: { min: 0.6, max: 0.9 } },
-          salarySlip: { minWidth: 600, minHeight: 800, aspectRatio: { min: 0.6, max: 0.9 } }
-        };
-        
-        const requirements = dimensionRequirements[documentType];
-        const aspectRatio = width / height;
-        
-        // Check minimum dimensions
-        if (width < requirements.minWidth || height < requirements.minHeight) {
-          setErrors(prev => ({
-            ...prev,
-            [`documents.${documentType}`]: `Image resolution too low. Minimum: ${requirements.minWidth}x${requirements.minHeight}px. Current: ${width}x${height}px`
-          }));
-          resolve(false);
-          return;
-        }
-        
-        // Check aspect ratio for proper document orientation
-        if (aspectRatio < requirements.aspectRatio.min || aspectRatio > requirements.aspectRatio.max) {
-          setErrors(prev => ({
-            ...prev,
-            [`documents.${documentType}`]: `Incorrect document orientation. Please ensure the document is properly aligned and fully visible.`
-          }));
-          resolve(false);
-          return;
-        }
-        
-        resolve(true);
-      };
-      
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        setErrors(prev => ({
-          ...prev,
-          [`documents.${documentType}`]: 'Unable to process image. Please try a different file.'
-        }));
-        resolve(false);
-      };
-      
-      img.src = url;
-    });
-  };
-
-  const validateStep = (step) => {
-    const newErrors = {};
+    }));
     
-    switch (step) {
-      case 1:
-        const { personalInfo } = kycData;
-        if (!personalInfo.fullName) newErrors['personalInfo.fullName'] = 'Full name is required';
-        if (!personalInfo.dateOfBirth) newErrors['personalInfo.dateOfBirth'] = 'Date of birth is required';
-        if (!personalInfo.phoneNumber) newErrors['personalInfo.phoneNumber'] = 'Phone number is required';
-        if (!personalInfo.address) newErrors['personalInfo.address'] = 'Address is required';
-        if (!personalInfo.city) newErrors['personalInfo.city'] = 'City is required';
-        if (!personalInfo.state) newErrors['personalInfo.state'] = 'State is required';
-        if (!personalInfo.pincode) newErrors['personalInfo.pincode'] = 'Pincode is required';
-        if (!personalInfo.occupation) newErrors['personalInfo.occupation'] = 'Occupation is required';
-        if (!personalInfo.monthlyIncome) newErrors['personalInfo.monthlyIncome'] = 'Monthly income is required';
-        break;
-        
-      case 2:
-        const { documents } = kycData;
-        if (!documents.aadharCard.file) newErrors['documents.aadharCard'] = 'Aadhar card is required';
-        if (!documents.aadharCard.number) {
-          newErrors['documents.aadharCard.number'] = 'Aadhar card number is required';
-        } else if (documents.aadharCard.number.length !== 12) {
-          newErrors['documents.aadharCard.number'] = 'Aadhar number must be exactly 12 digits';
-        }
-        if (!documents.panCard.file) newErrors['documents.panCard'] = 'PAN card is required';
-        if (!documents.panCard.number) {
-          newErrors['documents.panCard.number'] = 'PAN card number is required';
-        } else if (documents.panCard.number.length !== 10) {
-          newErrors['documents.panCard.number'] = 'PAN number must be exactly 10 characters';
-        } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(documents.panCard.number)) {
-          newErrors['documents.panCard.number'] = 'Invalid PAN format (should be AAAAA9999A)';
-        }
-        if (!documents.selfie.file) newErrors['documents.selfie'] = 'Selfie is required';
-        break;
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    // Set or clear error
+    setErrors(prev => ({
+      ...prev,
+      [`${section}.${field}`]: error
+    }));
   };
 
-  const nextStep = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, 4));
-    }
-  };
 
-  const prevStep = () => {
-    setCurrentStep(prev => Math.max(prev - 1, 1));
-  };
+
+
 
   const submitKYC = async () => {
     try {
@@ -813,9 +1262,12 @@ const EnhancedKYCPage = () => {
         return;
       }
       
-      const response = await API.post('/kyc/submit', submissionData);
+      const response = await handleAPICall(
+        async () => await API.post('/kyc/submit', submissionData),
+        'Failed to submit KYC documents. Please try again.'
+      );
       
-      if (response.data.kyc) {
+      if (response && response.data.kyc) {
         // Update user with KYC data including attempt tracking
         setUser(prev => ({
           ...prev,
@@ -858,6 +1310,28 @@ const EnhancedKYCPage = () => {
   };
 
   // Phone verification functions
+  const resetPhoneVerification = () => {
+    // Clear reCAPTCHA verifier safely
+    if (window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (e) {
+        console.log('Clearing existing reCAPTCHA verifier');
+      }
+      window.recaptchaVerifier = null;
+    }
+    
+    // Reset phone verification state
+    setPhoneVerification(prev => ({
+      ...prev,
+      step: 'phone',
+      otp: '',
+      confirmationResult: null,
+      error: null,
+      loading: false
+    }));
+  };
+
   const setupRecaptcha = () => {
     try {
       // Clear any existing recaptcha verifier
@@ -886,7 +1360,7 @@ const EnhancedKYCPage = () => {
           console.log('reCAPTCHA expired');
           setPhoneVerification(prev => ({
             ...prev,
-            error: 'reCAPTCHA expired. Please try again.'
+            error: 'reCAPTCHA expired. Click "Resend OTP" to try again.'
           }));
         }
       });
@@ -896,7 +1370,7 @@ const EnhancedKYCPage = () => {
       console.error('Error setting up reCAPTCHA:', error);
       setPhoneVerification(prev => ({
         ...prev,
-        error: 'Failed to setup verification. Please refresh and try again.'
+        error: 'Failed to setup verification. Please try again.'
       }));
       return null;
     }
@@ -950,17 +1424,23 @@ const EnhancedKYCPage = () => {
         loading: false
       }));
 
-      alert('OTP sent successfully!');
+      // Show toast instead of alert
+      if (window && window.toast) {
+        window.toast.success('OTP sent successfully!');
+      } else {
+        // fallback if toast not available
+        alert('OTP sent successfully!');
+      }
     } catch (error) {
       console.error('OTP error:', error);
-      let errorMessage = 'Failed to send OTP';
+      let errorMessage = 'Failed to send OTP. ';
       
       if (error.code === 'auth/invalid-phone-number') {
-        errorMessage = 'Invalid phone number format';
+        errorMessage = 'Invalid phone number format. Please enter a valid 10-digit mobile number.';
       } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many requests. Please try again later.';
+        errorMessage = 'Too many requests. Please wait a few minutes before trying again.';
       } else if (error.message && error.message.includes('reCAPTCHA')) {
-        errorMessage = 'reCAPTCHA verification failed. Please refresh the page and try again.';
+        errorMessage = 'Verification failed. Click "Resend OTP" to try again with a new verification.';
         // Clear the verifier so it can be recreated
         if (window.recaptchaVerifier) {
           try {
@@ -970,6 +1450,10 @@ const EnhancedKYCPage = () => {
             console.log('Error clearing reCAPTCHA verifier');
           }
         }
+      } else if (error.code === 'auth/captcha-check-failed') {
+        errorMessage = 'Verification check failed. Please try again.';
+      } else {
+        errorMessage = 'Network error. Please check your connection and try again.';
       }
       
       setPhoneVerification(prev => ({
@@ -996,46 +1480,30 @@ const EnhancedKYCPage = () => {
     }));
 
     try {
-      // Get current user and create credential for verification
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        throw new Error('User not authenticated');
+      if (!phoneVerification.confirmationResult?.verificationId) {
+        throw new Error('No verification session found. Please request OTP again.');
       }
 
+      // Create phone credential
       const credential = PhoneAuthProvider.credential(
         phoneVerification.confirmationResult.verificationId,
         phoneVerification.otp
       );
 
-      try {
-        // Try to link phone credential to current user
+      // Link credential to current user
+      const currentUser = auth.currentUser;
+      if (currentUser) {
         await linkWithCredential(currentUser, credential);
-        console.log('Phone number successfully linked to account');
-      } catch (linkError) {
-        console.log('Phone linking error:', linkError.code);
-        
-        // If phone number is already linked to another account, we'll still mark as verified
-        // This is a practical workaround for development/testing
-        if (linkError.code === 'auth/account-exists-with-different-credential' || 
-            linkError.code === 'auth/credential-already-in-use' ||
-            linkError.code === 'auth/provider-already-linked') {
-          console.log('Phone number already exists, but OTP was valid - marking as verified');
-        } else {
-          // For other errors, re-throw
-          throw linkError;
-        }
       }
-      
-      // Store verification in localStorage
-      localStorage.setItem('phoneVerified', 'true');
-      
+
+      // Mark as verified
       setPhoneVerification(prev => ({
         ...prev,
         step: 'verified',
         loading: false
       }));
 
-      // Update KYC verification status
+      // Update KYC data
       setKycData(prev => ({
         ...prev,
         verification: {
@@ -1044,52 +1512,21 @@ const EnhancedKYCPage = () => {
         }
       }));
 
-      alert('Phone verified successfully! You can now continue with KYC submission.');
-      
+      // Store verification status
+      localStorage.setItem('phoneVerified', 'true');
+
+      alert('Phone number verified successfully!');
+
     } catch (error) {
       console.error('OTP verification error:', error);
-      let errorMessage = 'Invalid OTP';
+      let errorMessage = 'Invalid OTP. Please check and try again.';
       
       if (error.code === 'auth/invalid-verification-code') {
-        errorMessage = 'Invalid OTP. Please check and try again.';
+        errorMessage = 'Invalid OTP code. Please check and try again.';
       } else if (error.code === 'auth/code-expired') {
-        errorMessage = 'OTP expired. Please request a new one.';
-      } else if (error.code === 'auth/account-exists-with-different-credential') {
-        errorMessage = 'This phone number is already associated with another account. However, since the OTP was valid, we\'ll proceed with verification.';
-        // Still mark as verified since OTP was correct
-        localStorage.setItem('phoneVerified', 'true');
-        setPhoneVerification(prev => ({
-          ...prev,
-          step: 'verified',
-          loading: false
-        }));
-        setKycData(prev => ({
-          ...prev,
-          verification: {
-            ...prev.verification,
-            otpVerification: true
-          }
-        }));
-        alert('Phone verified successfully! You can now continue with KYC submission.');
-        return;
-      } else if (error.code === 'auth/credential-already-in-use') {
-        errorMessage = 'This phone number is already in use. However, since the OTP was valid, we\'ll proceed with verification.';
-        // Still mark as verified since OTP was correct
-        localStorage.setItem('phoneVerified', 'true');
-        setPhoneVerification(prev => ({
-          ...prev,
-          step: 'verified',
-          loading: false
-        }));
-        setKycData(prev => ({
-          ...prev,
-          verification: {
-            ...prev.verification,
-            otpVerification: true
-          }
-        }));
-        alert('Phone verified successfully! You can now continue with KYC submission.');
-        return;
+        errorMessage = 'OTP has expired. Please request a new one.';
+      } else if (error.message.includes('verification session')) {
+        errorMessage = 'Verification session expired. Please request OTP again.';
       }
       
       setPhoneVerification(prev => ({
@@ -1100,12 +1537,19 @@ const EnhancedKYCPage = () => {
     }
   };
 
+
   const PreviewModal = () => (
     previewModal.open && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl max-w-4xl w-full max-h-full overflow-auto">
-          <div className="flex items-center justify-between p-4 border-b">
-            <h3 className="text-lg font-semibold">{previewModal.title}</h3>
+        <div className={`rounded-xl max-w-4xl w-full max-h-full overflow-auto ${
+          isDark ? 'bg-gray-800' : 'bg-white'
+        }`}>
+          <div className={`flex items-center justify-between p-4 border-b ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}>
+            <h3 className={`text-lg font-semibold ${
+              isDark ? 'text-white' : 'text-gray-900'
+            }`}>{previewModal.title}</h3>
             <div className="flex items-center space-x-2">
               {previewModal.fileType === 'application/pdf' && (
                 <button
@@ -1114,8 +1558,18 @@ const EnhancedKYCPage = () => {
                     
                     // Handle Cloudinary URLs properly
                     if (pdfUrl && pdfUrl.includes('cloudinary.com')) {
-                      pdfUrl = pdfUrl.replace('/image/upload/', '/raw/upload/');
+                      // Convert to proper PDF viewing URL
+                      if (pdfUrl.includes('/raw/upload/')) {
+                        // Add fl_attachment parameter for better browser compatibility
+                        const urlParts = pdfUrl.split('/raw/upload/');
+                        pdfUrl = `${urlParts[0]}/raw/upload/fl_attachment/${urlParts[1]}`;
+                      } else if (pdfUrl.includes('/image/upload/')) {
+                        // Convert image upload URL to raw upload URL for PDFs
+                        pdfUrl = pdfUrl.replace('/image/upload/', '/raw/upload/fl_attachment/');
+                      }
                     }
+                    
+                    console.log('Opening PDF URL from modal:', pdfUrl);
                     
                     try {
                       window.open(pdfUrl, '_blank');
@@ -1131,15 +1585,27 @@ const EnhancedKYCPage = () => {
                       document.body.removeChild(link);
                     }
                   }}
-                  className="flex items-center px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                  className={`flex items-center px-3 py-1 text-sm rounded-lg transition-colors cursor-pointer ${
+                    isDark 
+                      ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/50' 
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
                 >
                   <ExternalLink className="w-4 h-4 mr-1" />
                   Open in New Tab
                 </button>
               )}
               <button
-                onClick={() => setPreviewModal({ open: false, image: null, title: '', fileType: null })}
-                className="p-1 hover:bg-gray-100 rounded"
+                onClick={() => {
+                  // Clean up object URL if it was created from a File
+                  if (previewModal.image && previewModal.image.startsWith('blob:')) {
+                    URL.revokeObjectURL(previewModal.image);
+                  }
+                  setPreviewModal({ open: false, image: null, title: '', fileType: null });
+                }}
+                className={`p-1 rounded transition-colors cursor-pointer ${
+                  isDark ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                }`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1148,9 +1614,15 @@ const EnhancedKYCPage = () => {
           <div className="p-4">
             {previewModal.fileType === 'application/pdf' ? (
               <div className="w-full">
-                <div className="bg-gray-50 p-4 rounded-lg mb-4 text-center">
-                  <FileText className="w-8 h-8 mx-auto text-gray-600 mb-2" />
-                  <p className="text-sm text-gray-600 mb-3">PDF Document Preview</p>
+                <div className={`p-4 rounded-lg mb-4 text-center ${
+                  isDark ? 'bg-gray-700/50' : 'bg-gray-50'
+                }`}>
+                  <FileText className={`w-8 h-8 mx-auto mb-2 ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`} />
+                  <p className={`text-sm mb-3 ${
+                    isDark ? 'text-gray-300' : 'text-gray-600'
+                  }`}>PDF Document Preview</p>
                   <div className="flex justify-center space-x-3">
                     <button
                       onClick={() => {
@@ -1158,8 +1630,18 @@ const EnhancedKYCPage = () => {
                         
                         // Handle Cloudinary URLs properly
                         if (pdfUrl && pdfUrl.includes('cloudinary.com')) {
-                          pdfUrl = pdfUrl.replace('/image/upload/', '/raw/upload/');
+                          // Convert to proper PDF viewing URL
+                          if (pdfUrl.includes('/raw/upload/')) {
+                            // Add fl_attachment parameter for better browser compatibility
+                            const urlParts = pdfUrl.split('/raw/upload/');
+                            pdfUrl = `${urlParts[0]}/raw/upload/fl_attachment/${urlParts[1]}`;
+                          } else if (pdfUrl.includes('/image/upload/')) {
+                            // Convert image upload URL to raw upload URL for PDFs
+                            pdfUrl = pdfUrl.replace('/image/upload/', '/raw/upload/fl_attachment/');
+                          }
                         }
+                        
+                        console.log('Opening PDF URL from modal main button:', pdfUrl);
                         
                         try {
                           window.open(pdfUrl, '_blank');
@@ -1175,7 +1657,7 @@ const EnhancedKYCPage = () => {
                           document.body.removeChild(link);
                         }
                       }}
-                      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
                       Open PDF in New Tab
@@ -1186,8 +1668,18 @@ const EnhancedKYCPage = () => {
                         
                         // Handle Cloudinary URLs for download
                         if (downloadUrl && downloadUrl.includes('cloudinary.com')) {
-                          downloadUrl = downloadUrl.replace('/image/upload/', '/raw/upload/fl_attachment/');
+                          // Convert to proper download URL
+                          if (downloadUrl.includes('/raw/upload/')) {
+                            // Add fl_attachment parameter for proper download
+                            const urlParts = downloadUrl.split('/raw/upload/');
+                            downloadUrl = `${urlParts[0]}/raw/upload/fl_attachment/${urlParts[1]}`;
+                          } else if (downloadUrl.includes('/image/upload/')) {
+                            // Convert image upload URL to raw upload URL with download flag
+                            downloadUrl = downloadUrl.replace('/image/upload/', '/raw/upload/fl_attachment/');
+                          }
                         }
+                        
+                        console.log('Downloading PDF from URL:', downloadUrl);
                         
                         const link = document.createElement('a');
                         link.href = downloadUrl;
@@ -1197,7 +1689,7 @@ const EnhancedKYCPage = () => {
                         link.click();
                         document.body.removeChild(link);
                       }}
-                      className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                      className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 cursor-pointer"
                     >
                       <Upload className="w-4 h-4 mr-2" />
                       Download PDF
@@ -1231,7 +1723,51 @@ const EnhancedKYCPage = () => {
       </div>
     )
   );
-
+  
+  // Error boundary
+  if (hasError) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${
+        isDark 
+          ? 'bg-gray-900' 
+          : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+            Something went wrong
+          </h2>
+          <p className={`mb-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+            {errorInfo || 'An unexpected error occurred while loading the KYC page.'}
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setHasError(false);
+                setErrorInfo(null);
+                window.location.reload();
+              }}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Reload Page
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className={`w-full px-4 py-2 rounded-lg transition-colors ${
+                isDark 
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Loading state
   if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${
@@ -1366,7 +1902,7 @@ const EnhancedKYCPage = () => {
                 // Reset the form and allow resubmission
                 setUser(prev => ({ ...prev, kyc: null }));
               }}
-              className="bg-blue-600 dark:bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors font-medium"
+              className="bg-blue-600 dark:bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors font-medium cursor-pointer"
               >
               Resubmit KYC Documents
               </button>
@@ -1392,7 +1928,7 @@ const EnhancedKYCPage = () => {
                         </a>
                         <button
                           onClick={() => navigate('/borrower')}
-                          className="bg-gray-600 dark:bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+                          className="bg-gray-600 dark:bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium cursor-pointer"
                         >
                           Back to Dashboard
                         </button>
@@ -1437,7 +1973,11 @@ const EnhancedKYCPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className={`min-h-screen ${
+      isDark 
+        ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
+        : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+    }`}>
       <Navbar />
       
       {/* Main Content Container */}
@@ -1446,7 +1986,11 @@ const EnhancedKYCPage = () => {
         <div className="mb-6">
           <button
             onClick={() => navigate('/borrower')}
-            className="flex items-center text-indigo-600 hover:text-indigo-800 transition-colors"
+            className={`flex items-center transition-colors cursor-pointer ${
+              isDark 
+                ? 'text-indigo-400 hover:text-indigo-300' 
+                : 'text-indigo-600 hover:text-indigo-800'
+            }`}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
@@ -1456,12 +2000,18 @@ const EnhancedKYCPage = () => {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center mb-6">
-            <div className="bg-indigo-100 rounded-full p-3 mr-4">
-              <Shield className="w-8 h-8 text-indigo-600" />
+            <div className={`rounded-full p-3 mr-4 ${
+              isDark ? 'bg-indigo-900/30' : 'bg-indigo-100'
+            }`}>
+              <Shield className={`w-8 h-8 ${
+                isDark ? 'text-indigo-400' : 'text-indigo-600'
+              }`} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Enhanced KYC Verification</h1>
-              <p className="text-gray-600">Complete identity verification to unlock all features</p>
+              <h1 className={`text-3xl font-bold ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}> KYC Verification</h1>
+              <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>Complete identity verification to unlock all features</p>
             </div>
           </div>
 
@@ -1471,9 +2021,11 @@ const EnhancedKYCPage = () => {
               <React.Fragment key={step.id}>
                 <div className="flex items-center">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    currentStep > step.id ? 'bg-green-500 text-white' :
-                    currentStep === step.id ? 'bg-indigo-600 text-white' :
-                    'bg-gray-200 text-gray-500'
+                    currentStep > step.id 
+                      ? 'bg-green-500 text-white' 
+                      : currentStep === step.id 
+                      ? 'bg-indigo-600 text-white' 
+                      : isDark ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
                   }`}>
                     {currentStep > step.id ? (
                       <CheckCircle className="w-5 h-5" />
@@ -1482,7 +2034,9 @@ const EnhancedKYCPage = () => {
                     )}
                   </div>
                   <span className={`ml-2 text-sm font-medium ${
-                    currentStep >= step.id ? 'text-gray-900' : 'text-gray-500'
+                    currentStep >= step.id 
+                      ? isDark ? 'text-white' : 'text-gray-900'
+                      : isDark ? 'text-gray-400' : 'text-gray-500'
                   }`}>
                     {step.title}
                   </span>
@@ -1498,13 +2052,19 @@ const EnhancedKYCPage = () => {
         </div>
 
         {/* Step Content */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div className={`rounded-2xl shadow-xl p-8 ${
+          isDark ? 'bg-gray-800' : 'bg-white'
+        }`}>
           {currentStep === 1 && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Personal Information</h2>
+              <h2 className={`text-2xl font-bold mb-6 ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>Personal Information</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
                     <User className="w-4 h-4 inline mr-2" />
                     Full Name *
                   </label>
@@ -1512,18 +2072,24 @@ const EnhancedKYCPage = () => {
                     type="text"
                     value={kycData.personalInfo.fullName}
                     onChange={(e) => handleInputChange('personalInfo', 'fullName', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.fullName'] ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.fullName'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'
                     }`}
                     placeholder="Enter your full legal name"
                   />
                   {errors['personalInfo.fullName'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.fullName']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.fullName']}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
                     <Calendar className="w-4 h-4 inline mr-2" />
                     Date of Birth *
                   </label>
@@ -1531,17 +2097,32 @@ const EnhancedKYCPage = () => {
                     type="date"
                     value={kycData.personalInfo.dateOfBirth}
                     onChange={(e) => handleInputChange('personalInfo', 'dateOfBirth', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.dateOfBirth'] ? 'border-red-500' : 'border-gray-300'
+                    max={new Date().toISOString().split('T')[0]} // Prevent future dates
+                    min="1900-01-01" // Reasonable minimum date
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.dateOfBirth'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'
                     }`}
                   />
+                  {kycData.personalInfo.dateOfBirth && calculateAge(kycData.personalInfo.dateOfBirth) !== null && (
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Age: {calculateAge(kycData.personalInfo.dateOfBirth)} years
+                    </p>
+                  )}
                   {errors['personalInfo.dateOfBirth'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.dateOfBirth']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.dateOfBirth']}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
                     <Phone className="w-4 h-4 inline mr-2" />
                     Phone Number *
                   </label>
@@ -1549,18 +2130,24 @@ const EnhancedKYCPage = () => {
                     type="tel"
                     value={kycData.personalInfo.phoneNumber}
                     onChange={(e) => handleInputChange('personalInfo', 'phoneNumber', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.phoneNumber'] ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.phoneNumber'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'
                     }`}
                     placeholder="+91 9876543210"
                   />
                   {errors['personalInfo.phoneNumber'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.phoneNumber']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.phoneNumber']}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
                     <Globe className="w-4 h-4 inline mr-2" />
                     Occupation *
                   </label>
@@ -1568,37 +2155,49 @@ const EnhancedKYCPage = () => {
                     type="text"
                     value={kycData.personalInfo.occupation}
                     onChange={(e) => handleInputChange('personalInfo', 'occupation', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.occupation'] ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.occupation'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'
                     }`}
                     placeholder="Student, Employee, Business, etc."
                   />
                   {errors['personalInfo.occupation'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.occupation']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.occupation']}</p>
                   )}
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
                     <Home className="w-4 h-4 inline mr-2" />
                     Complete Address *
                   </label>
                   <textarea
                     value={kycData.personalInfo.address}
                     onChange={(e) => handleInputChange('personalInfo', 'address', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.address'] ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.address'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'
                     }`}
                     rows="3"
                     placeholder="House/Flat No., Street, Area, Landmark"
                   />
                   {errors['personalInfo.address'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.address']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.address']}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
                     <MapPin className="w-4 h-4 inline mr-2" />
                     City *
                   </label>
@@ -1606,61 +2205,83 @@ const EnhancedKYCPage = () => {
                     type="text"
                     value={kycData.personalInfo.city}
                     onChange={(e) => handleInputChange('personalInfo', 'city', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.city'] ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.city'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'
                     }`}
                     placeholder="Enter your city"
                   />
                   {errors['personalInfo.city'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.city']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.city']}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">State *</label>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>State *</label>
                   <input
                     type="text"
                     value={kycData.personalInfo.state}
                     onChange={(e) => handleInputChange('personalInfo', 'state', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.state'] ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.state'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'
                     }`}
                     placeholder="Enter your state"
                   />
                   {errors['personalInfo.state'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.state']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.state']}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Pincode *</label>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>Pincode *</label>
                   <input
                     type="text"
                     value={kycData.personalInfo.pincode}
                     onChange={(e) => handleInputChange('personalInfo', 'pincode', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.pincode'] ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.pincode'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'
                     }`}
                     placeholder="6-digit pincode"
                   />
                   {errors['personalInfo.pincode'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.pincode']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.pincode']}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Income *</label>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>Monthly Income *</label>
                   <input
                     type="number"
                     value={kycData.personalInfo.monthlyIncome}
                     onChange={(e) => handleInputChange('personalInfo', 'monthlyIncome', e.target.value)}
-                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 ${
-                      errors['personalInfo.monthlyIncome'] ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors ${
+                      errors['personalInfo.monthlyIncome'] 
+                        ? isDark ? 'border-red-400 bg-gray-700 text-white' : 'border-red-500'
+                        : isDark ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' : 'border-gray-300'
                     }`}
                     placeholder="Monthly income in ₹"
                   />
                   {errors['personalInfo.monthlyIncome'] && (
-                    <p className="text-red-600 text-sm mt-1">{errors['personalInfo.monthlyIncome']}</p>
+                    <p className={`text-sm mt-1 ${
+                      isDark ? 'text-red-400' : 'text-red-600'
+                    }`}>{errors['personalInfo.monthlyIncome']}</p>
                   )}
                 </div>
               </div>
@@ -1669,7 +2290,9 @@ const EnhancedKYCPage = () => {
 
           {currentStep === 2 && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Document Upload</h2>
+              <h2 className={`text-2xl font-bold mb-6 ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>Document Upload</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <DocumentUploadCard
                   type="aadharCard"
@@ -1685,6 +2308,10 @@ const EnhancedKYCPage = () => {
                   setKycData={setKycData}
                   setErrors={setErrors}
                   setPreviewModal={setPreviewModal}
+                  openImagePreview={openImagePreview}
+                  uploadProgress={uploadProgress}
+                  retryUpload={retryUpload}
+                  isDark={isDark}
                 />
                 <DocumentUploadCard
                   type="panCard"
@@ -1698,6 +2325,10 @@ const EnhancedKYCPage = () => {
                   setKycData={setKycData}
                   setErrors={setErrors}
                   setPreviewModal={setPreviewModal}
+                  openImagePreview={openImagePreview}
+                  uploadProgress={uploadProgress}
+                  retryUpload={retryUpload}
+                  isDark={isDark}
                 />
                 <DocumentUploadCard
                   type="selfie"
@@ -1711,6 +2342,10 @@ const EnhancedKYCPage = () => {
                   setKycData={setKycData}
                   setErrors={setErrors}
                   setPreviewModal={setPreviewModal}
+                  openImagePreview={openImagePreview}
+                  uploadProgress={uploadProgress}
+                  retryUpload={retryUpload}
+                  isDark={isDark}
                 />
                 <DocumentUploadCard
                   type="bankStatement"
@@ -1724,6 +2359,10 @@ const EnhancedKYCPage = () => {
                   setKycData={setKycData}
                   setErrors={setErrors}
                   setPreviewModal={setPreviewModal}
+                  openImagePreview={openImagePreview}
+                  uploadProgress={uploadProgress}
+                  retryUpload={retryUpload}
+                  isDark={isDark}
                 />
               </div>
             </div>
@@ -1731,120 +2370,259 @@ const EnhancedKYCPage = () => {
 
           {currentStep === 3 && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Verification Steps</h2>
+              <h2 className={`text-2xl font-bold mb-6 ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>Verification Steps</h2>
               <div className="space-y-6">
                 {/* Phone Verification */}
-                <div className="p-4 bg-blue-50 rounded-lg">
+                <div className={`p-4 rounded-lg ${
+                  isDark ? 'bg-blue-900/30' : 'bg-blue-50'
+                }`}>
                   <div className="flex items-center mb-4">
-                    <Smartphone className="w-6 h-6 text-blue-600 mr-3" />
+                    <Smartphone className={`w-6 h-6 mr-3 ${
+                      isDark ? 'text-blue-400' : 'text-blue-600'
+                    }`} />
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">Phone Verification</h3>
-                      <p className="text-sm text-gray-600">Verify your phone number with OTP</p>
+                      <h3 className={`font-semibold ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                      }`}>Phone Verification</h3>
+                      <p className={`text-sm ${
+                        isDark ? 'text-gray-300' : 'text-gray-600'
+                      }`}>Verify your phone number with OTP</p>
                     </div>
                     {phoneVerification.step === 'verified' && (
-                      <CheckCircle className="w-6 h-6 text-green-600" />
+                      <CheckCircle className={`w-6 h-6 ${
+                        isDark ? 'text-green-400' : 'text-green-600'
+                      }`} />
                     )}
                   </div>
 
                   {phoneVerification.step === 'phone' && (
                     <div className="space-y-3">
-                      <input
-                        type="tel"
-                        placeholder="Enter your phone number"
-                        value={phoneVerification.phoneNumber}
-                        onChange={(e) => setPhoneVerification(prev => ({
-                          ...prev,
-                          phoneNumber: e.target.value.replace(/\D/g, ''),
-                          error: null
-                        }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        maxLength={10}
-                      />
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${
+                          isDark ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          Phone Number
+                        </label>
+                        <input
+                          type="tel"
+                          placeholder="Enter your 10-digit phone number"
+                          value={phoneVerification.phoneNumber}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '');
+                            setPhoneVerification(prev => ({
+                              ...prev,
+                              phoneNumber: value,
+                              error: null
+                            }));
+                          }}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors ${
+                            isDark 
+                              ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' 
+                              : 'border-gray-300'
+                          }`}
+                          maxLength={10}
+                        />
+                        {phoneVerification.phoneNumber && phoneVerification.phoneNumber.length < 10 && (
+                          <p className={`text-xs mt-1 ${
+                            isDark ? 'text-yellow-400' : 'text-yellow-600'
+                          }`}>
+                            Enter a 10-digit mobile number
+                          </p>
+                        )}
+                      </div>
                       <button 
                         onClick={sendOTP}
-                        disabled={phoneVerification.loading || !phoneVerification.phoneNumber}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={phoneVerification.loading || phoneVerification.phoneNumber.length !== 10}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                       >
-                        {phoneVerification.loading ? 'Sending...' : 'Send OTP'}
+                        {phoneVerification.loading ? 'Sending OTP...' : 'Send OTP'}
                       </button>
                     </div>
                   )}
 
                   {phoneVerification.step === 'otp' && (
-                    <div className="space-y-3">
-                      <p className="text-sm text-green-600">
-                        OTP sent to +91{phoneVerification.phoneNumber}
-                      </p>
-                      <input
-                        type="text"
-                        placeholder="Enter 6-digit OTP"
-                        value={phoneVerification.otp}
-                        onChange={(e) => setPhoneVerification(prev => ({
-                          ...prev,
-                          otp: e.target.value.replace(/\D/g, ''),
-                          error: null
-                        }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        maxLength={6}
-                      />
-                      <div className="flex space-x-2">
+                    <div className="space-y-4">
+                      <div className={`p-3 rounded-lg ${
+                        isDark ? 'bg-green-900/30' : 'bg-green-50'
+                      }`}>
+                        <p className={`text-sm ${
+                          isDark ? 'text-green-400' : 'text-green-600'
+                        }`}>
+                          📱 OTP sent to +91{phoneVerification.phoneNumber}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${
+                          isDark ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          Enter OTP
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter 6-digit OTP"
+                          value={phoneVerification.otp}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '');
+                            setPhoneVerification(prev => ({
+                              ...prev,
+                              otp: value,
+                              error: null
+                            }));
+                          }}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 transition-colors ${
+                            isDark 
+                              ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400' 
+                              : 'border-gray-300'
+                          }`}
+                          maxLength={6}
+                        />
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
                         <button 
                           onClick={verifyOTP}
                           disabled={phoneVerification.loading || phoneVerification.otp.length !== 6}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                         >
                           {phoneVerification.loading ? 'Verifying...' : 'Verify OTP'}
                         </button>
+                        
                         <button 
-                          onClick={() => setPhoneVerification(prev => ({
-                            ...prev,
-                            step: 'phone',
-                            otp: '',
-                            error: null
-                          }))}
-                          className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                          onClick={() => {
+                            resetPhoneVerification();
+                          }}
+                          disabled={phoneVerification.loading}
+                          className={`px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                            isDark 
+                              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                              : 'bg-gray-500 text-white hover:bg-gray-600'
+                          }`}
                         >
                           Change Number
+                        </button>
+                        
+                        <button 
+                          onClick={() => {
+                            setPhoneVerification(prev => ({
+                              ...prev,
+                              otp: '',
+                              error: null
+                            }));
+                            sendOTP();
+                          }}
+                          disabled={phoneVerification.loading}
+                          className={`px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                            isDark 
+                              ? 'bg-yellow-800 text-yellow-300 hover:bg-yellow-700' 
+                              : 'bg-yellow-500 text-white hover:bg-yellow-600'
+                          }`}
+                        >
+                          Resend OTP
                         </button>
                       </div>
                     </div>
                   )}
 
                   {phoneVerification.step === 'verified' && (
-                    <div className="flex items-center text-green-600">
-                      <CheckCircle className="w-5 h-5 mr-2" />
-                      <span>Phone verified successfully!</span>
+                    <div className="space-y-3">
+                      <div className={`flex items-center ${
+                        isDark ? 'text-green-400' : 'text-green-600'
+                      }`}>
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                        <span>Phone verified successfully! (+91{phoneVerification.phoneNumber})</span>
+                      </div>
+                      
+                      {/* Option to change verified number if needed */}
+                      <button
+                        onClick={() => {
+                          if (confirm('Are you sure you want to change your verified phone number? You will need to verify the new number again.')) {
+                            localStorage.removeItem('phoneVerified');
+                            resetPhoneVerification();
+                          }
+                        }}
+                        className={`text-sm px-3 py-1 rounded transition-colors ${
+                          isDark 
+                            ? 'text-blue-400 hover:bg-blue-900/50' 
+                            : 'text-blue-600 hover:bg-blue-50'
+                        }`}
+                      >
+                        Change Number
+                      </button>
                     </div>
                   )}
 
                   {phoneVerification.error && (
-                    <p className="text-red-600 text-sm mt-2">{phoneVerification.error}</p>
+                    <div className={`p-3 rounded-lg ${
+                      isDark ? 'bg-red-900/30 border border-red-800' : 'bg-red-50 border border-red-200'
+                    }`}>
+                      <p className={`text-sm ${
+                        isDark ? 'text-red-400' : 'text-red-600'
+                      }`}>{phoneVerification.error}</p>
+                      
+                      {phoneVerification.error.includes('reCAPTCHA') || phoneVerification.error.includes('Verification failed') ? (
+                        <div className="mt-2">
+                          <button
+                            onClick={() => {
+                              resetPhoneVerification();
+                            }}
+                            className={`text-xs px-3 py-1 rounded transition-colors ${
+                              isDark 
+                                ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/50' 
+                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            }`}
+                          >
+                            Start Fresh
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   )}
                 </div>
 
-                <div className="flex items-center p-4 bg-purple-50 rounded-lg">
-                  <Lock className="w-6 h-6 text-purple-600 mr-3" />
+                <div className={`flex items-center p-4 rounded-lg ${
+                  isDark ? 'bg-purple-900/30' : 'bg-purple-50'
+                }`}>
+                  <Lock className={`w-6 h-6 mr-3 ${
+                    isDark ? 'text-purple-400' : 'text-purple-600'
+                  }`} />
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">Biometric Verification</h3>
-                    <p className="text-sm text-gray-600">Facial recognition verification</p>
+                    <h3 className={`font-semibold ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>Biometric Verification</h3>
+                    <p className={`text-sm ${
+                      isDark ? 'text-gray-300' : 'text-gray-600'
+                    }`}>Facial recognition verification</p>
                   </div>
-                  <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                  <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer">
                     Verify Face
                   </button>
                 </div>
 
-                <div className="p-4 bg-green-50 rounded-lg">
+                <div className={`p-4 rounded-lg ${
+                  isDark ? 'bg-green-900/30' : 'bg-green-50'
+                }`}>
                   <div className="flex items-center mb-3">
-                    <MapPin className="w-6 h-6 text-green-600 mr-3" />
+                    <MapPin className={`w-6 h-6 mr-3 ${
+                      isDark ? 'text-green-400' : 'text-green-600'
+                    }`} />
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">Address Verification</h3>
-                      <p className="text-sm text-gray-600">Upload a utility bill or bank statement as address proof</p>
+                      <h3 className={`font-semibold ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                      }`}>Address Verification</h3>
+                      <p className={`text-sm ${
+                        isDark ? 'text-gray-300' : 'text-gray-600'
+                      }`}>Upload a utility bill or bank statement as address proof</p>
                     </div>
                   </div>
 
                   {addressVerification.step === 'pending' && (
                     <div className="space-y-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className={`block text-sm font-medium mb-2 ${
+                        isDark ? 'text-gray-300' : 'text-gray-700'
+                      }`}>
                         Select Document Type
                       </label>
                       <select
@@ -1853,7 +2631,11 @@ const EnhancedKYCPage = () => {
                           ...prev,
                           selectedDocument: e.target.value
                         }))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors ${
+                          isDark 
+                            ? 'border-gray-600 bg-gray-700 text-white' 
+                            : 'border-gray-300'
+                        }`}
                       >
                         <option value="">Select document type</option>
                         <option value="utility_bill">Utility Bill (Electricity/Gas/Water)</option>
@@ -1867,7 +2649,7 @@ const EnhancedKYCPage = () => {
                             ...prev,
                             step: 'document_upload'
                           }))}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer"
                         >
                           Proceed to Upload
                         </button>
@@ -1877,11 +2659,17 @@ const EnhancedKYCPage = () => {
 
                   {addressVerification.step === 'document_upload' && (
                     <div className="space-y-3">
-                      <div className="text-sm text-gray-600 mb-2">
+                      <div className={`text-sm mb-2 ${
+                        isDark ? 'text-gray-300' : 'text-gray-600'
+                      }`}>
                         Upload your {addressVerification.selectedDocument.replace('_', ' ')} as address proof
                       </div>
                       
-                      <div className="border-2 border-dashed border-green-300 rounded-lg p-4">
+                      <div className={`border-2 border-dashed rounded-lg p-4 ${
+                        isDark 
+                          ? 'border-green-600/30 bg-green-900/10' 
+                          : 'border-green-300'
+                      }`}>
                         <input
                           type="file"
                           accept=".pdf,.jpg,.jpeg,.png"
@@ -1894,17 +2682,25 @@ const EnhancedKYCPage = () => {
                               }));
                             }
                           }}
-                          className="w-full"
+                          className={`w-full ${
+                            isDark ? 'text-white file:bg-gray-700 file:text-white file:border-gray-600' : ''
+                          }`}
                         />
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className={`text-xs mt-1 ${
+                          isDark ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
                           Accepted formats: PDF, JPG, PNG (Max 5MB)
                         </p>
                       </div>
 
                       {addressVerification.uploadedDocument && (
                         <div className="flex items-center space-x-2">
-                          <FileText className="w-4 h-4 text-green-600" />
-                          <span className="text-sm text-gray-700">
+                          <FileText className={`w-4 h-4 ${
+                            isDark ? 'text-green-400' : 'text-green-600'
+                          }`} />
+                          <span className={`text-sm ${
+                            isDark ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
                             {addressVerification.uploadedDocument.name}
                           </span>
                         </div>
@@ -1918,11 +2714,10 @@ const EnhancedKYCPage = () => {
                             selectedDocument: '',
                             uploadedDocument: null
                           }))}
-                          className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                          className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 cursor-pointer"
                         >
                           Back
                         </button>
-                        
                         {addressVerification.uploadedDocument && (
                           <button
                             onClick={() => {
@@ -1955,7 +2750,7 @@ const EnhancedKYCPage = () => {
                               }, 2000);
                             }}
                             disabled={addressVerification.loading}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 cursor-pointer"
                           >
                             {addressVerification.loading ? 'Uploading...' : 'Submit Document'}
                           </button>
@@ -2078,12 +2873,22 @@ const EnhancedKYCPage = () => {
               </div>
 
               {/* Terms and Conditions */}
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <div className={`border rounded-lg p-4 mb-6 ${
+                isDark 
+                  ? 'bg-yellow-900/20 border-yellow-600/30' 
+                  : 'bg-yellow-50 border-yellow-200'
+              }`}>
                 <div className="flex items-start">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 mr-3 mt-0.5" />
+                  <AlertCircle className={`w-5 h-5 mr-3 mt-0.5 ${
+                    isDark ? 'text-yellow-400' : 'text-yellow-600'
+                  }`} />
                   <div className="text-sm">
-                    <p className="font-medium text-yellow-800 mb-2">Important:</p>
-                    <ul className="list-disc list-inside text-yellow-700 space-y-1">
+                    <p className={`font-medium mb-2 ${
+                      isDark ? 'text-yellow-300' : 'text-yellow-800'
+                    }`}>Important:</p>
+                    <ul className={`list-disc list-inside space-y-1 ${
+                      isDark ? 'text-yellow-200' : 'text-yellow-700'
+                    }`}>
                       <li>All information provided must be accurate and verifiable</li>
                       <li>KYC verification typically takes 24-48 hours</li>
                       <li>You'll receive email notifications about the status</li>
@@ -2097,9 +2902,13 @@ const EnhancedKYCPage = () => {
                 <input
                   type="checkbox"
                   id="terms"
-                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded"
+                  className={`w-4 h-4 text-indigo-600 rounded ${
+                    isDark ? 'border-gray-600' : 'border-gray-300'
+                  }`}
                 />
-                <label htmlFor="terms" className="ml-2 text-sm text-gray-600">
+                <label htmlFor="terms" className={`ml-2 text-sm ${
+                  isDark ? 'text-gray-300' : 'text-gray-600'
+                }`}>
                   I confirm that all information provided is accurate and I agree to the terms and conditions
                 </label>
               </div>
@@ -2111,7 +2920,7 @@ const EnhancedKYCPage = () => {
             <button
               onClick={prevStep}
               disabled={currentStep === 1}
-              className={`px-6 py-3 rounded-lg font-medium ${
+              className={`px-6 py-3 rounded-lg font-medium cursor-pointer ${
                 currentStep === 1
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -2123,7 +2932,7 @@ const EnhancedKYCPage = () => {
             {currentStep < 4 ? (
               <button
                 onClick={nextStep}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium cursor-pointer"
               >
                 Next Step
               </button>
@@ -2131,7 +2940,7 @@ const EnhancedKYCPage = () => {
               <button
                 onClick={submitKYC}
                 disabled={uploading}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50"
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 cursor-pointer"
               >
                 {uploading ? (
                   <div className="flex items-center">
@@ -2175,20 +2984,65 @@ const EnhancedKYCPage = () => {
       {/* Preview Modal */}
       <PreviewModal />
 
-      {/* Loading Overlay */}
+      {/* Enhanced Loading Overlay */}
       {uploading && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-700">Uploading document...</p>
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className={`rounded-lg p-8 text-center max-w-sm mx-4 ${
+            isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'
+          }`}>
+            <div className="relative mb-6">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Upload className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+            <h3 className={`text-lg font-semibold mb-2 ${
+              isDark ? 'text-white' : 'text-gray-900'
+            }`}>Processing Upload</h3>
+            <p className={`text-sm ${
+              isDark ? 'text-gray-300' : 'text-gray-600'
+            }`}>
+              Please wait while we securely upload and process your document...
+            </p>
+            <div className="mt-4 flex items-center justify-center space-x-1">
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+            </div>
           </div>
         </div>
       )}
       
+      {/* Image Preview Modal */}
+      {showPreviewModal && previewImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" onClick={closeImagePreview}>
+          <div className="relative max-w-4xl max-h-[90vh] m-4" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={closeImagePreview}
+              className="absolute top-4 right-4 text-white bg-black bg-opacity-50 hover:bg-opacity-75 rounded-full p-2 z-10 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img
+              src={previewImage.url}
+              alt={previewImage.title}
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+            <div className="absolute bottom-4 left-4 right-4 text-center">
+              <p className="text-white bg-black bg-opacity-50 px-4 py-2 rounded-lg">
+                {previewImage.title}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invisible reCAPTCHA container */}
       <div id="recaptcha-container"></div>
     </div>
   );
-};
+}
 
 export default EnhancedKYCPage;

@@ -18,6 +18,7 @@ import ChatMessage from "./models/chatModel.js";
 import Loan from "./models/loanModel.js";
 import User from "./models/userModel.js";
 import { auth } from "./firebase.js";
+import cloudinaryRoutes from "./routes/cloudinaryRoutes.js";
 
 
 dotenv.config();
@@ -71,6 +72,7 @@ app.use("/api/credit", creditRoutes);
 app.use("/api/disputes", disputeRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/fraud", fraudRoutes);
+app.use("/api", cloudinaryRoutes);
 
 // Store user-socket mapping to handle multiple tabs per user
 const userSockets = new Map(); // userId -> Set of socketIds
