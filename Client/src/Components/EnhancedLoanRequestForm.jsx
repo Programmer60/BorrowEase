@@ -20,7 +20,7 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
     amount: '',
     purpose: '',
     repaymentDate: '',
-    tenureMonths: 1,
+    tenureMonths: 0.5, // Default to 15 days for small loans
     customInterestRate: ''
   });
 
@@ -240,7 +240,11 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
                       <p className="text-red-500 text-sm mt-1">{errors.amount}</p>
                       )}
                       {currentTier && (
-                      <div className="mt-2 p-2 bg-blue-50 rounded text-sm text-blue-700">
+                      <div className={`mt-2 p-2 rounded text-sm ${
+                        isDark 
+                        ? 'bg-blue-900/30 text-blue-200 border border-blue-800' 
+                        : 'bg-blue-50 text-blue-700'
+                      }`}>
                         <Info className="w-4 h-4 inline mr-1" />
                         {currentTier.type === 'flat' 
                         ? `Flat fee of ₹${currentTier.flatFee} for amounts ₹${currentTier.minAmount}-₹${currentTier.maxAmount}`
@@ -316,8 +320,12 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
                     </div>
                   </div>
                   </div>
-          <div className="lg:border-l lg:border-gray-200 lg:pl-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <div className={`lg:border-l lg:pl-8 ${
+            isDark ? 'lg:border-gray-700' : 'lg:border-gray-200'
+          }`}>
+            <h3 className={`text-lg font-semibold mb-4 flex items-center ${
+              isDark ? 'text-gray-100' : 'text-gray-900'
+            }`}>
               <Calculator className="w-5 h-5 mr-2" />
               Loan Summary
             </h3>
@@ -325,49 +333,65 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
             {previewLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
-                <span className="ml-2 text-gray-600">Calculating...</span>
+                <span className={`ml-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Calculating...</span>
               </div>
             ) : interestPreview ? (
               <div className="space-y-4">
                 {/* Main Calculation */}
-                <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-xl p-6 border border-green-200">
+                <div className={`rounded-xl p-6 border ${
+                  isDark 
+                  ? 'bg-gradient-to-br from-green-900/20 to-blue-900/20 border-green-800' 
+                  : 'bg-gradient-to-br from-green-50 to-blue-50 border-green-200'
+                }`}>
                   <div className="grid grid-cols-2 gap-4 text-center">
                     <div>
-                      <p className="text-sm text-gray-600">Loan Amount</p>
-                      <p className="text-xl font-bold text-gray-900">₹{interestPreview.calculation.principal.toLocaleString()}</p>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loan Amount</p>
+                      <p className={`text-xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>₹{interestPreview.calculation.principal.toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Interest</p>
-                      <p className="text-xl font-bold text-blue-600">₹{interestPreview.calculation.interest.toLocaleString()}</p>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Interest</p>
+                      <p className={`text-xl font-bold ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>₹{interestPreview.calculation.interest.toLocaleString()}</p>
                     </div>
                   </div>
                   
-                  <div className="mt-4 pt-4 border-t border-green-200">
+                  <div className={`mt-4 pt-4 border-t ${
+                    isDark ? 'border-green-800' : 'border-green-200'
+                  }`}>
                     <div className="text-center">
-                      <p className="text-sm text-gray-600">Total Repayable</p>
-                      <p className="text-2xl font-bold text-green-600">₹{interestPreview.calculation.totalRepayable.toLocaleString()}</p>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Repayable</p>
+                      <p className={`text-2xl font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>₹{interestPreview.calculation.totalRepayable.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Payment Details */}
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Monthly EMI:</span>
-                    <span className="font-semibold text-gray-900">₹{interestPreview.calculation.emi.toLocaleString()}</span>
+                  <div className={`flex justify-between items-center py-2 border-b ${
+                    isDark ? 'border-gray-700' : 'border-gray-100'
+                  }`}>
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Monthly EMI:</span>
+                    <span className={`font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>₹{interestPreview.calculation.emi.toLocaleString()}</span>
                   </div>
                   
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Tenure:</span>
-                    <span className="font-semibold text-gray-900">{interestPreview.calculation.tenureMonths} months</span>
+                  <div className={`flex justify-between items-center py-2 border-b ${
+                    isDark ? 'border-gray-700' : 'border-gray-100'
+                  }`}>
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Tenure:</span>
+                    <span className={`font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{interestPreview.calculation.tenureMonths} months</span>
                   </div>
                   
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Calculation Method:</span>
+                  <div className={`flex justify-between items-center py-2 border-b ${
+                    isDark ? 'border-gray-700' : 'border-gray-100'
+                  }`}>
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Calculation Method:</span>
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       interestPreview.calculation.calculationMethod === 'flat_fee'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-purple-100 text-purple-800'
+                        ? isDark 
+                          ? 'bg-blue-900/40 text-blue-200' 
+                          : 'bg-blue-100 text-blue-800'
+                        : isDark
+                          ? 'bg-purple-900/40 text-purple-200'
+                          : 'bg-purple-100 text-purple-800'
                     }`}>
                       {interestPreview.calculation.calculationMethod === 'flat_fee' ? 'Flat Fee' : 'Percentage'}
                     </span>
@@ -375,37 +399,57 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
                   
                   {interestPreview.calculation.breakdown && (
                     <div className="flex justify-between items-center py-2">
-                      <span className="text-sm text-gray-600">Effective Rate:</span>
-                      <span className="font-semibold text-gray-900">{interestPreview.calculation.breakdown.effectiveRate.toFixed(2)}%</span>
+                      <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Effective Rate:</span>
+                      <span className={`font-semibold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{interestPreview.calculation.breakdown.effectiveRate.toFixed(2)}%</span>
                     </div>
                   )}
                 </div>
 
                 {/* Explanation */}
-                <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                <div className={`rounded-lg p-4 border ${
+                  isDark 
+                  ? 'bg-yellow-900/30 border-yellow-800' 
+                  : 'bg-yellow-50 border-yellow-200'
+                }`}>
                   <div className="flex items-start">
-                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
+                    <AlertCircle className={`w-5 h-5 mt-0.5 mr-2 flex-shrink-0 ${
+                      isDark ? 'text-yellow-400' : 'text-yellow-600'
+                    }`} />
                     <div>
-                      <p className="text-sm text-yellow-800 font-medium">How this is calculated:</p>
-                      <p className="text-sm text-yellow-700 mt-1">{interestPreview.explanation}</p>
+                      <p className={`text-sm font-medium ${
+                        isDark ? 'text-yellow-200' : 'text-yellow-800'
+                      }`}>How this is calculated:</p>
+                      <p className={`text-sm mt-1 ${
+                        isDark ? 'text-yellow-300' : 'text-yellow-700'
+                      }`}>{interestPreview.explanation}</p>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Calculator className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <div className={`text-center py-8 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                <Calculator className={`w-12 h-12 mx-auto mb-4 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
                 <p>Enter loan amount to see calculation</p>
               </div>
             )}
 
             {errors.calculation && (
-              <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
+              <div className={`mt-4 p-4 rounded-lg border ${
+                isDark 
+                ? 'bg-red-900/30 border-red-800' 
+                : 'bg-red-50 border-red-200'
+              }`}>
                 <div className="flex items-start">
-                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-2 flex-shrink-0" />
+                  <AlertCircle className={`w-5 h-5 mt-0.5 mr-2 flex-shrink-0 ${
+                    isDark ? 'text-red-400' : 'text-red-600'
+                  }`} />
                   <div>
-                    <p className="text-sm text-red-800 font-medium">Validation Errors:</p>
-                    <ul className="text-sm text-red-700 mt-1 list-disc list-inside">
+                    <p className={`text-sm font-medium ${
+                      isDark ? 'text-red-200' : 'text-red-800'
+                    }`}>Validation Errors:</p>
+                    <ul className={`text-sm mt-1 list-disc list-inside ${
+                      isDark ? 'text-red-300' : 'text-red-700'
+                    }`}>
                       {errors.calculation.map((error, index) => (
                         <li key={index}>{error}</li>
                       ))}
@@ -418,10 +462,14 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
         </div>
 
         {/* Form Actions */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
+        <div className={`mt-8 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
           {errors.submit && (
-            <div className="mb-4 p-4 bg-red-50 rounded-lg border border-red-200">
-              <p className="text-red-700 text-sm">{errors.submit}</p>
+            <div className={`mb-4 p-4 rounded-lg border ${
+              isDark 
+              ? 'bg-red-900/30 border-red-800' 
+              : 'bg-red-50 border-red-200'
+            }`}>
+              <p className={`text-sm ${isDark ? 'text-red-300' : 'text-red-700'}`}>{errors.submit}</p>
             </div>
           )}
           
@@ -429,7 +477,11 @@ const EnhancedLoanRequestForm = ({ onSubmit, onCancel }) => {
             <button
               type="button"
               onClick={onCancel}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              className={`px-6 py-2 border rounded-lg transition-colors ${
+                isDark 
+                ? 'border-gray-600 text-gray-300 hover:bg-gray-800' 
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
             >
               Cancel
             </button>

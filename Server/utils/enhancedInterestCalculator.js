@@ -190,7 +190,7 @@ class InterestCalculator {
   /**
    * Validate loan parameters
    * @param {number} amount - Loan amount
-   * @param {number} tenure - Tenure in months
+   * @param {number} tenure - Tenure in months (can be fractional for short periods)
    * @returns {Object} Validation result
    */
   validateLoan(amount, tenure) {
@@ -204,12 +204,27 @@ class InterestCalculator {
       errors.push('Maximum loan amount is ₹1,00,000');
     }
     
+    // Allow short-term loans (minimum 0.5 months = 15 days)
+    if (tenure < 0.5) {
+      errors.push('Minimum tenure is 15 days (0.5 months)');
+    }
+    
+    if (tenure > 12) {
+      errors.push('Maximum tenure is 12 months');
+    }
+    
     const tier = this.getTierForAmount(amount);
     const maxTenureDays = tier.maxTenure;
-    const tenureDays = tenure * 30;
+    const tenureDays = tenure * 30; // Convert months to days
     
-    if (tenureDays > maxTenureDays) {
-      errors.push(`Maximum tenure for this amount is ${maxTenureDays} days`);
+    // For amounts under ₹3000, check day limits
+    if (amount <= 3000 && tenureDays > maxTenureDays) {
+      const maxMonths = maxTenureDays / 30;
+      if (maxMonths < 1) {
+        errors.push(`Maximum tenure for amounts up to ₹${tier.maxAmount} is ${maxTenureDays} days`);
+      } else {
+        errors.push(`Maximum tenure for amounts up to ₹${tier.maxAmount} is ${maxMonths} month${maxMonths > 1 ? 's' : ''} (${maxTenureDays} days)`);
+      }
     }
     
     return {

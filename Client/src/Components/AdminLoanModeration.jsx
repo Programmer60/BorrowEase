@@ -22,13 +22,17 @@ import {
   MapPin,
   FileText,
   Shield,
-  Settings
+  Settings,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import Navbar from './Navbar';
 import API from '../api/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const AdminLoanModeration = () => {
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
@@ -38,6 +42,10 @@ const AdminLoanModeration = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [processing, setProcessing] = useState(false);
   const [moderationModal, setModerationModal] = useState({ open: false, loan: null, action: '' });
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loansPerPage, setLoansPerPage] = useState(10); // Show 10 loans per page
 
   useEffect(() => {
     checkAdminAccess();
@@ -121,6 +129,17 @@ const AdminLoanModeration = () => {
         return new Date(b.createdAt) - new Date(a.createdAt);
     }
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredLoans.length / loansPerPage);
+  const startIndex = (currentPage - 1) * loansPerPage;
+  const endIndex = startIndex + loansPerPage;
+  const paginatedLoans = filteredLoans.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [filterStatus, searchTerm, sortBy, loansPerPage]);
 
   const handleApproveLoan = async (loanId, reason = '') => {
     try {
@@ -236,27 +255,31 @@ const AdminLoanModeration = () => {
   const ModerationModal = () => (
     moderationModal.open && (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl max-w-md w-full p-6">
-          <h3 className="text-lg font-semibold mb-4">
+        <div className={`rounded-xl max-w-md w-full p-6 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+          <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {moderationModal.action === 'approve' ? 'Approve Loan' : 
              moderationModal.action === 'reject' ? 'Reject Loan' : 
              'Process Loan'}
           </h3>
           
           <div className="mb-4">
-            <p className="text-sm text-gray-600 mb-2">Loan: {moderationModal.loan?.purpose}</p>
-            <p className="text-sm text-gray-600">Amount: ₹{moderationModal.loan?.amount.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Borrower: {moderationModal.loan?.name}</p>
+            <p className={`text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Loan: {moderationModal.loan?.purpose}</p>
+            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Amount: ₹{moderationModal.loan?.amount.toLocaleString()}</p>
+            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Borrower: {moderationModal.loan?.name}</p>
           </div>
           
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
               Reason {moderationModal.action === 'reject' ? '*' : '(Optional)'}
             </label>
             <textarea
               id="moderation-reason"
               rows="3"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                isDark 
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                  : 'bg-white border-gray-300 text-gray-900'
+              }`}
               placeholder={moderationModal.action === 'approve' 
                 ? "Optional reason for approval..." 
                 : "Please provide a reason for rejection..."}
@@ -267,7 +290,11 @@ const AdminLoanModeration = () => {
           <div className="flex justify-end space-x-3">
             <button
               onClick={() => setModerationModal({ open: false, loan: null, action: '' })}
-              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+              className={`px-4 py-2 rounded-lg ${
+                isDark 
+                  ? 'text-gray-300 bg-gray-700 hover:bg-gray-600' 
+                  : 'text-gray-700 bg-gray-200 hover:bg-gray-300'
+              }`}
               disabled={processing}
             >
               Cancel
@@ -311,10 +338,10 @@ const AdminLoanModeration = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading loans...</p>
+          <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Loading loans...</p>
         </div>
       </div>
     );
@@ -332,7 +359,7 @@ const AdminLoanModeration = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Navbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -341,63 +368,63 @@ const AdminLoanModeration = () => {
           <div className="flex items-center mb-4">
             <Shield className="w-8 h-8 text-blue-600 mr-3" />
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Loan Moderation</h1>
-              <p className="text-gray-600">Monitor and moderate loan requests and activities</p>
+              <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Loan Moderation</h1>
+              <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Monitor and moderate loan requests and activities</p>
             </div>
           </div>
           
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
-            <div className="bg-white rounded-lg p-4 border">
+            <div className={`rounded-lg p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center">
                 <FileText className="w-6 h-6 text-blue-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-600">Total Loans</p>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Loans</p>
                   <p className="text-2xl font-bold text-blue-600">{stats.total}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg p-4 border">
+            <div className={`rounded-lg p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center">
                 <Clock className="w-6 h-6 text-yellow-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-600">Pending</p>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending</p>
                   <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg p-4 border">
+            <div className={`rounded-lg p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center">
                 <CreditCard className="w-6 h-6 text-blue-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-600">Funded</p>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Funded</p>
                   <p className="text-2xl font-bold text-blue-600">{stats.funded}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg p-4 border">
+            <div className={`rounded-lg p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center">
                 <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-600">Repaid</p>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Repaid</p>
                   <p className="text-2xl font-bold text-green-600">{stats.repaid}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg p-4 border">
+            <div className={`rounded-lg p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center">
                 <Flag className="w-6 h-6 text-red-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-600">Flagged</p>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Flagged</p>
                   <p className="text-2xl font-bold text-red-600">{stats.flagged}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg p-4 border">
+            <div className={`rounded-lg p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center">
                 <TrendingUp className="w-6 h-6 text-purple-600 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-600">Total Amount</p>
+                  <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Amount</p>
                   <p className="text-xl font-bold text-purple-600">₹{stats.totalAmount.toLocaleString()}</p>
                 </div>
               </div>
@@ -406,7 +433,7 @@ const AdminLoanModeration = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className={`rounded-lg shadow-sm p-6 mb-6 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -414,7 +441,11 @@ const AdminLoanModeration = () => {
                 <input
                   type="text"
                   placeholder="Search by borrower name, email, or purpose..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    isDark 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -422,7 +453,11 @@ const AdminLoanModeration = () => {
             </div>
             <div className="flex gap-4">
               <select
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  isDark 
+                    ? 'bg-gray-700 border-gray-600 text-white' 
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
               >
@@ -434,7 +469,11 @@ const AdminLoanModeration = () => {
                 <option value="repaid">Repaid</option>
               </select>
               <select
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  isDark 
+                    ? 'bg-gray-700 border-gray-600 text-white' 
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
               >
@@ -442,6 +481,23 @@ const AdminLoanModeration = () => {
                 <option value="oldest">Oldest First</option>
                 <option value="amount-high">Amount: High to Low</option>
                 <option value="amount-low">Amount: Low to High</option>
+              </select>
+              <select
+                className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  isDark 
+                    ? 'bg-gray-700 border-gray-600 text-white' 
+                    : 'bg-white border-gray-300 text-gray-900'
+                }`}
+                value={loansPerPage}
+                onChange={(e) => {
+                  setLoansPerPage(Number(e.target.value));
+                  setCurrentPage(1); // Reset to first page when changing page size
+                }}
+              >
+                <option value={5}>5 per page</option>
+                <option value={10}>10 per page</option>
+                <option value={20}>20 per page</option>
+                <option value={50}>50 per page</option>
               </select>
               <button
                 onClick={loadLoans}
@@ -455,31 +511,41 @@ const AdminLoanModeration = () => {
         </div>
 
         {/* Loans List */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className={`rounded-lg shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className={`px-6 py-4 border-b flex justify-between items-center ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Loan Applications ({filteredLoans.length})
+            </h3>
+            {filteredLoans.length > 0 && (
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredLoans.length)} of {filteredLoans.length}
+              </div>
+            )}
+          </div>
           {filteredLoans.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No loans found</h3>
-              <p className="text-gray-600">No loans match your current filters.</p>
+              <FileText className={`w-16 h-16 mx-auto mb-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+              <h3 className={`text-lg font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>No loans found</h3>
+              <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>No loans match your current filters.</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
-              {filteredLoans.map((loan) => {
+            <div className={`divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-200'}`}>
+              {paginatedLoans.map((loan) => {
                 const risk = getRiskLevel(loan);
                 return (
-                  <div key={loan._id} className="p-6 hover:bg-gray-50">
+                  <div key={loan._id} className={`p-6 hover:${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          <User className="w-5 h-5 text-gray-500" />
-                          <h3 className="text-lg font-medium text-gray-900">{loan.name}</h3>
+                          <User className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                          <h3 className={`text-lg font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{loan.name}</h3>
                           {getStatusBadge(loan)}
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${risk.bg} ${risk.color}`}>
                             {risk.level} Risk
                           </span>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-2">
+                        <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 text-sm mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                           <div className="flex items-center">
                             <DollarSign className="w-4 h-4 mr-2" />
                             ₹{loan.amount.toLocaleString()}
@@ -504,15 +570,15 @@ const AdminLoanModeration = () => {
                         </div>
                         
                         {loan.interestAmount && (
-                          <div className="text-sm text-green-600 mb-2">
+                          <div className={`text-sm mb-2 ${isDark ? 'text-green-400' : 'text-green-600'}`}>
                             Interest: ₹{loan.interestAmount.toLocaleString()}
                             {loan.tenureMonths && (
-                              <span className="text-gray-500 ml-2">
+                              <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 • {loan.tenureMonths} month{loan.tenureMonths > 1 ? 's' : ''}
                               </span>
                             )}
                             {loan.emi && (
-                              <span className="text-gray-500 ml-2">
+                              <span className={`ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 • EMI: ₹{loan.emi.toLocaleString()}
                               </span>
                             )}
@@ -520,13 +586,17 @@ const AdminLoanModeration = () => {
                         )}
 
                         {loan.lenderName && (
-                          <div className="text-sm text-blue-600">
+                          <div className={`text-sm ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
                             Funded by: {loan.lenderName}
                           </div>
                         )}
                         
                         {loan.moderationReason && (
-                          <div className="mt-2 p-2 bg-red-50 rounded text-sm text-red-700">
+                          <div className={`mt-2 p-2 rounded text-sm ${
+                            isDark 
+                              ? 'bg-red-900 bg-opacity-20 text-red-400' 
+                              : 'bg-red-50 text-red-700'
+                          }`}>
                             <Flag className="w-4 h-4 inline mr-1" />
                             {loan.moderationReason}
                           </div>
@@ -538,7 +608,11 @@ const AdminLoanModeration = () => {
                           onClick={() => setSelectedLoan(
                             selectedLoan?._id === loan._id ? null : loan
                           )}
-                          className="flex items-center px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                          className={`flex items-center px-3 py-2 text-sm rounded-lg ${
+                            isDark 
+                              ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                         >
                           <Eye className="w-4 h-4 mr-1" />
                           {selectedLoan?._id === loan._id ? 'Hide' : 'Details'}
@@ -576,27 +650,27 @@ const AdminLoanModeration = () => {
                     
                     {/* Expanded Details */}
                     {selectedLoan?._id === loan._id && (
-                      <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className={`mt-6 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           {/* Borrower Information */}
                           <div>
-                            <h4 className="text-lg font-medium text-gray-900 mb-4">Borrower Information</h4>
+                            <h4 className={`text-lg font-medium mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Borrower Information</h4>
                             <div className="space-y-3 text-sm">
                               <div className="flex items-center">
-                                <Mail className="w-4 h-4 mr-2 text-gray-500" />
-                                <span className="text-gray-600">Email:</span>
-                                <span className="font-medium ml-2">{loan.collegeEmail}</span>
+                                <Mail className={`w-4 h-4 mr-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Email:</span>
+                                <span className={`font-medium ml-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{loan.collegeEmail}</span>
                               </div>
                               <div className="flex items-center">
-                                <Phone className="w-4 h-4 mr-2 text-gray-500" />
-                                <span className="text-gray-600">Phone:</span>
-                                <span className="font-medium ml-2">{loan.phoneNumber}</span>
+                                <Phone className={`w-4 h-4 mr-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Phone:</span>
+                                <span className={`font-medium ml-2 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{loan.phoneNumber}</span>
                               </div>
                               <div className="flex items-start">
-                                <FileText className="w-4 h-4 mr-2 mt-0.5 text-gray-500" />
+                                <FileText className={`w-4 h-4 mr-2 mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
                                 <div>
-                                  <span className="text-gray-600">Purpose:</span>
-                                  <p className="font-medium">{loan.purpose}</p>
+                                  <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Purpose:</span>
+                                  <p className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{loan.purpose}</p>
                                 </div>
                               </div>
                             </div>
@@ -604,46 +678,46 @@ const AdminLoanModeration = () => {
                           
                           {/* Loan Details */}
                           <div>
-                            <h4 className="text-lg font-medium text-gray-900 mb-4">Loan Details</h4>
+                            <h4 className={`text-lg font-medium mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Loan Details</h4>
                             <div className="space-y-3 text-sm">
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Requested Amount:</span>
-                                <span className="font-medium">₹{loan.amount.toLocaleString()}</span>
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Requested Amount:</span>
+                                <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>₹{loan.amount.toLocaleString()}</span>
                               </div>
                               {loan.interestAmount && (
                                 <>
                                   <div className="flex justify-between">
-                                    <span className="text-gray-600">Interest:</span>
-                                    <span className="font-medium text-green-600">₹{loan.interestAmount.toLocaleString()}</span>
+                                    <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Interest:</span>
+                                    <span className={`font-medium ${isDark ? 'text-green-400' : 'text-green-600'}`}>₹{loan.interestAmount.toLocaleString()}</span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-gray-600">Total Repayable:</span>
-                                    <span className="font-medium text-blue-600">₹{loan.totalRepayable?.toLocaleString()}</span>
+                                    <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Total Repayable:</span>
+                                    <span className={`font-medium ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>₹{loan.totalRepayable?.toLocaleString()}</span>
                                   </div>
                                   {loan.emi && (
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Monthly EMI:</span>
-                                      <span className="font-medium">₹{loan.emi.toLocaleString()}</span>
+                                      <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Monthly EMI:</span>
+                                      <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>₹{loan.emi.toLocaleString()}</span>
                                     </div>
                                   )}
                                   {loan.tenureMonths && (
                                     <div className="flex justify-between">
-                                      <span className="text-gray-600">Tenure:</span>
-                                      <span className="font-medium">{loan.tenureMonths} month{loan.tenureMonths > 1 ? 's' : ''}</span>
+                                      <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Tenure:</span>
+                                      <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{loan.tenureMonths} month{loan.tenureMonths > 1 ? 's' : ''}</span>
                                     </div>
                                   )}
                                 </>
                               )}
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Repayment Date:</span>
-                                <span className="font-medium">{new Date(loan.repaymentDate).toLocaleDateString()}</span>
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Repayment Date:</span>
+                                <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{new Date(loan.repaymentDate).toLocaleDateString()}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Created:</span>
-                                <span className="font-medium">{new Date(loan.createdAt).toLocaleDateString()}</span>
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Created:</span>
+                                <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{new Date(loan.createdAt).toLocaleDateString()}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-gray-600">Risk Level:</span>
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Risk Level:</span>
                                 <span className={`font-medium ${risk.color}`}>{risk.level}</span>
                               </div>
                             </div>
@@ -654,6 +728,84 @@ const AdminLoanModeration = () => {
                   </div>
                 );
               })}
+            </div>
+          )}
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className={`px-6 py-4 border-t flex items-center justify-between ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>
+                Page {currentPage} of {totalPages}
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={`p-2 rounded-lg transition-colors ${
+                    currentPage === 1 
+                      ? `cursor-not-allowed ${isDark ? 'text-gray-600' : 'text-gray-400'}` 
+                      : `${isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
+                  }`}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                
+                <div className="flex items-center space-x-1">
+                  {[...Array(totalPages)].map((_, index) => {
+                    const page = index + 1;
+                    const isCurrentPage = page === currentPage;
+                    
+                    // Show only a few pages around current page for better UX
+                    if (totalPages > 7) {
+                      if (page === 1 || page === totalPages || (page >= currentPage - 2 && page <= currentPage + 2)) {
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                              isCurrentPage
+                                ? 'bg-blue-600 text-white'
+                                : `${isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      } else if ((page === currentPage - 3 && currentPage > 4) || (page === currentPage + 3 && currentPage < totalPages - 3)) {
+                        return <span key={page} className={`px-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>...</span>;
+                      }
+                      return null;
+                    } else {
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                            isCurrentPage
+                              ? 'bg-blue-600 text-white'
+                              : `${isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    }
+                  })}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className={`p-2 rounded-lg transition-colors ${
+                    currentPage === totalPages 
+                      ? `cursor-not-allowed ${isDark ? 'text-gray-600' : 'text-gray-400'}` 
+                      : `${isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}`
+                  }`}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           )}
         </div>

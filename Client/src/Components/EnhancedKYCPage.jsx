@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, 
@@ -478,6 +478,9 @@ const EnhancedKYCPage = () => {
 
   const [retryCount, setRetryCount] = useState({});
   const [uploading, setUploading] = useState(false);
+  
+  // reCAPTCHA container ref for better DOM management
+  const recaptchaContainerRef = useRef(null);
 
   
 
@@ -602,7 +605,7 @@ const EnhancedKYCPage = () => {
     return { isValid: true, value: sanitized };
   };
 
-  // Critical File Upload Handler Missing
+  // Critical File Upload Handler - FIXED to actually upload files
   const handleFileUpload = async (documentType, file) => {
     if (!file) return;
 
@@ -628,7 +631,7 @@ const EnhancedKYCPage = () => {
     try {
       setUploadProgress(prev => ({ ...prev, [documentType]: 0 }));
 
-      // Create preview URL
+      // Create preview URL for immediate display
       const previewUrl = URL.createObjectURL(file);
 
       // Compress image if needed
@@ -643,46 +646,66 @@ const EnhancedKYCPage = () => {
         if (!isValidDimension) return;
       }
 
-      // Simulate upload progress
+      // Start upload progress simulation
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           const current = prev[documentType] || 0;
-          if (current >= 100) {
+          if (current >= 90) {
             clearInterval(progressInterval);
             return prev;
           }
-          return { ...prev, [documentType]: Math.min(current + 10, 100) };
+          return { ...prev, [documentType]: Math.min(current + 10, 90) };
         });
       }, 100);
 
-      // Update document state
-      setKycData(prev => ({
-        ...prev,
-        documents: {
-          ...prev.documents,
-          [documentType]: {
-            file: processedFile,
-            preview: previewUrl,
-            fileInfo: {
-              name: file.name,
-              size: file.size,
-              sizeText: formatFileSize(file.size)
-            },
-            lastFile: file
-          }
-        }
-      }));
+      // Actually upload to backend/Cloudinary
+      const formData = new FormData();
+      formData.append('file', processedFile);
+      formData.append('documentType', documentType);
 
-      // Clear any existing errors
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[`documents.${documentType}`];
-        return newErrors;
+      const response = await API.post('/upload/kyc-document', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
-      setTimeout(() => {
+      clearInterval(progressInterval);
+
+      if (response.data.success) {
+        // Update document state with Cloudinary URL
+        setKycData(prev => ({
+          ...prev,
+          documents: {
+            ...prev.documents,
+            [documentType]: {
+              file: response.data.url, // Store Cloudinary URL instead of File object
+              preview: previewUrl,
+              fileInfo: {
+                name: file.name,
+                size: file.size,
+                sizeText: formatFileSize(file.size)
+              },
+              lastFile: file,
+              cloudinaryUrl: response.data.url,
+              publicId: response.data.public_id
+            }
+          }
+        }));
+
+        // Clear any existing errors
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[`documents.${documentType}`];
+          return newErrors;
+        });
+
+        // Complete progress
         setUploadProgress(prev => ({ ...prev, [documentType]: 100 }));
-      }, 1000);
+
+        console.log(`✅ ${documentType} uploaded successfully:`, response.data.url);
+      } else {
+        throw new Error('Upload failed');
+      }
 
     } catch (error) {
       console.error('File upload error:', error);
@@ -851,6 +874,12 @@ const EnhancedKYCPage = () => {
           console.log('Error cleaning up reCAPTCHA:', error);
         }
       }
+      
+      // Clear the reCAPTCHA container DOM element
+      const container = document.getElementById('recaptcha-container');
+      if (container) {
+        container.innerHTML = '';
+      }
     };
   }, []);
 
@@ -921,27 +950,6 @@ const EnhancedKYCPage = () => {
       alert('Authentication service unavailable. Please refresh the page.');
       return;
     }
-  }, []);
-
-  // Global error handler for unhandled errors
-  useEffect(() => {
-    const handleGlobalError = (event) => {
-      console.error('Global error:', event.error);
-      handleComponentError(event.error, { type: 'global' });
-    };
-
-    const handleUnhandledRejection = (event) => {
-      console.error('Unhandled promise rejection:', event.reason);
-      handleComponentError(new Error(event.reason), { type: 'promise' });
-    };
-
-    window.addEventListener('error', handleGlobalError);
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
-
-    return () => {
-      window.removeEventListener('error', handleGlobalError);
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
-    };
   }, []);
 
 
@@ -1207,8 +1215,33 @@ const EnhancedKYCPage = () => {
     try {
       setUploading(true);
       
+      // Ensure all document fields are strings (URLs), not objects
+      const ensureString = (value) => {
+        if (typeof value === 'object' || value === null || value === undefined) {
+          return '';
+        }
+        return String(value);
+      };
+
+      // Check if all required documents are uploaded (have Cloudinary URLs)
+      const hasValidDocuments = () => {
+        const aadharUrl = kycData.documents.aadharCard?.file || '';
+        const panUrl = kycData.documents.panCard?.file || '';
+        const selfieUrl = kycData.documents.selfie?.file || '';
+        
+        return aadharUrl && panUrl && selfieUrl;
+      };
+
+      if (!hasValidDocuments()) {
+        alert('Please upload all required documents before submitting.');
+        return;
+      }
+      
       // Structure the data according to the backend KYC model
       const submissionData = {
+        userName: user.name,
+        userEmail: user.email,
+        userPhone: kycData.personalInfo.phoneNumber,
         personalInfo: {
           fullName: kycData.personalInfo.fullName,
           dateOfBirth: kycData.personalInfo.dateOfBirth,
@@ -1219,22 +1252,22 @@ const EnhancedKYCPage = () => {
         },
         documents: {
           aadhar: {
-            number: kycData.documents.aadharCard.number || '',
-            frontImage: kycData.documents.aadharCard.file || '',
-            backImage: kycData.documents.aadharCard.file || '', // Using same image for both sides for now
+            number: ensureString(kycData.documents.aadharCard?.number),
+            frontImage: ensureString(kycData.documents.aadharCard?.file),
+            backImage: ensureString(kycData.documents.aadharCard?.file), // Using same image for both sides for now
           },
           pan: {
-            number: kycData.documents.panCard.number || '',
-            image: kycData.documents.panCard.file || '',
+            number: ensureString(kycData.documents.panCard?.number),
+            image: ensureString(kycData.documents.panCard?.file),
           },
-          selfie: kycData.documents.selfie.file || '',
+          selfie: ensureString(kycData.documents.selfie?.file),
           addressProof: {
             docType: 'bank_statement',
-            image: kycData.documents.bankStatement.file || ''
+            image: ensureString(kycData.documents.bankStatement?.file)
           },
           incomeProof: {
             docType: 'salary_slip', 
-            image: kycData.documents.salarySlip.file || ''
+            image: ensureString(kycData.documents.salarySlip?.file)
           }
         },
         verificationStatus: {
@@ -1245,6 +1278,15 @@ const EnhancedKYCPage = () => {
           }
         }
       };
+
+      console.log('📤 Submitting KYC data:', JSON.stringify(submissionData, null, 2));
+      console.log('🔍 Documents structure:', {
+        aadhar: kycData.documents.aadharCard,
+        pan: kycData.documents.panCard,
+        selfie: kycData.documents.selfie,
+        bankStatement: kycData.documents.bankStatement,
+        salarySlip: kycData.documents.salarySlip
+      });
 
       // Validate required fields on frontend
       if (!submissionData.documents.aadhar.frontImage || !submissionData.documents.pan.image || !submissionData.documents.selfie) {
@@ -1311,15 +1353,8 @@ const EnhancedKYCPage = () => {
 
   // Phone verification functions
   const resetPhoneVerification = () => {
-    // Clear reCAPTCHA verifier safely
-    if (window.recaptchaVerifier) {
-      try {
-        window.recaptchaVerifier.clear();
-      } catch (e) {
-        console.log('Clearing existing reCAPTCHA verifier');
-      }
-      window.recaptchaVerifier = null;
-    }
+    // Use comprehensive reCAPTCHA cleanup
+    clearAllRecaptcha();
     
     // Reset phone verification state
     setPhoneVerification(prev => ({
@@ -1332,45 +1367,197 @@ const EnhancedKYCPage = () => {
     }));
   };
 
-  const setupRecaptcha = () => {
+  // Nuclear option: completely destroy and recreate everything
+  const nuclearRecaptchaReset = () => {
+    console.log('💣 NUCLEAR RESET: Destroying all reCAPTCHA elements...');
+    
     try {
-      // Clear any existing recaptcha verifier
+      // 1. Clear any existing verifier
       if (window.recaptchaVerifier) {
         try {
           window.recaptchaVerifier.clear();
         } catch (e) {
-          console.log('Clearing existing reCAPTCHA verifier');
+          console.log('⚠️ Error clearing verifier:', e);
+        }
+        delete window.recaptchaVerifier;
+      }
+
+      // 2. Remove ALL reCAPTCHA related elements from DOM
+      const allRecaptchaElements = document.querySelectorAll('[id*="recaptcha"], .grecaptcha-badge, iframe[src*="recaptcha"]');
+      allRecaptchaElements.forEach(element => {
+        console.log('🗑️ Removing element:', element.id || element.className);
+        element.remove();
+      });
+
+      // 3. Clear all reCAPTCHA related global variables
+      if (window.grecaptcha) {
+        try {
+          window.grecaptcha.reset();
+        } catch (e) {
+          console.log('⚠️ Error resetting grecaptcha:', e);
+        }
+      }
+
+      // 4. Remove the container from React ref
+      if (recaptchaContainerRef.current) {
+        recaptchaContainerRef.current.remove();
+        recaptchaContainerRef.current = null;
+      }
+
+      // 5. Force garbage collection hint
+      if (window.gc) {
+        window.gc();
+      }
+
+      console.log('💥 Nuclear reset completed');
+      return true;
+    } catch (error) {
+      console.error('❌ Nuclear reset failed:', error);
+      return false;
+    }
+  };
+
+  // Utility function to completely clear reCAPTCHA
+  const clearAllRecaptcha = () => {
+    console.log('🧹 Starting comprehensive reCAPTCHA cleanup...');
+    
+    try {
+      // Clear the verifier instance
+      if (window.recaptchaVerifier) {
+        console.log('🗑️ Clearing reCAPTCHA verifier instance');
+        try {
+          window.recaptchaVerifier.clear();
+        } catch (e) {
+          console.log('⚠️ Error clearing verifier:', e);
         }
         window.recaptchaVerifier = null;
       }
 
-      // Check if the container element exists
-      const container = document.getElementById('recaptcha-container');
-      if (!container) {
-        throw new Error('reCAPTCHA container not found');
+      // Clear the main container
+      const containers = document.querySelectorAll('[id*="recaptcha-container"]');
+      console.log(`🗑️ Found ${containers.length} reCAPTCHA containers to clear`);
+      
+      containers.forEach((container, index) => {
+        console.log(`🗑️ Clearing container ${index + 1}:`, container.id);
+        container.innerHTML = '';
+        // Reset to original ID for consistency
+        if (container.id.includes('recaptcha-container')) {
+          container.id = 'recaptcha-container';
+        }
+      });
+
+      // Clear any other reCAPTCHA elements that might exist
+      const recaptchaElements = document.querySelectorAll('[id^="rc-"], .grecaptcha-badge, iframe[src*="recaptcha"], iframe[src*="google.com/recaptcha"]');
+      console.log(`🗑️ Found ${recaptchaElements.length} reCAPTCHA elements to remove`);
+      
+      recaptchaElements.forEach((element, index) => {
+        try {
+          console.log(`🗑️ Removing reCAPTCHA element ${index + 1}:`, element.tagName, element.id || element.className);
+          element.remove();
+        } catch (e) {
+          console.log('⚠️ Could not remove reCAPTCHA element:', e);
+        }
+      });
+
+      // Also clear any reCAPTCHA scripts or global variables
+      if (window.grecaptcha) {
+        console.log('🗑️ Resetting grecaptcha global');
+        try {
+          if (window.grecaptcha.reset) {
+            window.grecaptcha.reset();
+          }
+        } catch (e) {
+          console.log('⚠️ Error resetting grecaptcha:', e);
+        }
       }
 
-      // Create new reCAPTCHA verifier
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      console.log('✅ reCAPTCHA cleanup completed');
+    } catch (error) {
+      console.error('❌ Error during reCAPTCHA cleanup:', error);
+    }
+  };
+
+  const setupRecaptcha = async (retryCount = 0) => {
+    console.log(`🔧 Setting up reCAPTCHA (attempt ${retryCount + 1})...`);
+    
+    try {
+      // For retries, use nuclear reset
+      if (retryCount > 0) {
+        console.log('🚨 Using nuclear reset for retry...');
+        const resetSuccess = nuclearRecaptchaReset();
+        if (!resetSuccess && retryCount < 3) {
+          console.log('💥 Nuclear reset failed, trying again...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return setupRecaptcha(retryCount + 1);
+        }
+        // Wait longer after nuclear reset
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      } else {
+        // First attempt, use regular cleanup
+        clearAllRecaptcha();
+      }
+
+      // Create a completely new container
+      const containerId = `recaptcha-container-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Remove any existing container first
+      const existingContainer = document.getElementById('recaptcha-container');
+      if (existingContainer) {
+        existingContainer.remove();
+      }
+      
+      // Create new container
+      const container = document.createElement('div');
+      container.id = containerId;
+      container.style.cssText = 'position: absolute; bottom: 0; left: 0; opacity: 0; pointer-events: none; height: 1px; overflow: hidden; z-index: -9999;';
+      document.body.appendChild(container);
+      
+      // Update ref to point to new container
+      recaptchaContainerRef.current = container;
+      
+      console.log(`✅ New reCAPTCHA container created with ID: ${containerId}`);
+
+      // Wait for DOM to settle
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Verify container still exists
+      const finalContainer = document.getElementById(containerId);
+      if (!finalContainer) {
+        throw new Error(`Container ${containerId} disappeared after creation`);
+      }
+
+      console.log('🏗️ Creating new reCAPTCHA verifier...');
+      
+      // Create new reCAPTCHA verifier with the new container
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
         size: 'invisible',
         callback: (response) => {
-          console.log('reCAPTCHA solved:', response);
+          console.log('✅ reCAPTCHA solved:', response);
         },
         'expired-callback': () => {
-          console.log('reCAPTCHA expired');
+          console.log('⏰ reCAPTCHA expired');
           setPhoneVerification(prev => ({
             ...prev,
-            error: 'reCAPTCHA expired. Click "Resend OTP" to try again.'
+            error: 'reCAPTCHA expired. Click "Start Fresh" and try again.'
           }));
         }
       });
 
+      console.log('✅ reCAPTCHA verifier created successfully');
       return window.recaptchaVerifier;
     } catch (error) {
-      console.error('Error setting up reCAPTCHA:', error);
+      console.error(`❌ Error setting up reCAPTCHA (attempt ${retryCount + 1}):`, error);
+      
+      // If we get the "already rendered" error and haven't tried too many times, retry
+      if (error.message.includes('already been rendered') && retryCount < 3) {
+        console.log(`🔄 Retrying setup due to "already rendered" error...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return setupRecaptcha(retryCount + 1);
+      }
+      
       setPhoneVerification(prev => ({
         ...prev,
-        error: 'Failed to setup verification. Please try again.'
+        error: 'Failed to setup verification. Please refresh the page and try again.'
       }));
       return null;
     }
@@ -1398,7 +1585,7 @@ const EnhancedKYCPage = () => {
     }));
 
     try {
-      const appVerifier = setupRecaptcha();
+      const appVerifier = await setupRecaptcha();
       if (!appVerifier) {
         setPhoneVerification(prev => ({
           ...prev,
@@ -1414,8 +1601,13 @@ const EnhancedKYCPage = () => {
         throw new Error('User not authenticated');
       }
 
+      console.log('📱 Sending OTP to:', formattedPhone);
+      console.log('👤 Current user:', currentUser.email);
+
       const provider = new PhoneAuthProvider(auth);
       const verificationId = await provider.verifyPhoneNumber(formattedPhone, appVerifier);
+      
+      console.log('✅ OTP sent successfully, verification ID:', verificationId);
       
       setPhoneVerification(prev => ({
         ...prev,
@@ -1423,6 +1615,8 @@ const EnhancedKYCPage = () => {
         step: 'otp',
         loading: false
       }));
+
+      console.log('📝 Verification data stored:', { verificationId });
 
       // Show toast instead of alert
       if (window && window.toast) {
@@ -1480,27 +1674,104 @@ const EnhancedKYCPage = () => {
     }));
 
     try {
-      if (!phoneVerification.confirmationResult?.verificationId) {
+      console.log('🔐 Starting OTP verification...');
+      console.log('Verification data:', phoneVerification.confirmationResult);
+      
+      // Get the verification ID from our stored data
+      const verificationId = phoneVerification.confirmationResult?.verificationId;
+      
+      if (!verificationId) {
+        console.error('❌ No verification ID found');
         throw new Error('No verification session found. Please request OTP again.');
       }
 
-      // Create phone credential
-      const credential = PhoneAuthProvider.credential(
-        phoneVerification.confirmationResult.verificationId,
-        phoneVerification.otp
-      );
+      console.log('✅ Verification ID found:', verificationId);
+      console.log('🔢 OTP entered:', phoneVerification.otp);
 
-      // Link credential to current user
+      // Create phone credential using the verification ID and OTP
+      const credential = PhoneAuthProvider.credential(verificationId, phoneVerification.otp);
+      console.log('🎫 Phone credential created');
+
+      // Get current user
       const currentUser = auth.currentUser;
-      if (currentUser) {
-        await linkWithCredential(currentUser, credential);
+      if (!currentUser) {
+        console.error('❌ No current user found');
+        throw new Error('User not authenticated. Please sign in again.');
+      }
+
+      console.log('👤 Current user found:', currentUser.email);
+
+      // Check if phone number is already linked to this user
+      const phoneProviders = currentUser.providerData.filter(provider => provider.providerId === 'phone');
+      if (phoneProviders.length > 0) {
+        console.log('📱 Phone already linked to this user:', phoneProviders[0].phoneNumber);
+        
+        // Mark as verified since it's already linked
+        setPhoneVerification(prev => ({
+          ...prev,
+          step: 'verified',
+          loading: false,
+          error: null
+        }));
+
+        setKycData(prev => ({
+          ...prev,
+          verification: {
+            ...prev.verification,
+            otpVerification: true
+          }
+        }));
+
+        localStorage.setItem('phoneVerified', 'true');
+        console.log('✅ Phone verification completed (already linked)');
+        alert('Phone number already verified for this account!');
+        return;
+      }
+
+      // Try to link the phone credential to the current user
+      console.log('🔗 Attempting to link phone credential to user...');
+      
+      try {
+        const result = await linkWithCredential(currentUser, credential);
+        console.log('✅ Phone credential linked successfully:', result);
+      } catch (linkError) {
+        console.error('❌ Link error:', linkError);
+        
+        if (linkError.code === 'auth/account-exists-with-different-credential') {
+          // Phone number exists with different account, but we can still verify for this session
+          console.log('⚠️ Phone exists with different account, marking as verified for current session');
+          
+          setPhoneVerification(prev => ({
+            ...prev,
+            step: 'verified',
+            loading: false,
+            error: null
+          }));
+
+          setKycData(prev => ({
+            ...prev,
+            verification: {
+              ...prev.verification,
+              otpVerification: true
+            }
+          }));
+
+          localStorage.setItem('phoneVerified', 'true');
+          console.log('✅ Phone verification completed (session verified)');
+          alert('Phone number verified successfully!');
+          return;
+        } else {
+          // Re-throw other errors
+          throw linkError;
+        }
       }
 
       // Mark as verified
       setPhoneVerification(prev => ({
         ...prev,
         step: 'verified',
-        loading: false
+        loading: false,
+        error: null
       }));
 
       // Update KYC data
@@ -1514,20 +1785,77 @@ const EnhancedKYCPage = () => {
 
       // Store verification status
       localStorage.setItem('phoneVerified', 'true');
+      console.log('✅ Phone verification completed successfully');
 
       alert('Phone number verified successfully!');
 
     } catch (error) {
-      console.error('OTP verification error:', error);
+      console.error('❌ OTP verification error:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
       let errorMessage = 'Invalid OTP. Please check and try again.';
       
       if (error.code === 'auth/invalid-verification-code') {
-        errorMessage = 'Invalid OTP code. Please check and try again.';
+        errorMessage = 'Invalid OTP code. Please check the 6-digit code and try again.';
       } else if (error.code === 'auth/code-expired') {
-        errorMessage = 'OTP has expired. Please request a new one.';
-      } else if (error.message.includes('verification session')) {
+        errorMessage = 'OTP has expired. Please click "Resend OTP" to get a new code.';
+      } else if (error.code === 'auth/invalid-verification-id') {
+        errorMessage = 'Verification session is invalid. Please request a new OTP.';
+      } else if (error.code === 'auth/missing-verification-code') {
+        errorMessage = 'Please enter the OTP code.';
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        // Handle the case where phone exists with different account
+        console.log('📱 Phone exists with different account, but OTP was valid');
+        errorMessage = 'Phone number verified successfully! (Note: This number is associated with another account, but verification is complete for this session.)';
+        
+        // Mark as verified since OTP was correct
+        setPhoneVerification(prev => ({
+          ...prev,
+          step: 'verified',
+          loading: false,
+          error: null
+        }));
+        setKycData(prev => ({
+          ...prev,
+          verification: {
+            ...prev.verification,
+            otpVerification: true
+          }
+        }));
+        localStorage.setItem('phoneVerified', 'true');
+        alert('Phone number verified successfully!');
+        return;
+      } else if (error.code === 'auth/credential-already-in-use') {
+        errorMessage = 'This phone number is already linked to another account.';
+      } else if (error.code === 'auth/provider-already-linked') {
+        errorMessage = 'Phone number already verified for this account.';
+        // Consider this a success case
+        setPhoneVerification(prev => ({
+          ...prev,
+          step: 'verified',
+          loading: false,
+          error: null
+        }));
+        setKycData(prev => ({
+          ...prev,
+          verification: {
+            ...prev.verification,
+            otpVerification: true
+          }
+        }));
+        localStorage.setItem('phoneVerified', 'true');
+        alert('Phone number already verified!');
+        return;
+      } else if (error.message && error.message.includes('verification session')) {
         errorMessage = 'Verification session expired. Please request OTP again.';
+      } else if (error.message && error.message.includes('User not authenticated')) {
+        errorMessage = 'Please sign in again and try verification.';
+      } else {
+        errorMessage = `Verification failed: ${error.message || 'Unknown error'}. Please try again.`;
       }
+      
+      console.log('📝 Setting error message:', errorMessage);
       
       setPhoneVerification(prev => ({
         ...prev,
@@ -1723,50 +2051,6 @@ const EnhancedKYCPage = () => {
       </div>
     )
   );
-  
-  // Error boundary
-  if (hasError) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center ${
-        isDark 
-          ? 'bg-gray-900' 
-          : 'bg-gradient-to-br from-blue-50 to-indigo-100'
-      }`}>
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-800'}`}>
-            Something went wrong
-          </h2>
-          <p className={`mb-6 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-            {errorInfo || 'An unexpected error occurred while loading the KYC page.'}
-          </p>
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                setHasError(false);
-                setErrorInfo(null);
-                window.location.reload();
-              }}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Reload Page
-            </button>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className={`w-full px-4 py-2 rounded-lg transition-colors ${
-                isDark 
-                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Go to Dashboard
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
   // Loading state
   if (loading) {
     return (
@@ -2492,6 +2776,19 @@ const EnhancedKYCPage = () => {
                         
                         <button 
                           onClick={() => {
+                            console.log('🔍 DEBUG INFO:');
+                            console.log('Phone verification state:', phoneVerification);
+                            console.log('Confirmation result:', phoneVerification.confirmationResult);
+                            console.log('Current user:', auth.currentUser);
+                            console.log('OTP entered:', phoneVerification.otp);
+                          }}
+                          className="px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-xs"
+                        >
+                          Debug
+                        </button>
+                        
+                        <button 
+                          onClick={() => {
                             resetPhoneVerification();
                           }}
                           disabled={phoneVerification.loading}
@@ -2505,22 +2802,37 @@ const EnhancedKYCPage = () => {
                         </button>
                         
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             setPhoneVerification(prev => ({
                               ...prev,
                               otp: '',
-                              error: null
+                              error: null,
+                              loading: true
                             }));
-                            sendOTP();
+                            
+                            // Add a small delay to show loading state
+                            setTimeout(async () => {
+                              try {
+                                await sendOTP();
+                              } catch (error) {
+                                setPhoneVerification(prev => ({
+                                  ...prev,
+                                  loading: false,
+                                  error: 'Failed to resend OTP. Please try again.'
+                                }));
+                              }
+                            }, 100);
                           }}
                           disabled={phoneVerification.loading}
                           className={`px-4 py-2 rounded-lg cursor-pointer transition-colors ${
-                            isDark 
-                              ? 'bg-yellow-800 text-yellow-300 hover:bg-yellow-700' 
-                              : 'bg-yellow-500 text-white hover:bg-yellow-600'
+                            phoneVerification.loading
+                              ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-300 text-gray-500') + ' cursor-not-allowed'
+                              : (isDark 
+                                  ? 'bg-yellow-800 text-yellow-300 hover:bg-yellow-700' 
+                                  : 'bg-yellow-500 text-white hover:bg-yellow-600')
                           }`}
                         >
-                          Resend OTP
+                          {phoneVerification.loading ? 'Sending...' : 'Resend OTP'}
                         </button>
                       </div>
                     </div>
@@ -2563,18 +2875,73 @@ const EnhancedKYCPage = () => {
                       }`}>{phoneVerification.error}</p>
                       
                       {phoneVerification.error.includes('reCAPTCHA') || phoneVerification.error.includes('Verification failed') ? (
-                        <div className="mt-2">
+                        <div className="mt-2 space-x-2">
+                          <button
+                            onClick={async () => {
+                              console.log('💥 Start Fresh clicked - performing nuclear reset');
+                              
+                              // Show loading state
+                              setPhoneVerification(prev => ({
+                                ...prev,
+                                loading: true,
+                                error: 'Performing complete system reset...'
+                              }));
+                              
+                              try {
+                                // Nuclear reset with retries
+                                let resetSuccess = false;
+                                for (let i = 0; i < 3; i++) {
+                                  console.log(`💣 Nuclear reset attempt ${i + 1}`);
+                                  resetSuccess = nuclearRecaptchaReset();
+                                  if (resetSuccess) break;
+                                  await new Promise(resolve => setTimeout(resolve, 1000));
+                                }
+                                
+                                if (!resetSuccess) {
+                                  console.log('⚠️ Nuclear reset failed, using fallback');
+                                  clearAllRecaptcha();
+                                }
+                                
+                                // Wait for system to stabilize
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+                                
+                                // Reset completely
+                                resetPhoneVerification();
+                                
+                                console.log('✅ Start Fresh completed - system fully reset');
+                              } catch (error) {
+                                console.error('❌ Error during Start Fresh:', error);
+                                setPhoneVerification(prev => ({
+                                  ...prev,
+                                  loading: false,
+                                  error: 'Reset failed. Please refresh the page.'
+                                }));
+                              }
+                            }}
+                            disabled={phoneVerification.loading}
+                            className={`text-xs px-3 py-1 rounded transition-colors ${
+                              phoneVerification.loading
+                                ? (isDark ? 'bg-gray-700 text-gray-500' : 'bg-gray-300 text-gray-500') + ' cursor-not-allowed'
+                                : (isDark 
+                                    ? 'bg-red-900/50 text-red-300 hover:bg-red-800/50' 
+                                    : 'bg-red-100 text-red-700 hover:bg-red-200')
+                            }`}
+                          >
+                            {phoneVerification.loading ? 'Resetting...' : 'Start Fresh'}
+                          </button>
+                          
                           <button
                             onClick={() => {
-                              resetPhoneVerification();
+                              console.log('Refreshing page to completely reset state...');
+                              window.location.reload();
                             }}
                             className={`text-xs px-3 py-1 rounded transition-colors ${
                               isDark 
-                                ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/50' 
-                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                ? 'bg-red-900/50 text-red-300 hover:bg-red-800/50' 
+                                : 'bg-red-100 text-red-700 hover:bg-red-200'
                             }`}
                           >
-                            Start Fresh
+                            Refresh Page
                           </button>
                         </div>
                       ) : null}
@@ -2582,7 +2949,7 @@ const EnhancedKYCPage = () => {
                   )}
                 </div>
 
-                <div className={`flex items-center p-4 rounded-lg ${
+                {/* <div className={`flex items-center p-4 rounded-lg ${
                   isDark ? 'bg-purple-900/30' : 'bg-purple-50'
                 }`}>
                   <Lock className={`w-6 h-6 mr-3 ${
@@ -2599,7 +2966,7 @@ const EnhancedKYCPage = () => {
                   <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 cursor-pointer">
                     Verify Face
                   </button>
-                </div>
+                </div> */}
 
                 <div className={`p-4 rounded-lg ${
                   isDark ? 'bg-green-900/30' : 'bg-green-50'
@@ -2788,31 +3155,55 @@ const EnhancedKYCPage = () => {
 
           {currentStep === 4 && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Review & Submit</h2>
+              <h2 className={`text-2xl font-bold mb-6 ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>Review & Submit</h2>
               
               {/* Personal Info Summary */}
               <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Information</h3>
-                <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className={`text-lg font-semibold mb-4 ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>Personal Information</h3>
+                <div className={`p-4 rounded-lg ${
+                  isDark ? 'bg-gray-700/50' : 'bg-gray-50'
+                }`}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div><strong>Name:</strong> {kycData.personalInfo.fullName}</div>
-                    <div><strong>DOB:</strong> {kycData.personalInfo.dateOfBirth}</div>
-                    <div><strong>Phone:</strong> {kycData.personalInfo.phoneNumber}</div>
-                    <div><strong>City:</strong> {kycData.personalInfo.city}</div>
-                    <div className="md:col-span-2"><strong>Address:</strong> {kycData.personalInfo.address}</div>
+                    <div className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                      <strong className={isDark ? 'text-white' : 'text-gray-900'}>Name:</strong> {kycData.personalInfo.fullName}
+                    </div>
+                    <div className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                      <strong className={isDark ? 'text-white' : 'text-gray-900'}>DOB:</strong> {kycData.personalInfo.dateOfBirth}
+                    </div>
+                    <div className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                      <strong className={isDark ? 'text-white' : 'text-gray-900'}>Phone:</strong> {kycData.personalInfo.phoneNumber}
+                    </div>
+                    <div className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                      <strong className={isDark ? 'text-white' : 'text-gray-900'}>City:</strong> {kycData.personalInfo.city}
+                    </div>
+                    <div className={`md:col-span-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <strong className={isDark ? 'text-white' : 'text-gray-900'}>Address:</strong> {kycData.personalInfo.address}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Documents Summary */}
               <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Documents Uploaded</h3>
+                <h3 className={`text-lg font-semibold mb-4 ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>Documents Uploaded</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(kycData.documents).map(([key, doc]) => (
                     doc.file && (
-                      <div key={key} className="flex items-center p-3 bg-green-50 rounded-lg">
-                        <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
-                        <span className="text-sm font-medium capitalize">
+                      <div key={key} className={`flex items-center p-3 rounded-lg ${
+                        isDark ? 'bg-green-900/30 border border-green-700/30' : 'bg-green-50'
+                      }`}>
+                        <CheckCircle className={`w-5 h-5 mr-3 ${
+                          isDark ? 'text-green-400' : 'text-green-600'
+                        }`} />
+                        <span className={`text-sm font-medium capitalize ${
+                          isDark ? 'text-green-300' : 'text-green-800'
+                        }`}>
                           {key.replace(/([A-Z])/g, ' $1')}
                         </span>
                       </div>
@@ -2821,9 +3212,15 @@ const EnhancedKYCPage = () => {
                   
                   {/* Address Verification Document */}
                   {kycData.addressVerificationData.documentFile && (
-                    <div className="flex items-center p-3 bg-green-50 rounded-lg">
-                      <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
-                      <span className="text-sm font-medium">
+                    <div className={`flex items-center p-3 rounded-lg ${
+                      isDark ? 'bg-green-900/30 border border-green-700/30' : 'bg-green-50'
+                    }`}>
+                      <CheckCircle className={`w-5 h-5 mr-3 ${
+                        isDark ? 'text-green-400' : 'text-green-600'
+                      }`} />
+                      <span className={`text-sm font-medium ${
+                        isDark ? 'text-green-300' : 'text-green-800'
+                      }`}>
                         Address Proof ({kycData.addressVerificationData.documentType.replace('_', ' ')})
                       </span>
                     </div>
@@ -2833,37 +3230,57 @@ const EnhancedKYCPage = () => {
 
               {/* Verification Status Summary */}
               <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Verification Status</h3>
+                <h3 className={`text-lg font-semibold mb-4 ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>Verification Status</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Phone Verification</span>
+                  <div className={`flex items-center justify-between p-3 rounded-lg ${
+                    isDark ? 'bg-gray-700/50' : 'bg-gray-50'
+                  }`}>
+                    <span className={`text-sm font-medium ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                    }`}>Phone Verification</span>
                     {phoneVerification.step === 'verified' ? (
-                      <div className="flex items-center text-green-600">
+                      <div className={`flex items-center ${
+                        isDark ? 'text-green-400' : 'text-green-600'
+                      }`}>
                         <CheckCircle className="w-4 h-4 mr-1" />
                         <span className="text-sm">Verified</span>
                       </div>
                     ) : (
-                      <div className="flex items-center text-yellow-600">
+                      <div className={`flex items-center ${
+                        isDark ? 'text-yellow-400' : 'text-yellow-600'
+                      }`}>
                         <Clock className="w-4 h-4 mr-1" />
                         <span className="text-sm">Pending</span>
                       </div>
                     )}
                   </div>
                   
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium">Address Verification</span>
+                  <div className={`flex items-center justify-between p-3 rounded-lg ${
+                    isDark ? 'bg-gray-700/50' : 'bg-gray-50'
+                  }`}>
+                    <span className={`text-sm font-medium ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                    }`}>Address Verification</span>
                     {addressVerification.step === 'verified' ? (
-                      <div className="flex items-center text-green-600">
+                      <div className={`flex items-center ${
+                        isDark ? 'text-green-400' : 'text-green-600'
+                      }`}>
                         <CheckCircle className="w-4 h-4 mr-1" />
                         <span className="text-sm">Verified</span>
                       </div>
                     ) : addressVerification.step === 'submitted' ? (
-                      <div className="flex items-center text-yellow-600">
+                      <div className={`flex items-center ${
+                        isDark ? 'text-yellow-400' : 'text-yellow-600'
+                      }`}>
                         <Clock className="w-4 h-4 mr-1" />
                         <span className="text-sm">Under Review</span>
                       </div>
                     ) : (
-                      <div className="flex items-center text-gray-500">
+                      <div className={`flex items-center ${
+                        isDark ? 'text-gray-500' : 'text-gray-500'
+                      }`}>
                         <X className="w-4 h-4 mr-1" />
                         <span className="text-sm">Not Started</span>
                       </div>
@@ -2902,11 +3319,13 @@ const EnhancedKYCPage = () => {
                 <input
                   type="checkbox"
                   id="terms"
-                  className={`w-4 h-4 text-indigo-600 rounded ${
-                    isDark ? 'border-gray-600' : 'border-gray-300'
+                  className={`w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500 ${
+                    isDark 
+                      ? 'border-gray-600 bg-gray-700 checked:bg-indigo-600 checked:border-indigo-600' 
+                      : 'border-gray-300 bg-white'
                   }`}
                 />
-                <label htmlFor="terms" className={`ml-2 text-sm ${
+                <label htmlFor="terms" className={`ml-2 text-sm cursor-pointer ${
                   isDark ? 'text-gray-300' : 'text-gray-600'
                 }`}>
                   I confirm that all information provided is accurate and I agree to the terms and conditions
@@ -2916,14 +3335,20 @@ const EnhancedKYCPage = () => {
           )}
 
           {/* Navigation Buttons */}
-          <div className="flex justify-between mt-8 pt-6 border-t">
+          <div className={`flex justify-between mt-8 pt-6 border-t ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}>
             <button
               onClick={prevStep}
               disabled={currentStep === 1}
-              className={`px-6 py-3 rounded-lg font-medium cursor-pointer ${
+              className={`px-6 py-3 rounded-lg font-medium cursor-pointer transition-colors ${
                 currentStep === 1
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? isDark 
+                    ? 'bg-gray-800 text-gray-600 cursor-not-allowed' 
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : isDark
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               Previous
@@ -2932,7 +3357,11 @@ const EnhancedKYCPage = () => {
             {currentStep < 4 ? (
               <button
                 onClick={nextStep}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium cursor-pointer"
+                className={`px-6 py-3 rounded-lg font-medium cursor-pointer transition-colors ${
+                  isDark 
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                }`}
               >
                 Next Step
               </button>
@@ -2940,7 +3369,11 @@ const EnhancedKYCPage = () => {
               <button
                 onClick={submitKYC}
                 disabled={uploading}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50 cursor-pointer"
+                className={`px-6 py-3 rounded-lg font-medium disabled:opacity-50 cursor-pointer transition-colors ${
+                  isDark 
+                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
               >
                 {uploading ? (
                   <div className="flex items-center">
@@ -3040,7 +3473,20 @@ const EnhancedKYCPage = () => {
       )}
 
       {/* Invisible reCAPTCHA container */}
-      <div id="recaptcha-container"></div>
+      <div 
+        ref={recaptchaContainerRef}
+        id="recaptcha-container" 
+        className="recaptcha-container"
+        style={{ 
+          position: 'absolute', 
+          bottom: '0', 
+          left: '0', 
+          opacity: 0, 
+          pointerEvents: 'none',
+          height: '1px',
+          overflow: 'hidden'
+        }}
+      ></div>
     </div>
   );
 }

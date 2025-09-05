@@ -31,6 +31,9 @@ router.post("/", verifyToken, async (req, res) => {
 
     // Extract user info from Firebase Auth Token
     const { name, email, id } = req.user;
+    
+    // Use email prefix as fallback name if name is undefined
+    const userName = name || email?.split('@')[0] || 'Unknown User';
 
     // Validate loan parameters
     const validation = interestCalculator.validateLoan(amount, tenureMonths);
@@ -45,7 +48,7 @@ router.post("/", verifyToken, async (req, res) => {
     const calculation = interestCalculator.calculateInterest(amount, tenureMonths, interestRate);
 
     const newLoan = new Loan({
-      name,
+      name: userName,
       collegeEmail: email,
       phoneNumber,
       amount,
@@ -73,6 +76,7 @@ router.post("/", verifyToken, async (req, res) => {
       explanation: interestCalculator.getExplanation(calculation)
     });
   } catch (error) {
+    console.error('❌ Error creating loan:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -546,11 +550,39 @@ router.get("/admin/stats", verifyToken, async (req, res) => {
 // Preview interest calculation before loan submission
 router.post("/preview-interest", verifyToken, async (req, res) => {
   try {
+    console.log('📊 Preview interest request:', req.body);
     const { amount, tenureMonths, interestRate } = req.body;
 
+    // Validate required fields
+    if (!amount || !tenureMonths) {
+      console.log('❌ Missing required fields:', { amount, tenureMonths });
+      return res.status(400).json({ 
+        error: "Missing required fields", 
+        details: ["Amount and tenure are required"] 
+      });
+    }
+
+    // Parse and validate numeric values
+    const parsedAmount = parseFloat(amount);
+    const parsedTenure = parseFloat(tenureMonths);
+    const parsedRate = interestRate ? parseFloat(interestRate) : null;
+
+    if (isNaN(parsedAmount) || isNaN(parsedTenure)) {
+      console.log('❌ Invalid numeric values:', { parsedAmount, parsedTenure });
+      return res.status(400).json({ 
+        error: "Invalid numeric values", 
+        details: ["Amount and tenure must be valid numbers"] 
+      });
+    }
+
+    console.log('✅ Parsed values:', { parsedAmount, parsedTenure, parsedRate });
+
     // Validate loan parameters
-    const validation = interestCalculator.validateLoan(amount, tenureMonths);
+    const validation = interestCalculator.validateLoan(parsedAmount, parsedTenure);
+    console.log('📋 Validation result:', validation);
+    
     if (!validation.isValid) {
+      console.log('❌ Validation failed:', validation.errors);
       return res.status(400).json({ 
         error: "Invalid loan parameters", 
         details: validation.errors 
@@ -558,16 +590,19 @@ router.post("/preview-interest", verifyToken, async (req, res) => {
     }
 
     // Calculate interest details
-    const calculation = interestCalculator.calculateInterest(amount, tenureMonths, interestRate);
+    console.log('⚙️ Calculating interest...');
+    const calculation = interestCalculator.calculateInterest(parsedAmount, parsedTenure, parsedRate);
     const explanation = interestCalculator.getExplanation(calculation);
+    console.log('✅ Calculation complete:', { calculation, explanation });
 
     res.json({
       calculation,
       explanation,
       validation,
-      availableTenures: interestCalculator.getAvailableTenures(amount)
+      availableTenures: interestCalculator.getAvailableTenures(parsedAmount)
     });
   } catch (error) {
+    console.error('❌ Error in preview-interest:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import Navbar from './Navbar';
+import API from '../api/api';
 import { 
   Mail, 
   Phone, 
@@ -37,31 +38,59 @@ const Contact = () => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Simulate form submission
-    setTimeout(() => {
+    try {
+      // Send contact message to server
+      const response = await API.post('/contact/submit', formData);
+      
+      if (response.data.success) {
+        setIsSubmitted(true);
+        setFormData({
+          name: '',
+          email: '',
+          subject: '',
+          message: '',
+          category: 'general'
+        });
+        
+        // Show success message based on response status
+        console.log(`Message submitted successfully with ID: ${response.data.messageId}`);
+        console.log(`Status: ${response.data.status}`);
+        console.log(`Estimated response time: ${response.data.estimatedResponseTime}`);
+      }
+    } catch (error) {
+      console.error('Error submitting contact message:', error);
+      
+      // Handle different error scenarios
+      if (error.response?.status === 403) {
+        alert('Message blocked due to security concerns. Please contact support if you believe this is an error.');
+      } else if (error.response?.status === 429) {
+        alert('Too many messages sent. Please wait before sending another message.');
+      } else if (error.response?.status === 400) {
+        const errorData = error.response.data;
+        if (errorData.missing) {
+          alert('Please fill in all required fields.');
+        } else {
+          alert(errorData.error || 'Invalid message content. Please check your input.');
+        }
+      } else {
+        alert('Failed to send message. Please try again later.');
+      }
+    } finally {
       setIsSubmitting(false);
-      setIsSubmitted(true);
-      setFormData({
-        name: '',
-        email: '',
-        subject: '',
-        message: '',
-        category: 'general'
-      });
-    }, 2000);
+    }
   };
 
   const contactInfo = [
     {
       icon: <Mail className="w-6 h-6" />,
       title: "Email Us",
-      details: "support@borrowease.com",
+      details: "mishrashivam7465@gmail.com",
       subtext: "We'll respond within 24 hours"
     },
     {
       icon: <Phone className="w-6 h-6" />,
       title: "Call Us",
-      details: "+91 1800-123-4567",
+      details: "+91 82181XXXXX",
       subtext: "Mon-Fri, 9 AM - 6 PM IST"
     },
     {

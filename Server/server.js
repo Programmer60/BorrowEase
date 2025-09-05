@@ -14,6 +14,9 @@ import creditRoutes from "./routes/creditRoutes.js";
 import disputeRoutes from "./routes/disputeRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import fraudRoutes from "./routes/enhancedFraudDetection.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import ChatMessage from "./models/chatModel.js";
 import Loan from "./models/loanModel.js";
 import User from "./models/userModel.js";
@@ -72,6 +75,9 @@ app.use("/api/credit", creditRoutes);
 app.use("/api/disputes", disputeRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/fraud", fraudRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api", cloudinaryRoutes);
 
 // Store user-socket mapping to handle multiple tabs per user

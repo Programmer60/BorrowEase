@@ -25,9 +25,11 @@ import {
 } from 'lucide-react';
 import Navbar from './Navbar';
 import API from '../api/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const AdminKYCManagement = () => {
   const navigate = useNavigate();
+  const { isDark } = useTheme();
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const [kycSubmissions, setKycSubmissions] = useState([]);
@@ -241,12 +243,12 @@ const AdminKYCManagement = () => {
     };
 
     return (
-      <div className="border rounded-lg p-3 bg-gray-50">
-        <h4 className="font-medium text-gray-900 mb-2">{title}</h4>
+      <div className={`border rounded-lg p-3 ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'}`}>
+        <h4 className={`font-medium mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{title}</h4>
         {typeof document === 'string' ? (
           <div className="flex items-center space-x-2">
-            <FileText className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-600">Document uploaded</span>
+            <FileText className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+            <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Document uploaded</span>
             <button 
               onClick={(e) => {
                 e.preventDefault();
@@ -263,16 +265,16 @@ const AdminKYCManagement = () => {
         ) : (
           <div className="space-y-2">
             {document.number && (
-              <p className="text-sm"><strong>Number:</strong> {document.number}</p>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}><strong>Number:</strong> {document.number}</p>
             )}
             {document.docType && (
-              <p className="text-sm"><strong>Type:</strong> {document.docType.replace('_', ' ').toUpperCase()}</p>
+              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}><strong>Type:</strong> {document.docType.replace('_', ' ').toUpperCase()}</p>
             )}
             <div className="flex space-x-2">
               {document.frontImage && (
                 <div className="flex items-center space-x-1">
-                  <FileText className="w-4 h-4 text-gray-500" />
-                  <span className="text-xs text-gray-600">Front</span>
+                  <FileText className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Front</span>
                   <button 
                     onClick={(e) => {
                       e.preventDefault();
@@ -289,8 +291,8 @@ const AdminKYCManagement = () => {
               )}
               {document.backImage && (
                 <div className="flex items-center space-x-1">
-                  <FileText className="w-4 h-4 text-gray-500" />
-                  <span className="text-xs text-gray-600">Back</span>
+                  <FileText className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Back</span>
                   <button 
                     onClick={(e) => {
                       e.preventDefault();
@@ -307,8 +309,8 @@ const AdminKYCManagement = () => {
               )}
               {document.image && (
                 <div className="flex items-center space-x-1">
-                  <FileText className="w-4 h-4 text-gray-500" />
-                  <span className="text-xs text-gray-600">Image</span>
+                  <FileText className={`w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
+                  <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Image</span>
                   <button 
                     onClick={(e) => {
                       e.preventDefault();
@@ -332,10 +334,10 @@ const AdminKYCManagement = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading KYC submissions...</p>
+          <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Loading KYC submissions...</p>
         </div>
       </div>
     );
@@ -344,7 +346,7 @@ const AdminKYCManagement = () => {
   if (!authorized) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Navbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -354,8 +356,8 @@ const AdminKYCManagement = () => {
             <div className="flex items-center">
               <Shield className="w-8 h-8 text-blue-600 mr-3" />
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">KYC Management</h1>
-                <p className="text-gray-600">Review and verify user identity documents</p>
+                <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>KYC Management</h1>
+                <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Review and verify user identity documents</p>
               </div>
             </div>
             <button
@@ -370,54 +372,54 @@ const AdminKYCManagement = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className={`rounded-lg shadow p-6 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
             <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
+              <div className={`p-2 rounded-lg ${isDark ? 'bg-blue-900 bg-opacity-30' : 'bg-blue-100'}`}>
                 <FileText className="w-6 h-6 text-blue-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Submissions</p>
-                <p className="text-2xl font-bold text-gray-900">{kycSubmissions.length}</p>
+                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Submissions</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{kycSubmissions.length}</p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className={`rounded-lg shadow p-6 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
             <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
+              <div className={`p-2 rounded-lg ${isDark ? 'bg-yellow-900 bg-opacity-30' : 'bg-yellow-100'}`}>
                 <Clock className="w-6 h-6 text-yellow-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Pending Review</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending Review</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   {kycSubmissions.filter(s => s.status === 'pending').length}
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className={`rounded-lg shadow p-6 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
             <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
+              <div className={`p-2 rounded-lg ${isDark ? 'bg-green-900 bg-opacity-30' : 'bg-green-100'}`}>
                 <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Verified</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Verified</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   {kycSubmissions.filter(s => s.status === 'verified').length}
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className={`rounded-lg shadow p-6 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
             <div className="flex items-center">
-              <div className="p-2 bg-red-100 rounded-lg">
+              <div className={`p-2 rounded-lg ${isDark ? 'bg-red-900 bg-opacity-30' : 'bg-red-100'}`}>
                 <XCircle className="w-6 h-6 text-red-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Rejected</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Rejected</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   {kycSubmissions.filter(s => s.status === 'rejected').length}
                 </p>
               </div>
@@ -426,7 +428,7 @@ const AdminKYCManagement = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow mb-6">
+        <div className={`rounded-lg shadow mb-6 ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
           <div className="p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
               <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
@@ -435,14 +437,22 @@ const AdminKYCManagement = () => {
                   <input
                     type="text"
                     placeholder="Search by name, email, or document number..."
-                    className="pl-10 pr-4 py-2 w-80 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`pl-10 pr-4 py-2 w-80 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isDark 
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
 
                 <select
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    isDark 
+                      ? 'bg-gray-700 border-gray-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
                 >
@@ -453,7 +463,7 @@ const AdminKYCManagement = () => {
                 </select>
               </div>
 
-              <div className="text-sm text-gray-600">
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 Showing {filteredSubmissions.length} of {kycSubmissions.length} submissions
               </div>
             </div>
@@ -463,7 +473,7 @@ const AdminKYCManagement = () => {
         {/* KYC Submissions */}
         <div className="space-y-6">
           {filteredSubmissions.map((submission) => (
-            <div key={submission._id} className="bg-white rounded-lg shadow overflow-hidden">
+            <div key={submission._id} className={`rounded-lg shadow overflow-hidden ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-4">
@@ -475,16 +485,16 @@ const AdminKYCManagement = () => {
                       </div>
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{submission.userName}</h3>
-                      <p className="text-sm text-gray-500">{submission.userEmail}</p>
-                      <p className="text-sm text-gray-500">{submission.userPhone}</p>
+                      <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{submission.userName}</h3>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{submission.userEmail}</p>
+                      <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{submission.userPhone}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
                     {getStatusBadge(submission.status)}
                     <button
                       onClick={() => toggleCardExpansion(submission._id)}
-                      className="p-2 text-gray-400 hover:text-gray-600"
+                      className={`p-2 ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}`}
                     >
                       {expandedCards[submission._id] ? 
                         <ChevronUp className="w-5 h-5" /> : 
@@ -496,40 +506,40 @@ const AdminKYCManagement = () => {
 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                   <div className="flex items-center space-x-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
+                    <Calendar className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                     <div>
-                      <p className="text-xs text-gray-500">Submitted</p>
-                      <p className="text-sm font-medium">{new Date(submission.submittedAt).toLocaleDateString()}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Submitted</p>
+                      <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{new Date(submission.submittedAt).toLocaleDateString()}</p>
                     </div>
                   </div>
                   {submission.reviewedAt && (
                     <div className="flex items-center space-x-2">
-                      <CheckCircle className="w-4 h-4 text-gray-400" />
+                      <CheckCircle className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                       <div>
-                        <p className="text-xs text-gray-500">Reviewed</p>
-                        <p className="text-sm font-medium">{new Date(submission.reviewedAt).toLocaleDateString()}</p>
+                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Reviewed</p>
+                        <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{new Date(submission.reviewedAt).toLocaleDateString()}</p>
                       </div>
                     </div>
                   )}
                   <div className="flex items-center space-x-2">
                     <CreditCard className="w-4 h-4 text-gray-400" />
                     <div>
-                      <p className="text-xs text-gray-500">Aadhar</p>
-                      <p className="text-sm font-medium">{submission.documents?.aadhar?.number || 'N/A'}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Aadhar</p>
+                      <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{submission.documents?.aadhar?.number || 'N/A'}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <FileText className="w-4 h-4 text-gray-400" />
+                    <FileText className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                     <div>
-                      <p className="text-xs text-gray-500">PAN</p>
-                      <p className="text-sm font-medium">{submission.documents?.pan?.number || 'N/A'}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>PAN</p>
+                      <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{submission.documents?.pan?.number || 'N/A'}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4 text-gray-400" />
+                    <Clock className={`w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
                     <div>
-                      <p className="text-xs text-gray-500">Attempts</p>
-                      <p className="text-sm font-medium">
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Attempts</p>
+                      <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                         {submission.submissionAttempts || 1}/3
                         {submission.maxAttemptsReached && (
                           <span className="ml-1 text-red-600 font-bold">MAX</span>
@@ -540,19 +550,19 @@ const AdminKYCManagement = () => {
                 </div>
 
                 {expandedCards[submission._id] && (
-                  <div className="border-t pt-4 mt-4">
+                  <div className={`border-t pt-4 mt-4 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Personal Information */}
                       <div>
-                        <h4 className="font-semibold text-gray-900 mb-3">Personal Information</h4>
+                        <h4 className={`font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Personal Information</h4>
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Full Name:</span>
-                            <span className="font-medium">{submission.personalInfo?.fullName || 'N/A'}</span>
+                            <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Full Name:</span>
+                            <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{submission.personalInfo?.fullName || 'N/A'}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Date of Birth:</span>
-                            <span className="font-medium">
+                            <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Date of Birth:</span>
+                            <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                               {submission.personalInfo?.dateOfBirth ? 
                                 (() => {
                                   try {
@@ -564,26 +574,26 @@ const AdminKYCManagement = () => {
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Occupation:</span>
-                            <span className="font-medium">{submission.personalInfo?.occupation || 'N/A'}</span>
+                            <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Occupation:</span>
+                            <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{submission.personalInfo?.occupation || 'N/A'}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-600">Monthly Income:</span>
-                            <span className="font-medium">
+                            <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Monthly Income:</span>
+                            <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>
                               {submission.personalInfo?.monthlyIncome ? 
                                 `₹${submission.personalInfo.monthlyIncome.toLocaleString()}` : 'N/A'}
                             </span>
                           </div>
                           <div className="pt-2">
-                            <span className="text-gray-600">Address:</span>
-                            <p className="font-medium mt-1">{submission.personalInfo?.address || 'N/A'}</p>
+                            <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>Address:</span>
+                            <p className={`font-medium mt-1 ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>{submission.personalInfo?.address || 'N/A'}</p>
                           </div>
                         </div>
                       </div>
 
                       {/* Documents */}
                       <div>
-                        <h4 className="font-semibold text-gray-900 mb-3">Documents</h4>
+                        <h4 className={`font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Documents</h4>
                         <div className="space-y-3">
                           <DocumentViewer document={submission.documents?.aadhar} title="Aadhar Card" />
                           <DocumentViewer document={submission.documents?.pan} title="PAN Card" />
@@ -600,15 +610,15 @@ const AdminKYCManagement = () => {
                       {/* Verification Status */}
                       {submission.verificationStatus && (
                         <div>
-                          <h4 className="font-semibold text-gray-900 mb-3">Verification Status</h4>
+                          <h4 className={`font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Verification Status</h4>
                           <div className="space-y-3">
                             
                             {/* Phone Verification */}
                             {submission.verificationStatus.phoneVerification && (
-                              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className={`flex items-center justify-between p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                                 <div className="flex items-center">
                                   <Phone className="w-4 h-4 text-blue-600 mr-2" />
-                                  <span className="text-sm font-medium">Phone Verification</span>
+                                  <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>Phone Verification</span>
                                 </div>
                                 <div className="flex items-center">
                                   {submission.verificationStatus.phoneVerification.status === 'verified' ? (
@@ -628,11 +638,11 @@ const AdminKYCManagement = () => {
 
                             {/* Address Verification */}
                             {submission.verificationStatus.addressVerification && (
-                              <div className="p-3 bg-gray-50 rounded-lg">
+                              <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center">
                                     <MapPin className="w-4 h-4 text-green-600 mr-2" />
-                                    <span className="text-sm font-medium">Address Verification</span>
+                                    <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-900'}`}>Address Verification</span>
                                   </div>
                                   <div className="flex items-center">
                                     {submission.verificationStatus.addressVerification.status === 'verified' ? (
@@ -660,7 +670,7 @@ const AdminKYCManagement = () => {
                                 </div>
                                 
                                 {submission.verificationStatus.addressVerification.documentType && (
-                                  <p className="text-xs text-gray-600 mb-2">
+                                  <p className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                     Document: {submission.verificationStatus.addressVerification.documentType.replace('_', ' ')}
                                   </p>
                                 )}
@@ -698,16 +708,16 @@ const AdminKYCManagement = () => {
                     {/* Comments */}
                     {submission.comments && submission.comments.length > 0 && (
                       <div className="mt-6">
-                        <h4 className="font-semibold text-gray-900 mb-3">Review Comments</h4>
+                        <h4 className={`font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Review Comments</h4>
                         <div className="space-y-2">
                           {submission.comments.map((commentObj, index) => (
-                            <div key={index} className="bg-gray-50 rounded-lg p-3">
+                            <div key={index} className={`rounded-lg p-3 ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                               {typeof commentObj === 'string' ? (
-                                <p className="text-sm text-gray-700">{commentObj}</p>
+                                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{commentObj}</p>
                               ) : (
                                 <div>
-                                  <p className="text-sm text-gray-700">{commentObj.comment}</p>
-                                  <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                                  <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{commentObj.comment}</p>
+                                  <div className={`flex justify-between items-center mt-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                     <span>By: {commentObj.addedBy}</span>
                                     <span>
                                       {(() => {
@@ -729,7 +739,7 @@ const AdminKYCManagement = () => {
 
                     {/* Actions */}
                     {submission.status === 'pending' && (
-                      <div className="flex space-x-3 mt-6 pt-4 border-t">
+                      <div className={`flex space-x-3 mt-6 pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                         <button
                           onClick={() => handleReviewSubmission(submission, 'verified')}
                           className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
@@ -749,10 +759,14 @@ const AdminKYCManagement = () => {
 
                     {/* Reset Attempts for rejected KYC with max attempts reached */}
                     {submission.status === 'rejected' && submission.maxAttemptsReached && (
-                      <div className="flex items-center justify-between mt-6 pt-4 border-t bg-red-50 p-4 rounded-lg">
+                      <div className={`flex items-center justify-between mt-6 pt-4 border-t p-4 rounded-lg ${
+                        isDark 
+                          ? 'border-gray-700 bg-red-900 bg-opacity-20' 
+                          : 'border-gray-200 bg-red-50'
+                      }`}>
                         <div>
-                          <h4 className="text-sm font-medium text-red-800">Maximum Attempts Reached</h4>
-                          <p className="text-xs text-red-600">This user has exhausted all 3 submission attempts.</p>
+                          <h4 className={`text-sm font-medium ${isDark ? 'text-red-400' : 'text-red-800'}`}>Maximum Attempts Reached</h4>
+                          <p className={`text-xs ${isDark ? 'text-red-500' : 'text-red-600'}`}>This user has exhausted all 3 submission attempts.</p>
                         </div>
                         <button
                           onClick={() => resetAttempts(submission._id)}
@@ -799,9 +813,9 @@ const AdminKYCManagement = () => {
 
         {filteredSubmissions.length === 0 && (
           <div className="text-center py-12">
-            <Shield className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No KYC submissions found</h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <Shield className={`mx-auto h-12 w-12 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
+            <h3 className={`mt-2 text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>No KYC submissions found</h3>
+            <p className={`mt-1 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               Try adjusting your search or filter criteria.
             </p>
           </div>
@@ -810,28 +824,32 @@ const AdminKYCManagement = () => {
         {/* Review Modal */}
         {showReviewModal && selectedSubmission && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className={`rounded-lg p-6 w-full max-w-md ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
               <div className="flex items-center mb-4">
                 {reviewAction === 'verified' ? (
                   <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
                 ) : (
                   <XCircle className="w-6 h-6 text-red-600 mr-3" />
                 )}
-                <h3 className="text-lg font-semibold">
+                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                   {reviewAction === 'verified' ? 'Approve' : 'Reject'} KYC Submission
                 </h3>
               </div>
               
-              <p className="text-gray-600 mb-4">
+              <p className={`mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                 Are you sure you want to {reviewAction === 'verified' ? 'approve' : 'reject'} the KYC submission for {selectedSubmission.userName}?
               </p>
 
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                   Comments {reviewAction === 'rejected' && <span className="text-red-500">*</span>}
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    isDark 
+                      ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
                   rows={3}
                   placeholder={reviewAction === 'verified' ? 'Optional approval comments...' : 'Required rejection reason...'}
                   value={reviewComments}
@@ -842,7 +860,11 @@ const AdminKYCManagement = () => {
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setShowReviewModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className={`px-4 py-2 border rounded-md text-sm font-medium ${
+                    isDark 
+                      ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
                 >
                   Cancel
                 </button>

@@ -212,13 +212,15 @@ const AdminDashboard = () => {
         {/* Alerts */}
         {alerts.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">System Alerts</h2>
+            <h2 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>System Alerts</h2>
             <div className="space-y-2">
               {alerts.map((alert) => (
                 <div key={alert.id} className={`p-4 rounded-lg border-l-4 ${
-                  alert.type === 'warning' ? 'bg-yellow-50 border-yellow-400' :
-                  alert.type === 'success' ? 'bg-green-50 border-green-400' :
-                  'bg-blue-50 border-blue-400'
+                  alert.type === 'warning' 
+                    ? isDark ? 'bg-yellow-900/20 border-yellow-400' : 'bg-yellow-50 border-yellow-400'
+                    : alert.type === 'success' 
+                    ? isDark ? 'bg-green-900/20 border-green-400' : 'bg-green-50 border-green-400'
+                    : isDark ? 'bg-blue-900/20 border-blue-400' : 'bg-blue-50 border-blue-400'
                 }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
@@ -227,12 +229,14 @@ const AdminDashboard = () => {
                         alert.type === 'success' ? 'text-green-600' :
                         'text-blue-600'
                       }`} />
-                      <span className="text-sm font-medium text-gray-900">{alert.message}</span>
+                      <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{alert.message}</span>
                     </div>
                     <button className={`text-sm font-medium ${
-                      alert.type === 'warning' ? 'text-yellow-700 hover:text-yellow-800' :
-                      alert.type === 'success' ? 'text-green-700 hover:text-green-800' :
-                      'text-blue-700 hover:text-blue-800'
+                      alert.type === 'warning' 
+                        ? isDark ? 'text-yellow-400 hover:text-yellow-300' : 'text-yellow-700 hover:text-yellow-800'
+                        : alert.type === 'success' 
+                        ? isDark ? 'text-green-400 hover:text-green-300' : 'text-green-700 hover:text-green-800'
+                        : isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-700 hover:text-blue-800'
                     }`}>
                       {alert.action}
                     </button>
@@ -424,7 +428,11 @@ const AdminDashboard = () => {
             </div>
             <button 
               onClick={() => navigate('/credit-score')}
-              className="w-full mt-4 py-2 text-sm bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100"
+              className={`w-full mt-4 py-2 text-sm rounded-lg hover:bg-opacity-80 ${
+                isDark 
+                  ? 'bg-yellow-900/20 text-yellow-400 hover:bg-yellow-900/30' 
+                  : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
+              }`}
             >
               View Credit Analytics
             </button>
@@ -489,21 +497,21 @@ const AdminDashboard = () => {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Payment Gateway</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Payment Gateway</span>
                 <span className="flex items-center text-green-600">
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                   Active
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">File Storage</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>File Storage</span>
                 <span className="flex items-center text-green-600">
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                   Normal
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Background Jobs</span>
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Background Jobs</span>
                 <span className="flex items-center text-yellow-600">
                   <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
                   Processing
@@ -512,44 +520,52 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Settings</h3>
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Platform Settings</h3>
             <div className="space-y-3">
-              <button className="w-full flex items-center px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg">
-                <Settings className="w-5 h-5 text-gray-600 mr-3" />
-                <span className="text-sm font-medium">System Configuration</span>
+              <button className={`w-full flex items-center px-4 py-3 text-left rounded-lg ${
+                isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
+              }`}>
+                <Settings className={`w-5 h-5 mr-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>System Configuration</span>
               </button>
-              <button className="w-full flex items-center px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-gray-600 mr-3" />
-                <span className="text-sm font-medium">Analytics</span>
+              <button className={`w-full flex items-center px-4 py-3 text-left rounded-lg ${
+                isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
+              }`}>
+                <BarChart3 className={`w-5 h-5 mr-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Analytics</span>
               </button>
-              <button className="w-full flex items-center px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg">
-                <Activity className="w-5 h-5 text-gray-600 mr-3" />
-                <span className="text-sm font-medium">Audit Logs</span>
+              <button className={`w-full flex items-center px-4 py-3 text-left rounded-lg ${
+                isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
+              }`}>
+                <Activity className={`w-5 h-5 mr-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
+                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Audit Logs</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Activity</h3>
-            <button className="text-sm text-blue-600 hover:text-blue-800">View All</button>
+            <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Recent Activity</h3>
+            <button className={`text-sm hover:text-blue-800 ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600'}`}>View All</button>
           </div>
           <div className="space-y-4">
             {recentActivity.map((activity) => {
               const IconComponent = getActivityIcon(activity.type);
               return (
-                <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={activity.id} className={`flex items-center justify-between p-3 rounded-lg ${
+                  isDark ? 'bg-gray-700' : 'bg-gray-50'
+                }`}>
                   <div className="flex items-center">
                     <IconComponent className={`w-5 h-5 mr-3 ${getActivityColor(activity.status)}`} />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{activity.message}</p>
-                      <p className="text-xs text-gray-500">{activity.time}</p>
+                      <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{activity.message}</p>
+                      <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{activity.time}</p>
                     </div>
                   </div>
-                  <button className="text-sm text-blue-600 hover:text-blue-800">
+                  <button className={`text-sm hover:text-blue-800 ${isDark ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600'}`}>
                     <Eye className="w-4 h-4" />
                   </button>
                 </div>
