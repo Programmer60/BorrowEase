@@ -26,6 +26,8 @@ const Contact = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [submitType, setSubmitType] = useState(''); // 'success' or 'error'
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -37,13 +39,52 @@ const Contact = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitMessage('');
+    setSubmitType('');
+    
+    // Basic validation
+    if (!formData.name.trim()) {
+      setSubmitMessage('Please enter your name');
+      setSubmitType('error');
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (!formData.email.trim() || !formData.email.includes('@') || !formData.email.includes('.')) {
+      setSubmitMessage('Please enter a valid email address');
+      setSubmitType('error');
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (!formData.subject.trim()) {
+      setSubmitMessage('Please enter a subject');
+      setSubmitType('error');
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (!formData.message.trim()) {
+      setSubmitMessage('Please enter your message');
+      setSubmitType('error');
+      setIsSubmitting(false);
+      return;
+    }
     
     try {
+      console.log('📧 Submitting contact form:', formData);
+      
       // Send contact message to server
       const response = await API.post('/contact/submit', formData);
       
       if (response.data.success) {
+        console.log('✅ Message submitted successfully:', response.data);
+        
         setIsSubmitted(true);
+        setSubmitMessage(response.data.message || 'Message sent successfully!');
+        setSubmitType('success');
+        
+        // Reset form
         setFormData({
           name: '',
           email: '',
@@ -52,29 +93,42 @@ const Contact = () => {
           category: 'general'
         });
         
-        // Show success message based on response status
-        console.log(`Message submitted successfully with ID: ${response.data.messageId}`);
-        console.log(`Status: ${response.data.status}`);
-        console.log(`Estimated response time: ${response.data.estimatedResponseTime}`);
+        // Auto-hide success message after 5 seconds
+        setTimeout(() => {
+          setIsSubmitted(false);
+          setSubmitMessage('');
+          setSubmitType('');
+        }, 5000);
       }
     } catch (error) {
-      console.error('Error submitting contact message:', error);
+      console.error('❌ Error submitting contact message:', error);
+      
+      let errorMessage = 'Failed to send message. Please try again.';
       
       // Handle different error scenarios
       if (error.response?.status === 403) {
-        alert('Message blocked due to security concerns. Please contact support if you believe this is an error.');
+        errorMessage = 'Message blocked due to security concerns. Please contact support if you believe this is an error.';
       } else if (error.response?.status === 429) {
-        alert('Too many messages sent. Please wait before sending another message.');
+        errorMessage = 'Too many messages sent. Please wait before sending another message.';
       } else if (error.response?.status === 400) {
         const errorData = error.response.data;
         if (errorData.missing) {
-          alert('Please fill in all required fields.');
+          errorMessage = 'Please fill in all required fields.';
         } else {
-          alert(errorData.error || 'Invalid message content. Please check your input.');
+          errorMessage = errorData.error || 'Invalid message content. Please check your input.';
         }
-      } else {
-        alert('Failed to send message. Please try again later.');
+      } else if (error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network error. Please check your internet connection.';
       }
+      
+      setSubmitMessage(errorMessage);
+      setSubmitType('error');
+      
+      // Auto-hide error message after 8 seconds
+      setTimeout(() => {
+        setSubmitMessage('');
+        setSubmitType('');
+      }, 8000);
     } finally {
       setIsSubmitting(false);
     }
@@ -229,6 +283,24 @@ const Contact = () => {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Status Message */}
+                {submitMessage && (
+                  <div className={`p-4 rounded-lg border ${
+                    submitType === 'success' 
+                      ? 'bg-green-50 border-green-200 text-green-800' 
+                      : 'bg-red-50 border-red-200 text-red-800'
+                  }`}>
+                    <div className="flex items-center">
+                      {submitType === 'success' ? (
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                      ) : (
+                        <div className="w-5 h-5 mr-2 text-red-500">⚠️</div>
+                      )}
+                      <span className="font-medium">{submitMessage}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${
@@ -262,7 +334,20 @@ const Contact = () => {
                           : 'border-gray-300 bg-white text-gray-900'
                       }`}
                       placeholder="your.email@example.com"
+                      onBlur={(e) => {
+                        const email = e.target.value;
+                        if (email && (!email.includes('@') || !email.includes('.'))) {
+                          setSubmitMessage('Please enter a valid email address (e.g., user@example.com)');
+                          setSubmitType('error');
+                        } else if (submitType === 'error' && submitMessage.includes('email')) {
+                          setSubmitMessage('');
+                          setSubmitType('');
+                        }
+                      }}
                     />
+                    {formData.email && (!formData.email.includes('@') || !formData.email.includes('.')) && (
+                      <p className="text-red-500 text-sm mt-1">Please enter a complete email address</p>
+                    )}
                   </div>
                 </div>
 
@@ -325,13 +410,17 @@ const Contact = () => {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                  disabled={isSubmitting || !formData.name || !formData.email || !formData.subject || !formData.message}
+                  className={`w-full py-3 px-6 rounded-lg transition-colors flex items-center justify-center font-medium ${
+                    isSubmitting || !formData.name || !formData.email || !formData.subject || !formData.message
+                      ? 'bg-gray-400 text-white cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                      Sending...
+                      Sending Message...
                     </>
                   ) : (
                     <>
@@ -340,6 +429,13 @@ const Contact = () => {
                     </>
                   )}
                 </button>
+                
+                {/* Form validation helper */}
+                {(!formData.name || !formData.email || !formData.subject || !formData.message) && (
+                  <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Please fill in all required fields to send your message
+                  </p>
+                )}
               </form>
             )}
           </div>

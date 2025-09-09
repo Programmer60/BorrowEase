@@ -56,8 +56,33 @@ const contactMessageSchema = new mongoose.Schema({
   },
   priority: {
     type: String,
-    enum: ['low', 'medium', 'high', 'urgent'],
+    enum: ['very_low', 'low', 'medium', 'high', 'critical'],
     default: 'medium'
+  },
+  // ENHANCED PRIORITY INTELLIGENCE FIELDS
+  priorityScore: {
+    type: Number,
+    default: 0,
+    min: -50,
+    max: 200
+  },
+  priorityFactors: [{
+    type: String,
+    maxlength: [200, 'Priority factor cannot exceed 200 characters']
+  }],
+  priorityRecommendations: [{
+    type: String,
+    maxlength: [300, 'Priority recommendation cannot exceed 300 characters']
+  }],
+  userVerificationLevel: {
+    type: String,
+    enum: ['unverified', 'email_verified', 'phone_verified', 'kyc_pending', 'kyc_approved'],
+    default: 'unverified'
+  },
+  customerTier: {
+    type: String,
+    enum: ['new', 'basic', 'verified', 'premium', 'vip'],
+    default: 'new'
   },
 
   // Security & Tracking
@@ -88,7 +113,7 @@ const contactMessageSchema = new mongoose.Schema({
   spamScore: {
     type: Number,
     min: 0,
-    max: 100,
+    max: 10000, // Allow extreme spam scores for industrial-level detection
     default: 0
   },
   language: {
@@ -137,22 +162,54 @@ const contactMessageSchema = new mongoose.Schema({
   reviewedAt: {
     type: Date
   },
-  adminNotes: {
-    type: String,
-    maxlength: [1000, 'Admin notes cannot exceed 1000 characters']
-  },
-  response: {
-    message: String,
-    respondedBy: {
+  adminNotes: [{
+    note: {
+      type: String,
+      maxlength: [1000, 'Admin note cannot exceed 1000 characters']
+    },
+    addedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
-    respondedAt: Date,
-    method: {
+    addedAt: {
+      type: Date,
+      default: Date.now
+    },
+    type: {
       type: String,
-      enum: ['email', 'phone', 'internal'],
-      default: 'email'
+      enum: ['status_change', 'general', 'escalation'],
+      default: 'general'
     }
+  }],
+  responses: {
+    messages: [{
+      message: {
+        type: String,
+        required: true
+      },
+      respondedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      respondedAt: {
+        type: Date,
+        default: Date.now
+      },
+      isPublic: {
+        type: Boolean,
+        default: true
+      }
+    }],
+    lastResponseAt: Date,
+    responseCount: {
+      type: Number,
+      default: 0
+    }
+  },
+  estimatedResponseTime: {
+    type: Number, // in hours
+    default: 24
   },
 
   // Metadata

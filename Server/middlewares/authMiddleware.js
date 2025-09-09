@@ -41,7 +41,7 @@ export const verifyToken = async (req, res, next) => {
 
   try {
     console.log('🔍 Verifying Firebase token...');
-    decodedToken = await auth.verifyIdToken(idToken);
+    const decodedToken = await auth.verifyIdToken(idToken);
     console.log('✅ Token verified for user:', decodedToken.email);
     
     // Only check user in database for non-setup routes

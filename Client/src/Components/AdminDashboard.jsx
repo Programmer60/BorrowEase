@@ -19,7 +19,8 @@ import {
   CreditCard,
   UserCheck,
   Ban,
-  RefreshCw
+  RefreshCw,
+  Mail
 } from 'lucide-react';
 import Navbar from './Navbar';
 import API from '../api/api';
@@ -35,7 +36,8 @@ const AdminDashboard = () => {
     loans: { total: 0, pending: 0, funded: 0, repaid: 0, flagged: 0, totalAmount: 0 },
     kyc: { total: 0, pending: 0, verified: 0, rejected: 0 },
     payments: { total: 0, successful: 0, failed: 0, totalAmount: 0 },
-    credit: { averageScore: 0, excellent: 0, good: 0, fair: 0, poor: 0 }
+    credit: { averageScore: 0, excellent: 0, good: 0, fair: 0, poor: 0 },
+    contact: { total: 0, pending: 0, resolved: 0, inProgress: 0 }
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -67,10 +69,11 @@ const AdminDashboard = () => {
       setLoading(true);
       
       // Load all data in parallel
-      const [usersRes, loansRes, creditRes] = await Promise.all([
+      const [usersRes, loansRes, creditRes, contactRes] = await Promise.all([
         API.get('/users/all').catch(() => ({ data: [] })),
         API.get('/loans').catch(() => ({ data: [] })),
-        API.get('/credit/admin/stats').catch(() => ({ data: { averageScore: 0, scoreDistribution: { excellent: 0, good: 0, fair: 0, poor: 0 } } }))
+        API.get('/credit/admin/stats').catch(() => ({ data: { averageScore: 0, scoreDistribution: { excellent: 0, good: 0, fair: 0, poor: 0 } } })),
+        API.get('/contact/admin/messages').catch(() => ({ data: { messages: [], statistics: { totalMessages: 0, pendingCount: 0 } } }))
       ]);
 
       // Calculate user stats
@@ -118,12 +121,21 @@ const AdminDashboard = () => {
         poor: creditRes.data.scoreDistribution?.poor || 0
       };
 
+      // Extract contact message stats
+      const contactStats = {
+        total: contactRes.data.statistics?.totalMessages || 0,
+        pending: contactRes.data.statistics?.pendingCount || 0,
+        resolved: contactRes.data.messages?.filter(m => m.status === 'resolved').length || 0,
+        inProgress: contactRes.data.messages?.filter(m => m.status === 'in_progress').length || 0
+      };
+
       setStats({
         users: userStats,
         loans: loanStats,
         kyc: kycStats,
         payments: paymentStats,
-        credit: creditStats
+        credit: creditStats,
+        contact: contactStats
       });
 
       // Generate recent activity
@@ -142,6 +154,17 @@ const AdminDashboard = () => {
         { id: 2, type: 'info', message: `${kycStats.pending} KYC submissions pending`, action: 'Review KYC' },
         { id: 3, type: 'success', message: 'System backup completed successfully', action: 'View Logs' }
       ];
+
+      // Add contact messages alert if there are pending messages
+      if (contactStats.pending > 0) {
+        alertsList.splice(1, 0, { 
+          id: 4, 
+          type: 'info', 
+          message: `${contactStats.pending} contact messages pending`, 
+          action: 'View Messages' 
+        });
+      }
+
       setAlerts(alertsList);
 
     } catch (error) {
@@ -363,6 +386,42 @@ const AdminDashboard = () => {
             </button>
           </div>
 
+          {/* Contact Messages Stats */}
+          <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Messages</h3>
+              <Mail className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total</span>
+                <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{stats.contact.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending</span>
+                <span className="text-yellow-600 font-medium">{stats.contact.pending}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>In Progress</span>
+                <span className="text-blue-600 font-medium">{stats.contact.inProgress}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Resolved</span>
+                <span className="text-green-600 font-medium">{stats.contact.resolved}</span>
+              </div>
+            </div>
+            <button 
+              onClick={() => navigate('/admin/contact')}
+              className={`w-full mt-4 py-2 text-sm rounded-lg hover:bg-opacity-80 ${
+                isDark 
+                  ? 'bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/30' 
+                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+              }`}
+            >
+              Manage Messages
+            </button>
+          </div>
+
           {/* Financial Stats */}
           <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl shadow-sm p-6`}>
             <div className="flex items-center justify-between mb-4">
@@ -482,6 +541,15 @@ const AdminDashboard = () => {
               >
                 <Shield className="w-5 h-5 text-purple-600 mr-3" />
                 <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Verify KYC</span>
+              </button>
+              <button 
+                onClick={() => navigate('/admin/contact')}
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg ${
+                  isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-50 hover:bg-gray-100'
+                }`}
+              >
+                <Mail className="w-5 h-5 text-indigo-600 mr-3" />
+                <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Messages</span>
               </button>
             </div>
           </div>

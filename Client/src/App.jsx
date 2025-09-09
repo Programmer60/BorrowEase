@@ -21,6 +21,7 @@ import AdminUsers from "./Components/AdminUsers";
 import AdminDashboard from "./Components/AdminDashboard";
 import AdminLoanModeration from "./Components/AdminLoanModeration";
 import AdminKYCManagement from "./Components/AdminKYCManagement";
+import AdminContactManagement from "./Components/AdminContactManagement";
 import DisputesManagement from "./Components/DisputesManagement";
 import CreditScore from "./Components/CreditScore";
 import ProtectedRoute from "./Components/ProtectedRoute";
@@ -69,6 +70,7 @@ function App() {
               <Route path="/admin/users" element={<ProtectedRoute element={AdminUsers} requiredRole="admin" />} />
               <Route path="/admin/loans" element={<ProtectedRoute element={AdminLoanModeration} requiredRole="admin" />} />
               <Route path="/admin/kyc" element={<ProtectedRoute element={AdminKYCManagement} requiredRole="admin" />} />
+              <Route path="/admin/contact" element={<ProtectedRoute element={AdminContactManagement} requiredRole="admin" />} />
               <Route path="/admin/disputes" element={<ProtectedRoute element={DisputesManagement} requiredRole="admin" />} />
               <Route path="/ai-dashboard" element={<ProtectedRoute element={ComprehensiveAIDashboard} />} />
               <Route path="/credit-score" element={<AuthenticatedRoute><CreditScore /></AuthenticatedRoute>} />
