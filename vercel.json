@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "name": "borrowease-client",
+  "builds": [
+    {
+      "src": "Client/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "buildCommand": "cd Client && npm install && npm run build",
+        "outputDirectory": "Client/dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/Client/dist/$1"
+    }
+  ],
+  "env": {
+    "VITE_FIREBASE_API_KEY": "@vite_firebase_api_key",
+    "VITE_FIREBASE_AUTH_DOMAIN": "@vite_firebase_auth_domain", 
+    "VITE_FIREBASE_PROJECT_ID": "@vite_firebase_project_id",
+    "VITE_FIREBASE_STORAGE_BUCKET": "@vite_firebase_storage_bucket",
+    "VITE_FIREBASE_MESSAGING_SENDER_ID": "@vite_firebase_messaging_sender_id",
+    "VITE_FIREBASE_APP_ID": "@vite_firebase_app_id",
+    "VITE_CLOUDINARY_CLOUD_NAME": "@vite_cloudinary_cloud_name",
+    "VITE_CLOUDINARY_UPLOAD_PRESET": "@vite_cloudinary_upload_preset",
+    "VITE_API_BASE_URL": "@vite_api_base_url",
+    "VITE_SOCKET_URL": "@vite_socket_url"
+  },
+  "functions": {
+    "Client/dist/*.html": {
+      "headers": {
+        "cache-control": "public, max-age=0, must-revalidate"
+      }
+    }
+  }
+}
