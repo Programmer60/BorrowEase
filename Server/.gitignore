@@ -144,3 +144,8 @@ access.log
 # Development database dumps
 *.dump
 *.sql
+
+#Service Account keys
+serviceAccountKey.json
+firebase-adminsdk-*.json
+# End of .gitignore
