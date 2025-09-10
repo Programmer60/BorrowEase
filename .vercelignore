@@ -1,0 +1,46 @@
+# Ignore Server directory - backend should be deployed separately
+Server/
+
+# Ignore documentation and guide files
+*.md
+!README.md
+
+# Ignore test files and scripts  
+test-*.js
+test-*.html
+quick-*.js
+simple-*.js
+*test*.js
+*Test*.js
+debug-*.js
+
+# Ignore git files
+.git/
+.gitignore
+
+# Ignore environment files (should be set in Vercel dashboard)
+.env*
+!.env.example
+
+# Ignore build artifacts from root
+build/
+dist/
+node_modules/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore temporary files
+tmp/
+temp/

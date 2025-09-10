@@ -647,6 +647,11 @@ const ComprehensiveAIDashboard = () => {
 
 ## 🚀 Deployment
 
+> **🚨 IMPORTANT: DO NOT DIRECTLY UPLOAD TO VERCEL WITHOUT PROPER SETUP!**
+>
+> This is a **full-stack application** requiring separate backend deployment and extensive configuration. 
+> See **[VERCEL_DEPLOYMENT_GUIDE.md](./VERCEL_DEPLOYMENT_GUIDE.md)** for detailed instructions.
+
 ### **Backend Deployment (Railway/Heroku)**
 ```bash
 # Build for production
@@ -657,6 +662,8 @@ npm run build
 ```
 
 ### **Frontend Deployment (Vercel/Netlify)**
+⚠️ **Prerequisites**: Backend must be deployed first, all environment variables configured.
+
 ```bash
 # Build for production
 npm run build
