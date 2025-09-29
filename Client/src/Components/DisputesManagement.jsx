@@ -142,22 +142,42 @@ const DisputesManagement = () => {
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'open': return 'bg-yellow-100 text-yellow-800';
-      case 'in-progress': return 'bg-blue-100 text-blue-800';
-      case 'resolved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+    if (isDark) {
+      switch (status) {
+        case 'open': return 'bg-yellow-900/30 text-yellow-300 border border-yellow-700/50';
+        case 'in-progress': return 'bg-blue-900/30 text-blue-300 border border-blue-700/50';
+        case 'resolved': return 'bg-green-900/30 text-green-300 border border-green-700/50';
+        case 'rejected': return 'bg-red-900/30 text-red-300 border border-red-700/50';
+        default: return 'bg-gray-800 text-gray-300 border border-gray-600';
+      }
+    } else {
+      switch (status) {
+        case 'open': return 'bg-yellow-100 text-yellow-800';
+        case 'in-progress': return 'bg-blue-100 text-blue-800';
+        case 'resolved': return 'bg-green-100 text-green-800';
+        case 'rejected': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
     }
   };
 
   const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'urgent': return 'text-red-600 bg-red-50';
-      case 'high': return 'text-orange-600 bg-orange-50';
-      case 'medium': return 'text-yellow-600 bg-yellow-50';
-      case 'low': return 'text-gray-600 bg-gray-50';
-      default: return 'text-gray-600 bg-gray-50';
+    if (isDark) {
+      switch (priority) {
+        case 'urgent': return 'text-red-300 bg-red-900/40 border border-red-700/40';
+        case 'high': return 'text-orange-300 bg-orange-900/40 border border-orange-700/40';
+        case 'medium': return 'text-yellow-300 bg-yellow-900/40 border border-yellow-700/40';
+        case 'low': return 'text-gray-300 bg-gray-700 border border-gray-600';
+        default: return 'text-gray-300 bg-gray-700 border border-gray-600';
+      }
+    } else {
+      switch (priority) {
+        case 'urgent': return 'text-red-600 bg-red-50';
+        case 'high': return 'text-orange-600 bg-orange-50';
+        case 'medium': return 'text-yellow-600 bg-yellow-50';
+        case 'low': return 'text-gray-600 bg-gray-50';
+        default: return 'text-gray-600 bg-gray-50';
+      }
     }
   };
 
@@ -183,18 +203,26 @@ const DisputesManagement = () => {
     }
   };
 
+  // Reusable class helpers
+  const panelBase = isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200';
+  const textPrimary = isDark ? 'text-white' : 'text-gray-900';
+  const textSecondary = isDark ? 'text-gray-400' : 'text-gray-600';
+  const muted = 'text-gray-500';
+  const bodyText = isDark ? 'text-gray-300' : 'text-gray-700';
+  const inputBase = isDark
+    ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500'
+    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500';
+
   const DisputeCard = ({ dispute }) => (
-    <div className={`rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow overflow-hidden ${
-      isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-    }`}>
+    <div className={`rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow overflow-hidden ${panelBase}`}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className={`p-2 rounded-lg ${getPriorityColor(dispute.priority)}`}>
             <Flag className="w-4 h-4" />
           </div>
           <div>
-            <h3 className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dispute.subject}</h3>
-            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            <h3 className={`font-semibold ${textPrimary}`}>{dispute.subject}</h3>
+            <p className={`text-sm ${textSecondary}`}>
               {formatCategory(dispute.category)} • {dispute.priority} priority
             </p>
           </div>
@@ -207,19 +235,19 @@ const DisputesManagement = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600 mb-4 break-words">
+      <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 text-sm mb-4 break-words ${textSecondary}`}>
         <div className="flex items-center min-w-0">
           <User className="w-4 h-4 mr-1 flex-shrink-0" />
           <span className="font-medium flex-shrink-0">
             {dispute.role ? dispute.role.charAt(0).toUpperCase() + dispute.role.slice(1) : 'User'}
           </span>
           {dispute.raisedByUser?.name && (
-            <span className="ml-2 text-gray-700 max-w-[160px] truncate" title={dispute.raisedByUser.name}>
+            <span className={`ml-2 max-w-[160px] truncate ${bodyText}`} title={dispute.raisedByUser.name}>
               • {dispute.raisedByUser.name}
             </span>
           )}
           {dispute.raisedByUser?.email && (
-            <span className="ml-2 text-gray-500 max-w-[220px] truncate" title={dispute.raisedByUser.email}>
+            <span className={`ml-2 max-w-[220px] truncate ${muted}`} title={dispute.raisedByUser.email}>
               ({dispute.raisedByUser.email})
             </span>
           )}
@@ -237,15 +265,13 @@ const DisputesManagement = () => {
         {dispute.counterpartyUser && (
           <div className="flex items-center min-w-0">
             <User className="w-4 h-4 mr-1 flex-shrink-0" />
-            <span className="text-gray-600 flex-shrink-0">Counterparty:</span>
-            <span
-              className="ml-1 text-gray-700 max-w-[200px] truncate"
-              title={dispute.counterpartyUser.name || ''}
-            >
+            <span className={`flex-shrink-0 ${textSecondary}`}>Counterparty:</span>
+            <span className={`ml-1 max-w-[200px] truncate ${bodyText}`}
+              title={dispute.counterpartyUser.name || ''}>
               {dispute.counterpartyUser.name || 'Unknown'}
             </span>
             {dispute.counterpartyUser.email && (
-              <span className="ml-2 text-gray-500 max-w-[220px] truncate" title={dispute.counterpartyUser.email}>
+              <span className={`ml-2 max-w-[220px] truncate ${muted}`} title={dispute.counterpartyUser.email}>
                 ({dispute.counterpartyUser.email})
               </span>
             )}
@@ -253,13 +279,13 @@ const DisputesManagement = () => {
         )}
       </div>
 
-      <p className="text-gray-700 text-sm mb-4 line-clamp-2">
+      <p className={`${bodyText} text-sm mb-4 line-clamp-2`}>
         {dispute.message}
       </p>
 
       {dispute.adminResponse && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-          <p className="text-sm text-blue-800">
+        <div className={`${isDark ? 'bg-blue-900/20 border-blue-700/50' : 'bg-blue-50 border-blue-200'} border rounded-lg p-3 mb-4`}>
+          <p className={`text-sm ${isDark ? 'text-blue-300' : 'text-blue-800'}`}>
             <strong>Admin Response:</strong> {dispute.adminResponse}
           </p>
         </div>
@@ -292,8 +318,8 @@ const DisputesManagement = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -306,9 +332,7 @@ const DisputesManagement = () => {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className={`rounded-xl shadow-sm p-6 mb-6 ${
-          isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'
-        }`}>
+        <div className={`rounded-xl shadow-sm p-6 mb-6 ${panelBase}`}>
           <div className="flex items-center justify-between">
             <div>
               <h1 className={`text-2xl font-bold flex items-center ${
@@ -329,30 +353,28 @@ const DisputesManagement = () => {
         </div>
 
         {/* Filters */}
-        <div className={`rounded-xl shadow-sm p-6 mb-6 ${
-          isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'
-        }`}>
+        <div className={`rounded-xl shadow-sm p-6 mb-6 ${panelBase}`}>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Search</label>
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Search className={`absolute left-3 top-3 h-4 w-4 ${isDark ? 'text-gray-400' : 'text-gray-400'}`} />
                 <input
                   type="text"
                   placeholder="Search disputes..."
                   value={filters.search}
                   onChange={(e) => setFilters({...filters, search: e.target.value})}
-                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`pl-10 w-full px-3 py-2 border rounded-lg ${inputBase}`}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Status</label>
               <select
                 value={filters.status}
                 onChange={(e) => setFilters({...filters, status: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 border rounded-lg ${inputBase}`}
               >
                 <option value="all">All Status</option>
                 <option value="open">Open</option>
@@ -363,11 +385,11 @@ const DisputesManagement = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Category</label>
               <select
                 value={filters.category}
                 onChange={(e) => setFilters({...filters, category: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 border rounded-lg ${inputBase}`}
               >
                 <option value="all">All Categories</option>
                 <option value="payment">Payment</option>
@@ -379,11 +401,11 @@ const DisputesManagement = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Priority</label>
               <select
                 value={filters.priority}
                 onChange={(e) => setFilters({...filters, priority: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 border rounded-lg ${inputBase}`}
               >
                 <option value="all">All Priorities</option>
                 <option value="urgent">Urgent</option>
@@ -397,10 +419,10 @@ const DisputesManagement = () => {
 
         {/* Disputes Grid */}
         {filteredDisputes.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+          <div className={`rounded-xl shadow-sm p-12 text-center ${panelBase}`}>
             <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No disputes found</h3>
-            <p className="text-gray-600">No disputes match your current filters.</p>
+            <h3 className={`text-lg font-medium mb-2 ${textPrimary}`}>No disputes found</h3>
+            <p className={`${textSecondary}`}>No disputes match your current filters.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -413,12 +435,12 @@ const DisputesManagement = () => {
         {/* Details Modal */}
         {showDetailsModal && selectedDispute && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-6 border-b">
-                <h2 className="text-xl font-bold text-gray-900">Dispute Details</h2>
+            <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
+              <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-700' : ''}`}>
+                <h2 className={`text-xl font-bold ${textPrimary}`}>Dispute Details</h2>
                 <button
                   onClick={() => { setShowDetailsModal(false); setSelectedDispute(null); }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className={`hover:opacity-80 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -427,8 +449,8 @@ const DisputesManagement = () => {
               <div className="p-6 space-y-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{selectedDispute.subject}</h3>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <h3 className={`text-lg font-semibold ${textPrimary}`}>{selectedDispute.subject}</h3>
+                    <p className={`text-sm mt-1 ${textSecondary}`}>
                       {formatCategory(selectedDispute.category)} • {selectedDispute.priority} priority
                     </p>
                   </div>
@@ -437,7 +459,7 @@ const DisputesManagement = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm ${bodyText}`}>
                   <div className="flex items-center"><User className="w-4 h-4 mr-2" />
                     Role: {selectedDispute.role ? selectedDispute.role.charAt(0).toUpperCase() + selectedDispute.role.slice(1) : 'User'}
                   </div>
@@ -448,7 +470,7 @@ const DisputesManagement = () => {
                     <User className="w-4 h-4 mr-2" />
                     Raised by: {selectedDispute.raisedByUser?.name || 'Unknown'}
                     {selectedDispute.raisedByUser?.email && (
-                      <span className="ml-2 text-gray-500">({selectedDispute.raisedByUser.email})</span>
+                      <span className={`ml-2 ${muted}`}>({selectedDispute.raisedByUser.email})</span>
                     )}
                   </div>
                   {selectedDispute.counterpartyUser && (
@@ -456,7 +478,7 @@ const DisputesManagement = () => {
                       <User className="w-4 h-4 mr-2" />
                       Other party: {selectedDispute.counterpartyUser?.name || 'Unknown'}
                       {selectedDispute.counterpartyUser?.email && (
-                        <span className="ml-2 text-gray-500">({selectedDispute.counterpartyUser.email})</span>
+                        <span className={`ml-2 ${muted}`}>({selectedDispute.counterpartyUser.email})</span>
                       )}
                     </div>
                   )}
@@ -471,28 +493,28 @@ const DisputesManagement = () => {
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-medium text-gray-800 mb-1">Message</h4>
-                  <p className="text-gray-700 text-sm whitespace-pre-wrap">{selectedDispute.message}</p>
+                  <h4 className={`text-sm font-medium mb-1 ${textPrimary}`}>Message</h4>
+                  <p className={`${bodyText} text-sm whitespace-pre-wrap`}>{selectedDispute.message}</p>
                 </div>
 
                 {selectedDispute.expectedResolution && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-gray-800 mb-1">Expected Resolution</h4>
-                    <p className="text-gray-700 text-sm whitespace-pre-wrap">{selectedDispute.expectedResolution}</p>
+                  <div className={`${isDark ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-lg p-3`}>
+                    <h4 className={`text-sm font-medium mb-1 ${textPrimary}`}>Expected Resolution</h4>
+                    <p className={`${bodyText} text-sm whitespace-pre-wrap`}>{selectedDispute.expectedResolution}</p>
                   </div>
                 )}
 
                 {selectedDispute.adminResponse && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-blue-900 mb-1">Admin Response</h4>
-                    <p className="text-blue-900 text-sm whitespace-pre-wrap">{selectedDispute.adminResponse}</p>
+                  <div className={`${isDark ? 'bg-blue-900/20 border-blue-700/50' : 'bg-blue-50 border-blue-200'} border rounded-lg p-3`}>
+                    <h4 className={`text-sm font-medium mb-1 ${isDark ? 'text-blue-300' : 'text-blue-900'}`}>Admin Response</h4>
+                    <p className={`${isDark ? 'text-blue-300' : 'text-blue-900'} text-sm whitespace-pre-wrap`}>{selectedDispute.adminResponse}</p>
                   </div>
                 )}
 
                 <div className="flex justify-end space-x-3 pt-2">
                   <button
                     onClick={() => { setShowDetailsModal(false); setSelectedDispute(null); }}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                    className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'text-gray-700 bg-gray-100 hover:bg-gray-200'}`}
                   >
                     Close
                   </button>
@@ -513,12 +535,12 @@ const DisputesManagement = () => {
         {/* Resolve Modal */}
         {showResolveModal && selectedDispute && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-6 border-b">
-                <h2 className="text-xl font-bold text-gray-900">Resolve Dispute</h2>
+            <div className={`${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white'} rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto`}>
+              <div className={`flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-700' : ''}`}>
+                <h2 className={`text-xl font-bold ${textPrimary}`}>Resolve Dispute</h2>
                 <button
                   onClick={() => setShowResolveModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className={`hover:opacity-80 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -526,18 +548,18 @@ const DisputesManagement = () => {
 
               <div className="p-6">
                 <div className="mb-6">
-                  <h3 className="font-semibold text-gray-900 mb-2">{selectedDispute.subject}</h3>
-                  <p className="text-gray-700 text-sm">{selectedDispute.message}</p>
+                  <h3 className={`font-semibold mb-2 ${textPrimary}`}>{selectedDispute.subject}</h3>
+                  <p className={`${bodyText} text-sm`}>{selectedDispute.message}</p>
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     Resolution Status
                   </label>
                   <select
                     value={resolveData.status}
                     onChange={(e) => setResolveData({...resolveData, status: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg ${inputBase}`}
                   >
                     <option value="resolved">Resolved</option>
                     <option value="rejected">Rejected</option>
@@ -546,7 +568,7 @@ const DisputesManagement = () => {
                 </div>
 
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                     Admin Response *
                   </label>
                   <textarea
@@ -554,11 +576,11 @@ const DisputesManagement = () => {
                     onChange={(e) => setResolveData({...resolveData, adminResponse: e.target.value})}
                     placeholder="Provide your response to the user..."
                     rows={5}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    className={`w-full px-3 py-2 border rounded-lg resize-none ${inputBase}`}
                     maxLength={1000}
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className={`text-xs mt-1 ${muted}`}>
                     {resolveData.adminResponse.length}/1000 characters
                   </p>
                 </div>
@@ -566,7 +588,7 @@ const DisputesManagement = () => {
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setShowResolveModal(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                    className={`px-4 py-2 rounded-lg ${isDark ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'text-gray-700 bg-gray-100 hover:bg-gray-200'}`}
                   >
                     Cancel
                   </button>

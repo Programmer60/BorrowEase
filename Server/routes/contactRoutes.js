@@ -47,7 +47,9 @@ router.post('/submit', async (req, res) => {
     const priorityAnalysis = await PriorityIntelligenceService.calculateIntelligentPriority(messageData);
     
     // Update message data with all analysis results
-    messageData.spamScore = spamAnalysis.spamScore;
+  messageData.spamScoreRaw = spamAnalysis.spamScoreRaw;
+  messageData.spamScore = spamAnalysis.spamScore; // normalized 0-1
+  messageData.spamScoreNormalized = spamAnalysis.spamScore;
     messageData.spamFlags = spamAnalysis.flags;
     messageData.riskLevel = spamAnalysis.riskLevel;
     messageData.requiresReview = spamAnalysis.riskLevel !== 'low';
@@ -271,7 +273,7 @@ router.get('/admin/messages', adminAuth, async (req, res) => {
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .populate('assignedTo', 'name email')
-      .select('name email subject message category priority status spamScore riskLevel requiresReview createdAt assignedTo responses.responseCount responses.lastResponseAt');
+      .select('name email subject message category priority status spamScore spamScoreRaw classification riskLevel requiresReview createdAt assignedTo responses.responseCount responses.lastResponseAt');
 
     const total = await ContactMessage.countDocuments(filter);
 
@@ -372,7 +374,7 @@ router.patch('/admin/message/:messageId/status', adminAuth, async (req, res) => 
     };
 
     if (status === 'in_progress') {
-      updateData.assignedTo = admin.uid;
+      updateData.assignedTo = admin.mongoId; // store Mongo ObjectId, not Firebase UID
       updateData.assignedAt = new Date();
     }
 
@@ -441,7 +443,7 @@ router.post('/admin/message/:messageId/respond', adminAuth, async (req, res) => 
     // Add response
     message.responses.messages.push({
       message: response.trim(),
-      respondedBy: admin.uid,
+      respondedBy: admin.mongoId,
       respondedAt: new Date(),
       isPublic
     });
@@ -449,7 +451,7 @@ router.post('/admin/message/:messageId/respond', adminAuth, async (req, res) => 
     message.responses.lastResponseAt = new Date();
     message.responses.responseCount = message.responses.messages.length;
     message.status = 'in_progress';
-    message.assignedTo = admin.uid;
+  message.assignedTo = admin.mongoId;
 
     await message.save();
 
@@ -468,59 +470,79 @@ router.post('/admin/message/:messageId/respond', adminAuth, async (req, res) => 
   }
 });
 
-// Bulk message actions
+// Bulk message actions (clean implementation)
 router.post('/admin/messages/bulk-action', adminAuth, async (req, res) => {
   try {
-    const { messageIds, action, reason } = req.body;
+    const { messageIds, action, reason, newPriority } = req.body;
     const admin = req.user;
 
+    console.log('🛠️ Bulk Action Requested', {
+      action,
+      count: Array.isArray(messageIds) ? messageIds.length : 0,
+      admin: { id: admin?.mongoId, name: admin?.name, role: admin?.role },
+      reason
+    });
+
     if (!messageIds || !Array.isArray(messageIds) || messageIds.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Message IDs are required'
-      });
+      return res.status(400).json({ success: false, error: 'Message IDs are required' });
     }
 
-    const validActions = ['resolve', 'quarantine', 'block', 'assign', 'priority_change'];
+    const validActions = ['resolve', 'quarantine', 'block', 'assign', 'priority_change', 'clear_all', 'auto_responded'];
     if (!validActions.includes(action)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid bulk action'
+      return res.status(400).json({ success: false, error: 'Invalid bulk action', validActions });
+    }
+
+    // Destructive delete case
+    if (action === 'clear_all') {
+      const delResult = await ContactMessage.deleteMany({ _id: { $in: messageIds } });
+      return res.json({
+        success: true,
+        message: 'Bulk delete (clear_all) completed',
+        deletedCount: delResult.deletedCount,
+        action,
+        affectedIds: messageIds
       });
     }
 
     let updateData = {};
     let bulkNote = '';
+    const name = admin?.name || 'Admin';
 
     switch (action) {
       case 'resolve':
-        updateData = { 
-          status: 'resolved',
-          resolvedBy: admin.uid,
-          resolvedAt: new Date()
-        };
-        bulkNote = `Bulk resolved by ${admin.name}${reason ? ': ' + reason : ''}`;
+        updateData = { status: 'resolved', resolvedBy: admin.mongoId, resolvedAt: new Date() };
+        bulkNote = `Bulk resolved by ${name}${reason ? ': ' + reason : ''}`;
         break;
-      
       case 'quarantine':
-        updateData = { 
-          status: 'quarantined',
-          requiresReview: true
-        };
-        bulkNote = `Bulk quarantined by ${admin.name}${reason ? ': ' + reason : ''}`;
+        updateData = { status: 'quarantined', requiresReview: true };
+        bulkNote = `Bulk quarantined by ${name}${reason ? ': ' + reason : ''}`;
         break;
-      
+      case 'block':
+        updateData = { status: 'blocked', requiresReview: false };
+        bulkNote = `Bulk blocked by ${name}${reason ? ': ' + reason : ''}`;
+        break;
       case 'assign':
-        updateData = { 
-          assignedTo: admin.uid,
-          assignedAt: new Date(),
-          status: 'in_progress'
-        };
-        bulkNote = `Bulk assigned to ${admin.name}`;
+        updateData = { assignedTo: admin.mongoId, assignedAt: new Date(), status: 'in_progress' };
+        bulkNote = `Bulk assigned to ${name}`;
         break;
+      case 'priority_change': {
+        const allowed = ['very_low', 'low', 'medium', 'high', 'critical'];
+        if (!newPriority || !allowed.includes(newPriority)) {
+          return res.status(400).json({ success: false, error: 'Invalid or missing newPriority', allowed });
+        }
+        updateData = { priority: newPriority };
+        bulkNote = `Bulk priority change to ${newPriority} by ${name}${reason ? ': ' + reason : ''}`;
+        break;
+      }
+      case 'auto_responded':
+        updateData = { status: 'responded', autoResponseSent: true, 'autoResponseMeta.respondedAt': new Date() };
+        bulkNote = `Bulk marked auto-responded by ${name}${reason ? ': ' + reason : ''}`;
+        break;
+      default:
+        return res.status(400).json({ success: false, error: 'Unhandled action' });
     }
 
-    // Update all selected messages
+    console.log('🔄 Executing bulk update', { action, updateData, targetCount: messageIds.length });
     const result = await ContactMessage.updateMany(
       { _id: { $in: messageIds } },
       {
@@ -528,9 +550,9 @@ router.post('/admin/messages/bulk-action', adminAuth, async (req, res) => {
         $push: {
           adminNotes: {
             note: bulkNote,
-            addedBy: admin.uid,
+            addedBy: admin.mongoId,
             addedAt: new Date(),
-            type: 'bulk_action'
+            type: action === 'auto_responded' ? 'auto_response' : action === 'assign' ? 'assignment' : 'bulk_action'
           }
         }
       }
@@ -543,13 +565,29 @@ router.post('/admin/messages/bulk-action', adminAuth, async (req, res) => {
       action,
       affectedIds: messageIds
     });
-
   } catch (error) {
-    console.error('Error performing bulk action:', error);
+    console.error('❌ Error performing bulk action:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to perform bulk action'
+      error: 'Failed to perform bulk action',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
     });
+  }
+});
+
+// Alternate explicit delete endpoint (fallback if bulk-action clear_all has issues)
+router.delete('/admin/messages', adminAuth, async (req, res) => {
+  try {
+    const { messageIds } = req.body || {};
+    if (!Array.isArray(messageIds) || messageIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'messageIds array required' });
+    }
+    const result = await ContactMessage.deleteMany({ _id: { $in: messageIds } });
+    return res.json({ success: true, deletedCount: result.deletedCount, affectedIds: messageIds });
+  } catch (e) {
+    console.error('❌ Error deleting messages (alt endpoint):', e);
+    res.status(500).json({ success: false, error: 'Failed to delete messages', details: e.message });
   }
 });
 
@@ -579,3 +617,40 @@ router.post('/admin/recalculate-priorities', adminAuth, async (req, res) => {
 });
 
 export default router;
+// ---- Additional Admin Utilities ----
+
+// Recalculate / normalize legacy spam scores (idempotent)
+router.post('/admin/recalculate-spam-normalization', adminAuth, async (req, res) => {
+  try {
+    const results = await ContactMessage.recalculateNormalizedSpamScores();
+    res.json({ success: true, ...results });
+  } catch (e) {
+    console.error('Error recalculating spam normalization:', e);
+    res.status(500).json({ success: false, error: 'Failed to recalculate spam normalization' });
+  }
+});
+
+// Manually reclassify a message (override)
+router.patch('/admin/message/:messageId/classification', adminAuth, async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { classification, status } = req.body;
+    const allowed = ['ham', 'suspected', 'spam'];
+    if (classification && !allowed.includes(classification)) {
+      return res.status(400).json({ success: false, error: 'Invalid classification' });
+    }
+    const update = {};
+    if (classification) {
+      update.classification = classification;
+      // Adjust requiresReview based on classification
+      update.requiresReview = classification !== 'ham';
+    }
+    if (status) update.status = status;
+    const updated = await ContactMessage.findByIdAndUpdate(messageId, update, { new: true });
+    if (!updated) return res.status(404).json({ success: false, error: 'Message not found' });
+    res.json({ success: true, message: updated });
+  } catch (e) {
+    console.error('Error updating classification:', e);
+    res.status(500).json({ success: false, error: 'Failed to update classification' });
+  }
+});

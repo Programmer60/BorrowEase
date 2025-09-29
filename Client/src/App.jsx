@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Toaster } from 'react-hot-toast';
 import { useEffect } from "react";
 import { auth } from "./firebase";
 import API from "./api/api";
@@ -52,6 +53,14 @@ function App() {
       <NotificationProvider>
         <SocketProvider>
           <Router>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                style: { background: '#1f2937', color: '#fff' },
+                success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
+                error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } }
+              }}
+            />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/about" element={<About />} />

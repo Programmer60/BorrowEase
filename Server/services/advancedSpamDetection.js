@@ -29,7 +29,8 @@ export class AdvancedSpamDetectionService {
 
   static async analyzeMessage(messageData) {
     const analysis = {
-      spamScore: 0,
+      spamScoreRaw: 0, // new raw additive score
+      spamScore: 0,    // normalized (0-1) – set at end
       riskLevel: 'low',
       flags: [],
       autoActions: []
@@ -45,13 +46,13 @@ export class AdvancedSpamDetectionService {
         analysis.flags.push(`Contains spam keyword: ${keyword}`);
       }
     });
-    analysis.spamScore += keywordMatches * 15;
+  analysis.spamScoreRaw += keywordMatches * 15;
 
     // 2. Pattern Matching
     this.suspiciousPatterns.forEach((pattern, index) => {
       const matches = text.match(pattern);
       if (matches) {
-        analysis.spamScore += matches.length * 20;
+  analysis.spamScoreRaw += matches.length * 20;
         analysis.flags.push(`Suspicious pattern detected: ${matches[0]}`);
       }
     });
@@ -60,7 +61,7 @@ export class AdvancedSpamDetectionService {
     const linkMatches = text.match(/https?:\/\/[^\s]+/g);
     if (linkMatches) {
       const linkCount = linkMatches.length;
-      analysis.spamScore += linkCount * 25;
+  analysis.spamScoreRaw += linkCount * 25;
       analysis.flags.push(`Contains ${linkCount} links`);
       
       if (linkCount > 3) {
@@ -79,7 +80,7 @@ export class AdvancedSpamDetectionService {
     });
 
     if (recentMessages > 5) {
-      analysis.spamScore += 40;
+  analysis.spamScoreRaw += 40;
       analysis.flags.push(`${recentMessages} messages from same source in 24h`);
       analysis.autoActions.push('rate_limit');
     }
@@ -90,33 +91,37 @@ export class AdvancedSpamDetectionService {
     const repetitionRatio = 1 - (uniqueWords / wordCount);
     
     if (repetitionRatio > 0.3) {
-      analysis.spamScore += 30;
+  analysis.spamScoreRaw += 30;
       analysis.flags.push('High content repetition detected');
     }
 
     // 6. ENHANCED: Gibberish and Meaningless Message Detection
     const gibberishAnalysis = this.detectGibberish(messageData.message || '');
-    analysis.spamScore += gibberishAnalysis.score * 70; // Scale up the gibberish score
+  analysis.spamScoreRaw += gibberishAnalysis.score * 70; // Scale up the gibberish score
     analysis.flags.push(...gibberishAnalysis.reasons);
 
     // Special handling for very short nonsensical messages
     if (messageData.message && messageData.message.length < 50) {
       const meaningfulnessScore = this.assessMessageMeaningfulness(messageData.message);
       if (meaningfulnessScore < 0.3) {
-        analysis.spamScore += 60;
+  analysis.spamScoreRaw += 60;
         analysis.flags.push('Message appears to be meaningless gibberish');
         analysis.autoActions.push('auto_quarantine');
       }
     }
 
     // 7. Determine Risk Level
-    if (analysis.spamScore >= 80) {
+    // Normalize raw score for risk evaluation using logarithmic compression similar to model normalization
+    const normalized = Math.min(1, Math.log10(1 + analysis.spamScoreRaw) / Math.log10(1001));
+    analysis.spamScore = Number(normalized.toFixed(4));
+
+    if (analysis.spamScoreRaw >= 80) {
       analysis.riskLevel = 'critical';
       analysis.autoActions.push('auto_block');
-    } else if (analysis.spamScore >= 50) {
+    } else if (analysis.spamScoreRaw >= 50) {
       analysis.riskLevel = 'high';
       analysis.autoActions.push('quarantine');
-    } else if (analysis.spamScore >= 25) {
+    } else if (analysis.spamScoreRaw >= 25) {
       analysis.riskLevel = 'medium';
       analysis.autoActions.push('flag_review');
     }

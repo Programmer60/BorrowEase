@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { 
   Mail, 
   Clock, 
@@ -108,20 +109,35 @@ const AdminContactManagement = () => {
   };
 
   const handleBulkAction = async (action) => {
+    if (selectedMessages.length === 0) return;
+
+    // Destructive confirmation dialogs
+    if (action === 'clear_all') {
+      const confirmDelete = confirm(`🧹 Permanently DELETE ${selectedMessages.length} messages?\n\nThis cannot be undone.`);
+      if (!confirmDelete) return;
+    }
+    if (action === 'quarantine') {
+      const confirmQuarantine = confirm(`Quarantine ${selectedMessages.length} messages? They will be hidden from normal view.`);
+      if (!confirmQuarantine) return;
+    }
+
     try {
-      const response = await API.post('/contact/admin/messages/bulk-action', {
+      const payload = {
         messageIds: selectedMessages,
-        action: action
-      });
-      
+        action
+      };
+      const response = await API.post('/contact/admin/messages/bulk-action', payload);
       if (response.data.success) {
+        const count = response.data.modifiedCount ?? response.data.deletedCount ?? 0;
+        toast.success(`Bulk ${action} succeeded for ${count} messages`, { icon: '✅' });
         setSelectedMessages([]);
-        loadMessages(); // Refresh list
-        alert(`Bulk ${action} completed for ${response.data.modifiedCount} messages`);
+        await loadMessages();
+      } else {
+        toast.error(`Bulk ${action} failed: ${response.data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error performing bulk action:', error);
-      alert('Failed to perform bulk action');
+      toast.error(`Bulk action failed: ${error.response?.data?.details || error.message}`);
     }
   };
 
@@ -156,34 +172,30 @@ const AdminContactManagement = () => {
         const { updatedCount, results } = response.data;
         
         // Show detailed success message
-        alert(
-          `✅ Priority Recalculation Complete!\n\n` +
-          `📊 Updated: ${updatedCount} messages\n` +
-          `🎯 Critical: ${results?.critical || 0}\n` +
-          `🔥 High: ${results?.high || 0}\n` +
-          `📋 Medium: ${results?.medium || 0}\n` +
-          `📝 Low: ${results?.low || 0}\n` +
-          `⬇️ Very Low: ${results?.very_low || 0}\n\n` +
-          `Messages have been re-prioritized based on current user profiles and KYC status.`
-        );
+        toast.success(`Priority recalculation complete: ${updatedCount} updated`, { icon: '🎯' });
         
         // Refresh the list
         await loadMessages();
         
         // Show additional alert if high spam detected
         setTimeout(() => {
-          const highSpamCount = messages.filter(m => m.spamScore && (m.spamScore * 100) > 100).length;
+          // Normalized spamScore now in 0-1. Legacy records may still have values >1 (raw). Clamp first.
+          const highSpamCount = messages.filter(m => {
+            if (m.spamScore === null || m.spamScore === undefined) return false;
+            const normalized = m.spamScore > 1 ? 1 : m.spamScore; // clamp
+            return normalized >= 0.8; // high spam threshold
+          }).length;
           if (highSpamCount > 0) {
-            alert(`⚠️ SPAM ALERT: ${highSpamCount} messages have spam rates over 100%!\n\nThese messages require immediate attention.`);
+            if (highSpamCount > 0) toast(`⚠️ ${highSpamCount} high-spam messages need attention`, { icon: '🚨' });
           }
         }, 1000);
         
       } else {
-        alert('❌ Failed to recalculate priorities. Please try again.');
+        toast.error('Failed to recalculate priorities');
       }
     } catch (error) {
       console.error('Error recalculating priorities:', error);
-      alert(`❌ Error: ${error.response?.data?.message || 'Failed to recalculate priorities'}`);
+      toast.error(error.response?.data?.message || 'Priority recalculation failed');
     } finally {
       setRecalculating(false);
     }
@@ -221,47 +233,26 @@ const AdminContactManagement = () => {
     }
   };
 
-  const getSpamScoreDisplay = (spamScore) => {
-    if (!spamScore) return { text: 'N/A', color: 'text-gray-500', bgColor: '', icon: '' };
-    
-    const percentage = Math.round(spamScore * 100);
-    
-    if (percentage >= 1000) {
-      return { 
-        text: `${percentage}%`, 
-        color: 'text-red-900', 
-        bgColor: 'bg-red-200 border-2 border-red-400 animate-pulse', 
-        icon: '🚨' 
-      };
-    } else if (percentage >= 200) {
-      return { 
-        text: `${percentage}%`, 
-        color: 'text-red-800', 
-        bgColor: 'bg-red-100 border border-red-300', 
-        icon: '⚠️' 
-      };
-    } else if (percentage > 100) {
-      return { 
-        text: `${percentage}%`, 
-        color: 'text-orange-800', 
-        bgColor: 'bg-orange-100 border border-orange-300', 
-        icon: '🟠' 
-      };
-    } else if (percentage > 50) {
-      return { 
-        text: `${percentage}%`, 
-        color: 'text-yellow-700', 
-        bgColor: 'bg-yellow-50', 
-        icon: '🟡' 
-      };
+  const getSpamScoreDisplay = (spamScore, rawScore) => {
+    if (spamScore === null || spamScore === undefined) return { text: 'N/A', color: 'text-gray-500', bgColor: '', icon: '' };
+    const percentage = Math.round(spamScore * 100); // spamScore now normalized 0-1
+    // Provide tooltip/hint using raw score if exists and high
+    let base = { text: `${percentage}%`, color: '', bgColor: '', icon: '' };
+    if (percentage >= 80) {
+      base = { text: `${percentage}%`, color: 'text-red-900', bgColor: 'bg-red-200 border-2 border-red-400', icon: '🚨' };
+    } else if (percentage >= 60) {
+      base = { text: `${percentage}%`, color: 'text-red-800', bgColor: 'bg-red-100 border border-red-300', icon: '⚠️' };
+    } else if (percentage >= 40) {
+      base = { text: `${percentage}%`, color: 'text-orange-800', bgColor: 'bg-orange-100 border border-orange-300', icon: '🟠' };
+    } else if (percentage >= 20) {
+      base = { text: `${percentage}%`, color: 'text-yellow-700', bgColor: 'bg-yellow-50', icon: '🟡' };
     } else {
-      return { 
-        text: `${percentage}%`, 
-        color: 'text-green-700', 
-        bgColor: 'bg-green-50', 
-        icon: '🟢' 
-      };
+      base = { text: `${percentage}%`, color: 'text-green-700', bgColor: 'bg-green-50', icon: '🟢' };
     }
+    if (rawScore && rawScore > 100) {
+      base.text = `${percentage}% (raw ${rawScore})`;
+    }
+    return base;
   };
 
   return (
@@ -314,7 +305,9 @@ const AdminContactManagement = () => {
                   These require immediate attention.
                 </p>
                 <div className="mt-2 text-sm text-red-600">
-                  Highest spam rate: <strong>{Math.max(...highSpamAlerts.map(m => Math.round(m.spamScore * 100)))}%</strong>
+                  Highest spam rate: <strong>{Math.max(...highSpamAlerts.map(m => {
+                    const s = m.spamScore || 0; return Math.round(Math.min(s,1)*100);
+                  }))}%</strong>
                 </div>
               </div>
               <div className="ml-auto flex-shrink-0">
@@ -336,8 +329,8 @@ const AdminContactManagement = () => {
         )}
 
         {/* Statistics Dashboard */}
-        <div className={`grid grid-cols-2 md:grid-cols-6 gap-4 mb-6`}>
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+  <div className={`grid grid-cols-2 md:grid-cols-6 gap-4 mb-6`}>
+          <div className={`p-4 group relative overflow-hidden rounded-xl border ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-white to-slate-50 border-slate-200'} shadow transition hover:-translate-y-0.5 hover:shadow-lg`}> 
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total</p>
@@ -347,7 +340,7 @@ const AdminContactManagement = () => {
             </div>
           </div>
           
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+          <div className={`p-4 group relative overflow-hidden rounded-xl border ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-white to-slate-50 border-slate-200'} shadow transition hover:-translate-y-0.5 hover:shadow-lg`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Pending</p>
@@ -357,7 +350,7 @@ const AdminContactManagement = () => {
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+          <div className={`p-4 group relative overflow-hidden rounded-xl border ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-white to-slate-50 border-slate-200'} shadow transition hover:-translate-y-0.5 hover:shadow-lg`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Resolved</p>
@@ -367,7 +360,7 @@ const AdminContactManagement = () => {
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+          <div className={`p-4 group relative overflow-hidden rounded-xl border ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-white to-slate-50 border-slate-200'} shadow transition hover:-translate-y-0.5 hover:shadow-lg`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>High Risk</p>
@@ -377,7 +370,7 @@ const AdminContactManagement = () => {
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+          <div className={`p-4 group relative overflow-hidden rounded-xl border ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-white to-slate-50 border-slate-200'} shadow transition hover:-translate-y-0.5 hover:shadow-lg`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Needs Review</p>
@@ -387,7 +380,7 @@ const AdminContactManagement = () => {
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
+          <div className={`p-4 group relative overflow-hidden rounded-xl border ${isDark ? 'bg-gradient-to-br from-slate-800 to-slate-900 border-slate-700' : 'bg-gradient-to-br from-white to-slate-50 border-slate-200'} shadow transition hover:-translate-y-0.5 hover:shadow-lg`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Auto-Replied</p>
@@ -581,10 +574,25 @@ const AdminContactManagement = () => {
                       👤 Assign to Me
                     </button>
                     <button
+                      onClick={() => handleBulkAction('auto_responded')}
+                      className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700"
+                      title="Mark as auto-responded (manual override)"
+                    >
+                      🤖 Auto Responded
+                    </button>
+                    <button
+                      onClick={() => handleBulkAction('clear_all')}
+                      className="px-3 py-1 bg-red-700 text-white rounded-lg text-sm hover:bg-red-800"
+                      title="Delete selected messages permanently"
+                    >
+                      🧹 Delete
+                    </button>
+                    <button
                       onClick={() => setSelectedMessages([])}
                       className="px-3 py-1 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700"
+                      title="Deselect all selected messages"
                     >
-                      ❌ Clear
+                      ❌ Deselect
                     </button>
                   </div>
                 </div>

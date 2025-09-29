@@ -713,7 +713,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Team
 
-- **Developer**: Programmer60
+- **Developer**: Shivam Mishra
 - **Project Type**: Full-stack Web Application
 - **Development Period**: 2025
 
@@ -726,6 +726,6 @@ For support and questions:
 
 ---
 
-**Built with ❤️ using modern web technologies**
+**Built with ❤️ Shivam Mishra**
 
 *BorrowEase - Making peer-to-peer lending simple, secure, and transparent.*

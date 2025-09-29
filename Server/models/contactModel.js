@@ -110,11 +110,39 @@ const contactMessageSchema = new mongoose.Schema({
     score: { type: Number },
     label: { type: String, enum: ['positive', 'negative', 'neutral'] }
   },
-  spamScore: {
+  // Spam / Abuse Detection Scores
+  //  - spamScoreRaw: additive unbounded raw score (legacy values may exceed 100)
+  //  - spamScore: normalized score 0-1 (kept same field name for backward compatibility in UI)
+  //  - spamScoreNormalized: alias for clarity (redundant but helps transitional queries)
+  //  - classification: current label after automated pipeline
+  spamScoreRaw: {
     type: Number,
     min: 0,
-    max: 10000, // Allow extreme spam scores for industrial-level detection
+    default: 0,
+    index: true
+  },
+  spamScore: { // normalized 0-1 representation used by UI (old field retained)
+    type: Number,
+    min: 0,
+    max: 1,
+    default: 0,
+    index: true
+  },
+  spamScoreNormalized: { // duplicate for explicitness during migration
+    type: Number,
+    min: 0,
+    max: 1,
     default: 0
+  },
+  spamScoreVersion: { // allow future re‑calibration of normalization function
+    type: Number,
+    default: 1
+  },
+  classification: {
+    type: String,
+    enum: ['ham', 'suspected', 'spam'],
+    default: 'ham',
+    index: true
   },
   language: {
     type: String,
@@ -136,7 +164,8 @@ const contactMessageSchema = new mongoose.Schema({
   // Status & Processing
   status: {
     type: String,
-    enum: ['pending', 'reviewed', 'responded', 'resolved', 'spam', 'blocked'],
+    // Expanded to include all statuses used by admin routes; keep old ones for backward compatibility
+    enum: ['pending', 'in_progress', 'reviewed', 'responded', 'resolved', 'closed', 'spam', 'blocked', 'quarantined'],
     default: 'pending'
   },
   isVerified: {
@@ -159,6 +188,9 @@ const contactMessageSchema = new mongoose.Schema({
     ref: 'User',
     required: false
   },
+  assignedAt: { type: Date },
+  resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  resolvedAt: { type: Date },
   reviewedAt: {
     type: Date
   },
@@ -177,7 +209,8 @@ const contactMessageSchema = new mongoose.Schema({
     },
     type: {
       type: String,
-      enum: ['status_change', 'general', 'escalation'],
+      // Expanded enum to reflect new operational note types used across services
+      enum: ['status_change', 'general', 'escalation', 'bulk_action', 'auto_response', 'assignment'],
       default: 'general'
     }
   }],
@@ -212,6 +245,17 @@ const contactMessageSchema = new mongoose.Schema({
     default: 24
   },
 
+  // Auto Response Tracking (previously written ad-hoc without schema definition, now formalized)
+  autoResponseSent: {
+    type: Boolean,
+    default: false
+  },
+  autoResponseMeta: {
+    template: { type: String },
+    confidence: { type: Number, min: 0, max: 100 },
+    respondedAt: { type: Date }
+  },
+
   // Metadata
   source: {
     type: String,
@@ -236,6 +280,31 @@ const contactMessageSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
+// Normalization utility – can be evolved / versioned
+function normalizeRawSpamScore(raw) {
+  if (!raw || raw <= 0) return 0;
+  // Cap extreme outliers using logarithmic compression to map large raw values into 0-1 range
+  // Example: raw 50 -> ~0.83, raw 80 -> ~0.90, raw 200 -> ~0.96, raw 500 -> ~0.98, raw 1000 -> ~0.99
+  const compressed = Math.log10(1 + raw) / Math.log10(1001); // denominator sets asymptote reference
+  return Math.min(1, Number(compressed.toFixed(4)));
+}
+
+// Pre-save hook to keep normalized fields in sync when raw present but normalized absent or outdated
+contactMessageSchema.pre('save', function(next) {
+  if (this.isModified('spamScoreRaw') || this.isModified('spamScore') || this.isNew) {
+    if (this.spamScoreRaw && (!this.spamScore || this.spamScore === 0 || this.isModified('spamScoreRaw'))) {
+      const normalized = normalizeRawSpamScore(this.spamScoreRaw);
+      this.spamScore = normalized;
+      this.spamScoreNormalized = normalized;
+    }
+    // Derive classification thresholds
+    if (this.spamScore >= 0.8) this.classification = 'spam';
+    else if (this.spamScore >= 0.4) this.classification = 'suspected';
+    else this.classification = 'ham';
+  }
+  next();
+});
+
 // Indexes for performance
 contactMessageSchema.index({ email: 1, createdAt: -1 });
 contactMessageSchema.index({ ipAddress: 1, createdAt: -1 });
@@ -251,11 +320,46 @@ contactMessageSchema.virtual('timeSinceSubmission').get(function() {
 
 // Method to check if message needs review
 contactMessageSchema.methods.needsReview = function() {
-  return this.spamScore > 30 || 
-         this.containsProfanity || 
-         this.linkCount > 2 || 
-         this.recaptchaScore < 0.5 ||
+  // Use normalized score thresholds now
+  return this.spamScore >= 0.4 ||
+         this.containsProfanity ||
+         this.linkCount > 2 ||
+         (typeof this.recaptchaScore === 'number' && this.recaptchaScore < 0.5) ||
          this.sentiment?.label === 'negative';
+};
+
+// Static utility to backfill normalization for existing documents
+contactMessageSchema.statics.recalculateNormalizedSpamScores = async function(batchSize = 1000) {
+  const cursor = this.find({ $or: [ { spamScoreRaw: { $exists: true } }, { spamScore: { $gt: 1 } } ] }).cursor();
+  let processed = 0;
+  const bulk = [];
+  for (let doc = await cursor.next(); doc != null; doc = await cursor.next()) {
+    const raw = doc.spamScoreRaw || doc.spamScore; // legacy spamScore might hold raw value >1
+    const normalized = normalizeRawSpamScore(raw);
+    const classification = normalized >= 0.8 ? 'spam' : normalized >= 0.4 ? 'suspected' : 'ham';
+    bulk.push({
+      updateOne: {
+        filter: { _id: doc._id },
+        update: {
+          $set: {
+            spamScoreRaw: raw,
+            spamScore: normalized,
+            spamScoreNormalized: normalized,
+            spamScoreVersion: 1,
+            classification,
+            requiresReview: classification !== 'ham'
+          }
+        }
+      }
+    });
+    processed++;
+    if (bulk.length === batchSize) {
+      await this.bulkWrite(bulk);
+      bulk.length = 0;
+    }
+  }
+  if (bulk.length) await this.bulkWrite(bulk);
+  return { processed };
 };
 
 // Static method to get spam statistics
@@ -265,12 +369,27 @@ contactMessageSchema.statics.getSpamStats = function() {
       $group: {
         _id: null,
         totalMessages: { $sum: 1 },
-        spamMessages: {
-          $sum: { $cond: [{ $gt: ['$spamScore', 50] }, 1, 0] }
-        },
-        avgSpamScore: { $avg: '$spamScore' },
-        pendingReview: {
-          $sum: { $cond: [{ $eq: ['$requiresReview', true] }, 1, 0] }
+        spamMessages: { $sum: { $cond: [{ $eq: ['$classification', 'spam'] }, 1, 0] } },
+        suspectedMessages: { $sum: { $cond: [{ $eq: ['$classification', 'suspected'] }, 1, 0] } },
+        reviewQueue: { $sum: { $cond: ['$requiresReview', 1, 0] } },
+        avgNormalizedSpam: { $avg: '$spamScore' },
+        maxRawSpam: { $max: '$spamScoreRaw' }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        totalMessages: 1,
+        spamMessages: 1,
+        suspectedMessages: 1,
+        reviewQueue: 1,
+        avgNormalizedSpam: 1,
+        maxRawSpam: 1,
+        spamRatePercent: {
+          $multiply: [
+            { $cond: [ { $eq: ['$totalMessages', 0] }, 0, { $divide: ['$spamMessages', '$totalMessages'] } ] },
+            100
+          ]
         }
       }
     }
