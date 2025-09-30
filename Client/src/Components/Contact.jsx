@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 import Navbar from './Navbar';
 import API from '../api/api';
@@ -14,6 +15,7 @@ import {
   Users,
   CheckCircle
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const Contact = () => {
   const { isDark } = useTheme();
@@ -24,10 +26,18 @@ const Contact = () => {
     message: '',
     category: 'general'
   });
+  const [faqLogId, setFaqLogId] = useState(null);
+  const [faqEscalatePending, setFaqEscalatePending] = useState(false);
+  const [isDeflected, setIsDeflected] = useState(false); // NEW: marks resolved via FAQ
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
-  const [submitType, setSubmitType] = useState(''); // 'success' or 'error'
+  const [submitType, setSubmitType] = useState(''); // 'success' | 'error' | 'info'
+  const [overrideFAQ, setOverrideFAQ] = useState(false);
+  const [matchedFAQ, setMatchedFAQ] = useState(null);
+  const [openCategories, setOpenCategories] = useState([]);
+  const [openFAQ, setOpenFAQ] = useState({});
+  const [faqSearch, setFaqSearch] = useState('');
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -36,6 +46,31 @@ const Contact = () => {
     }));
   };
 
+  // Added helper to log auto-resolve once per matched FAQ
+  const logFaqAutoResolve = async (faq) => {
+    if (faqLogId) return; // already logged
+    try {
+      const res = await fetch('/api/contact/faq-auto-resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: faq.q,
+          category: faq.category || faq.categoryTitle || formData.category,
+          keywordsMatched: faq.keywords || [],
+          userEmail: formData.email || undefined
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFaqLogId(data.id);
+        console.log('📝 Logged FAQ auto-resolve id', data.id);
+      }
+    } catch (e) {
+      console.warn('Failed to log faq auto resolve', e);
+    }
+  };
+
+  // Modified handleSubmit to escalate if needed
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -73,7 +108,22 @@ const Contact = () => {
     
     try {
       console.log('📧 Submitting contact form:', formData);
-      
+      // Intercept if FAQ matches and user hasn't chosen to override
+      if (!overrideFAQ) {
+        const match = findFAQMatch();
+        if (match) {
+          // Attach category title so logging has it
+          const extended = { ...match, category: match.category || match.categoryTitle };
+          setMatchedFAQ(extended);
+          setSubmitMessage('We found an existing answer that may solve your issue.');
+          setSubmitType('info');
+          toast('Similar question detected', { icon: '💡' });
+          // Log the deflection attempt immediately
+          logFaqAutoResolve(extended);
+          setIsSubmitting(false);
+          return;
+        }
+      }
       // Send contact message to server
       const response = await API.post('/contact/submit', formData);
       
@@ -84,7 +134,21 @@ const Contact = () => {
         setSubmitMessage(response.data.message || 'Message sent successfully!');
         setSubmitType('success');
         
-        // Reset form
+        // If user chose to escalate after seeing FAQ, patch escalation
+        if (faqEscalatePending && faqLogId) {
+          try {
+            await fetch(`/api/contact/faq-auto-resolve/${faqLogId}/escalate`, { method: 'PATCH' });
+            console.log('↗️ Escalated FAQ log', faqLogId);
+          } catch (err) {
+            console.warn('Failed to escalate FAQ log', err);
+          }
+        }
+        
+        // Reset states
+        setFaqLogId(null);
+        setFaqEscalatePending(false);
+        setOverrideFAQ(false);
+        setMatchedFAQ(null);
         setFormData({
           name: '',
           email: '',
@@ -161,47 +225,104 @@ const Contact = () => {
     }
   ];
 
+  // Unified support categories with embedded FAQs to reduce duplicate submissions.
   const supportCategories = [
     {
+      key: 'general',
       icon: <HelpCircle className="w-8 h-8" />,
-      title: "General Support",
-      description: "Questions about our platform, how it works, or getting started"
+      title: 'General Support',
+      description: 'Questions about our platform, how it works, or getting started',
+      faqs: [
+        { q: 'How do I get started?', a: 'Create an account, complete your profile, then submit a loan pre-assessment to begin.', keywords: ['get started','start','begin'] },
+        { q: 'What documents are required?', a: 'Usually student ID, proof of enrollment, identity/KYC docs, and sometimes income projections.', keywords: ['documents','required','docs'] },
+        { q: 'How long does the loan approval process take?', a: 'Most approvals finalize within 48–72 hours after verification.', keywords: ['approval','48','72','process take'] }
+      ]
     },
     {
+      key: 'account',
       icon: <Users className="w-8 h-8" />,
-      title: "Account Help",
-      description: "Issues with your account, login problems, or profile updates"
+      title: 'Account Help',
+      description: 'Issues with your account, login problems, or profile updates',
+      faqs: [
+        { q: 'I forgot my password. What do I do?', a: 'Use the “Forgot Password” link. If still locked out, contact support with your registered email.', keywords: ['forgot password','reset password'] },
+        { q: 'Can I change my registered email?', a: 'Yes. Go to Account Settings > Profile. A verification link is sent to the new address.', keywords: ['change email','update email','new email'] }
+      ]
     },
     {
+      key: 'security',
       icon: <Shield className="w-8 h-8" />,
-      title: "Security & Privacy",
-      description: "Data protection, security concerns, or privacy questions"
+      title: 'Security & Privacy',
+      description: 'Data protection, security concerns, or privacy questions',
+      faqs: [
+        { q: 'Is my data secure?', a: 'We encrypt data at rest and in transit, enforce least privilege, and monitor continuously.', keywords: ['data secure','data security','secure'] },
+        { q: 'How do I report suspicious activity?', a: 'Reset your password immediately and contact support with details (time, action noticed).', keywords: ['suspicious','unauthorized','hack'] }
+      ]
     },
     {
+      key: 'technical',
       icon: <MessageSquare className="w-8 h-8" />,
-      title: "Technical Issues",
-      description: "Website bugs, payment problems, or app-related issues"
+      title: 'Technical Issues',
+      description: 'Website bugs, payment problems, or app-related issues',
+      faqs: [
+        { q: 'Why is my payment failing?', a: 'Confirm payment method details and balance. Try another method or contact your bank if it persists.', keywords: ['payment failing','payment error','cannot pay'] },
+        { q: 'I found a bug. How do I report it?', a: 'Provide steps to reproduce, browser/device, and screenshots for faster resolution.', keywords: ['bug','issue','error'] }
+      ]
     }
   ];
 
-  const faqs = [
-    {
-      question: "How long does the loan approval process take?",
-      answer: "Most loans are processed within 48-72 hours after all documents are submitted and verified."
-    },
-    {
-      question: "What are the interest rates?",
-      answer: "Interest rates vary based on loan amount, tenure, and borrower profile, typically ranging from 8-15% annually."
-    },
-    {
-      question: "Is there a minimum credit score required?",
-      answer: "We don't require a traditional credit score. We evaluate students based on academic performance and future earning potential."
-    },
-    {
-      question: "Can I repay my loan early?",
-      answer: "Yes, you can prepay your loan without any penalties. Early repayment may also reduce your total interest."
+  const allFAQs = useMemo(() => supportCategories.flatMap(cat => cat.faqs.map(f => ({ ...f, category: cat.title, key: cat.key }))), [supportCategories]);
+
+  const filteredCategories = useMemo(() => {
+    if (!faqSearch.trim()) return supportCategories;
+    const term = faqSearch.toLowerCase();
+    return supportCategories.map(cat => ({
+      ...cat,
+      faqs: cat.faqs.filter(f => f.q.toLowerCase().includes(term) || f.a.toLowerCase().includes(term) || f.keywords?.some(k => k.includes(term)))
+    })).filter(cat => cat.faqs.length > 0);
+  }, [faqSearch, supportCategories]);
+
+  const highlight = (text) => {
+    if (!faqSearch.trim()) return text;
+    const term = faqSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${term})`, 'ig');
+    return text.split(regex).map((part, i) => regex.test(part) ? <mark key={i} className="bg-yellow-300/60 dark:bg-yellow-600/60 px-0.5 rounded">{part}</mark> : part);
+  };
+
+  const toggleCategory = (title) => {
+    setOpenCategories(prev => prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title]);
+  };
+  const toggleFAQ = (catTitle, index) => {
+    setOpenFAQ(prev => ({ ...prev, [catTitle]: prev[catTitle] === index ? null : index }));
+  };
+  const findFAQMatch = () => {
+    const text = (formData.subject + ' ' + formData.message).toLowerCase();
+    for (const faq of allFAQs) {
+      const qLower = faq.q.toLowerCase();
+      const keywordHit = faq.keywords?.some(k => text.includes(k));
+      if (text.includes(qLower) || keywordHit) return faq;
     }
-  ];
+    return null;
+  };
+
+  // Add handlers for FAQ decision actions
+  const handleFaqSolved = () => {
+    if (matchedFAQ) logFaqAutoResolve(matchedFAQ);
+    setIsDeflected(true);
+    setSubmitMessage('Question resolved instantly via FAQ. No ticket created.');
+    setSubmitType('success');
+    toast.success('Marked as solved');
+    setMatchedFAQ(null);
+    setFaqEscalatePending(false);
+    setOverrideFAQ(false);
+  };
+  const handleFaqNeedHelp = () => {
+    setOverrideFAQ(true);
+    setFaqEscalatePending(true);
+    setIsDeflected(false);
+    toast('FAQ acknowledged – you can submit now.', { icon: '📨' });
+    setSubmitMessage('FAQ noted. Click Send again to contact support.');
+    setSubmitType('info');
+  };
 
   return (
     <div className={`min-h-screen ${
@@ -286,17 +407,47 @@ const Contact = () => {
                 {/* Status Message */}
                 {submitMessage && (
                   <div className={`p-4 rounded-lg border ${
-                    submitType === 'success' 
-                      ? 'bg-green-50 border-green-200 text-green-800' 
-                      : 'bg-red-50 border-red-200 text-red-800'
+                    submitType === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+                    submitType === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'
                   }`}>
-                    <div className="flex items-center">
-                      {submitType === 'success' ? (
-                        <CheckCircle className="w-5 h-5 mr-2" />
-                      ) : (
-                        <div className="w-5 h-5 mr-2 text-red-500">⚠️</div>
-                      )}
-                      <span className="font-medium">{submitMessage}</span>
+                    <div className="flex items-start space-x-3">
+                      {submitType === 'success' && <CheckCircle className="w-5 h-5" />}
+                      {submitType === 'error' && <div className="w-5 h-5 text-red-500">⚠️</div>}
+                      {submitType === 'info' && <div className="w-5 h-5 text-blue-500">💡</div>}
+                      <div className="flex-1 text-sm">
+                        <p className="font-medium mb-1 flex items-center gap-2">{submitMessage}
+                          {isDeflected && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-emerald-600 text-white uppercase tracking-wide">
+                              Deflected
+                            </span>
+                          )}
+                        </p>
+                        {matchedFAQ && submitType === 'info' && (
+                          <div className={`${isDark ? 'bg-gray-700 border-blue-400/30' : 'bg-white border-blue-200'} mt-2 rounded border p-3`}>
+                            <p className="font-semibold mb-1">Suggested Answer:</p>
+                            <p className={`${isDark ? 'text-blue-200' : 'text-blue-900'} mb-3`}>{matchedFAQ.a}</p>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={handleFaqSolved}
+                                disabled={isDeflected}
+                                className={`px-3 py-1 text-xs rounded text-white ${isDeflected ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+                              >✅ Problem Solved</button>
+                              <button
+                                type="button"
+                                onClick={handleFaqNeedHelp}
+                                disabled={faqEscalatePending && overrideFAQ}
+                                className={`px-3 py-1 text-xs rounded text-white ${faqEscalatePending && overrideFAQ ? 'bg-yellow-400 cursor-not-allowed' : 'bg-yellow-600 hover:bg-yellow-700'}`}
+                              >Still Need Help</button>
+                              <button
+                                type="button"
+                                onClick={() => { setMatchedFAQ(null); setSubmitMessage(''); setSubmitType(''); setIsDeflected(false); setFaqEscalatePending(false); }}
+                                className="px-3 py-1 text-xs rounded bg-gray-500 text-white hover:bg-gray-600"
+                              >Dismiss</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -410,14 +561,19 @@ const Contact = () => {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || !formData.name || !formData.email || !formData.subject || !formData.message}
+                  disabled={isDeflected || isSubmitting || !formData.name || !formData.email || !formData.subject || !formData.message}
                   className={`w-full py-3 px-6 rounded-lg transition-colors flex items-center justify-center font-medium ${
-                    isSubmitting || !formData.name || !formData.email || !formData.subject || !formData.message
+                    isDeflected || isSubmitting || !formData.name || !formData.email || !formData.subject || !formData.message
                       ? 'bg-gray-400 text-white cursor-not-allowed'
                       : 'bg-blue-600 text-white hover:bg-blue-700'
                   }`}
                 >
-                  {isSubmitting ? (
+                  {isDeflected ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Resolved via FAQ
+                    </>
+                  ) : isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
                       Sending Message...
@@ -440,66 +596,132 @@ const Contact = () => {
             )}
           </div>
 
-          {/* Support Categories */}
+          {/* Support Categories with embedded FAQ accordions */}
           <div>
-            <h2 className={`text-2xl font-bold mb-6 ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}>Support Categories</h2>
+            <h2 className={`text-2xl font-bold mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>Support Categories</h2>
+            <div className="mb-4 relative">
+              <input
+                type="text"
+                aria-label="Search FAQs"
+                placeholder="Search FAQs..."
+                value={faqSearch}
+                onChange={(e) => setFaqSearch(e.target.value)}
+                className={`w-full px-4 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`}
+              />
+              {faqSearch && (
+                <button
+                  type="button"
+                  onClick={() => setFaqSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-700"
+                  aria-label="Clear FAQ search"
+                >✕</button>
+              )}
+            </div>
             <div className="space-y-4">
-              {supportCategories.map((category, index) => (
-                <div key={index} className={`p-6 rounded-xl ${
-                  isDark ? 'bg-gray-800' : 'bg-white'
-                } shadow-lg hover:shadow-xl transition-shadow`}>
-                  <div className="flex items-start">
-                    <div className="text-blue-600 mr-4 mt-1">
-                      {category.icon}
-                    </div>
-                    <div>
-                      <h3 className={`text-lg font-semibold mb-2 ${
-                        isDark ? 'text-white' : 'text-gray-900'
-                      }`}>{category.title}</h3>
-                      <p className={`${
-                        isDark ? 'text-gray-400' : 'text-gray-600'
-                      }`}>{category.description}</p>
-                    </div>
+              {filteredCategories.map((cat, idx) => {
+                const expanded = openCategories.includes(cat.title);
+                return (
+                  <div key={idx} className={`rounded-xl border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} shadow-md`} role="region" aria-labelledby={`cat-${idx}`}> 
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(cat.title)}
+                      className={`w-full flex items-start justify-between text-left p-5 transition ${isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}
+                      aria-expanded={expanded}
+                      aria-controls={`cat-panel-${idx}`}
+                      id={`cat-${idx}`}
+                    >
+                      <div className="flex items-start">
+                        <div className="text-blue-600 mr-4 mt-1">{cat.icon}</div>
+                        <div>
+                          <h3 className={`text-lg font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{highlight(cat.title)}</h3>
+                          <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-sm`}>{highlight(cat.description)}</p>
+                        </div>
+                      </div>
+                      <span className={`ml-4 text-xs font-medium px-2 py-1 rounded ${expanded ? 'bg-blue-600 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{expanded ? 'Hide' : 'View'}</span>
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {expanded && (
+                        <motion.div
+                          id={`cat-panel-${idx}`}
+                          role="region"
+                          aria-label={`${cat.title} FAQs`}
+                          key="content"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25, ease: 'easeInOut' }}
+                          className={`px-6 pb-5 space-y-3 ${isDark ? 'bg-gray-750' : 'bg-white'}`}
+                        >
+                          {cat.faqs.map((faq, fIdx) => {
+                            const open = openFAQ[cat.title] === fIdx;
+                            return (
+                              <div key={fIdx} className={`border rounded-lg ${isDark ? 'border-gray-600' : 'border-gray-200'} overflow-hidden`}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleFAQ(cat.title, fIdx)}
+                                  className={`w-full flex justify-between items-center px-4 py-3 text-left ${isDark ? 'bg-gray-700 hover:bg-gray-650' : 'bg-gray-50 hover:bg-gray-100'} transition`}
+                                  aria-expanded={open}
+                                  aria-controls={`faq-${idx}-${fIdx}`}
+                                  id={`faq-btn-${idx}-${fIdx}`}
+                                >
+                                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{highlight(faq.q)}</span>
+                                  <span className="ml-4 text-xs text-blue-600">{open ? '−' : '+'}</span>
+                                </button>
+                                <AnimatePresence initial={false}>
+                                  {open && (
+                                    <motion.div
+                                      key="panel"
+                                      id={`faq-${idx}-${fIdx}`}
+                                      role="region"
+                                      aria-labelledby={`faq-btn-${idx}-${fIdx}`}
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.25 }}
+                                      className={`px-4 py-3 text-sm ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-700'}`}
+                                    >
+                                      <p className="mb-3 leading-relaxed">{highlight(faq.a)}</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setMatchedFAQ({ ...faq, category: cat.title });
+                                            setSubmitMessage('Answer loaded below – let us know if you still need help.');
+                                            setSubmitType('info');
+                                            toast.success('FAQ answer loaded');
+                                          }}
+                                          className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
+                                        >Use This Answer</button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setFormData(prev => ({ ...prev, category: cat.key, subject: faq.q }));
+                                            toast('Subject set to FAQ question', { icon: '✍️' });
+                                          }}
+                                          className="px-3 py-1 text-xs rounded bg-gray-600 text-white hover:bg-gray-700"
+                                        >Ask Human About It</button>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+              {filteredCategories.length === 0 && (
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>No FAQs matched your search.</p>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* FAQ Section */}
-      <div className={`py-16 ${
-        isDark ? 'bg-gray-800' : 'bg-blue-50'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className={`text-3xl font-bold mb-4 ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}>Frequently Asked Questions</h2>
-            <p className={`text-lg ${
-              isDark ? 'text-gray-400' : 'text-gray-600'
-            }`}>Quick answers to common questions</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {faqs.map((faq, index) => (
-              <div key={index} className={`p-6 rounded-xl ${
-                isDark ? 'bg-gray-700' : 'bg-white'
-              } shadow-lg`}>
-                <h3 className={`text-lg font-semibold mb-3 ${
-                  isDark ? 'text-white' : 'text-gray-900'
-                }`}>{faq.question}</h3>
-                <p className={`${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>{faq.answer}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Standalone FAQ section removed (now integrated above). */}
 
       {/* Footer */}
       <footer className={`py-8 ${

@@ -232,6 +232,28 @@ const contactMessageSchema = new mongoose.Schema({
       isPublic: {
         type: Boolean,
         default: true
+      },
+      // Email delivery metadata (for queued outbound mail Option C)
+      emailDelivery: {
+        status: {
+          type: String,
+          enum: ['not_applicable', 'queued', 'sending', 'sent', 'failed', 'permanent_failure', 'skipped'],
+          default: 'queued'
+        },
+        queuedAt: { type: Date },
+        sentAt: { type: Date },
+        lastTriedAt: { type: Date },
+        nextAttemptAt: { type: Date },
+        attemptCount: { type: Number, default: 0 },
+        maxAttempts: { type: Number, default: 5 },
+        provider: { type: String }, // e.g. 'smtp', 'sendgrid'
+        providerMessageId: { type: String },
+        errorMessage: { type: String },
+        // For future advanced tracking (opens, clicks)
+        tracking: {
+          openTracked: { type: Boolean, default: false },
+            openedAt: { type: Date }
+        }
       }
     }],
     lastResponseAt: Date,
@@ -397,4 +419,21 @@ contactMessageSchema.statics.getSpamStats = function() {
 };
 
 const ContactMessage = mongoose.model('ContactMessage', contactMessageSchema);
+// Lightweight log model for FAQ auto-resolutions (no full ticket created)
+const faqAutoResolveSchema = new mongoose.Schema({
+  question: { type: String, required: true },
+  category: { type: String },
+  keywordsMatched: [String],
+  userEmail: { type: String },
+  userIp: { type: String },
+  fingerprint: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  // Whether user later chose to escalate after seeing FAQ (updated via patch)
+  escalated: { type: Boolean, default: false }
+}, { timestamps: true });
+
+faqAutoResolveSchema.index({ createdAt: -1 });
+faqAutoResolveSchema.index({ userEmail: 1, createdAt: -1 });
+
+export const FaqAutoResolveLog = mongoose.models.FaqAutoResolveLog || mongoose.model('FaqAutoResolveLog', faqAutoResolveSchema);
 export default ContactMessage;

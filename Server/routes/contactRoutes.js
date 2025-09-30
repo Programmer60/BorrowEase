@@ -1,7 +1,7 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { verifyToken } from '../middlewares/authMiddleware.js';
-import ContactMessage from '../models/contactModel.js';
+import ContactMessage, { FaqAutoResolveLog } from '../models/contactModel.js';
 import AdvancedSpamDetectionService from '../services/advancedSpamDetection.js';
 import { AutoResponseService } from '../services/autoResponseService.js';
 import PriorityIntelligenceService from '../services/PriorityIntelligenceService.js';
@@ -440,25 +440,50 @@ router.post('/admin/message/:messageId/respond', adminAuth, async (req, res) => 
       });
     }
 
-    // Add response
-    message.responses.messages.push({
+    // Add response (emailDelivery metadata initialization handled below)
+    const responseDoc = {
       message: response.trim(),
       respondedBy: admin.mongoId,
       respondedAt: new Date(),
-      isPublic
-    });
+      isPublic,
+      emailDelivery: { status: isPublic ? 'queued' : 'not_applicable', queuedAt: isPublic ? new Date() : undefined }
+    };
+    message.responses.messages.push(responseDoc);
 
     message.responses.lastResponseAt = new Date();
     message.responses.responseCount = message.responses.messages.length;
     message.status = 'in_progress';
   message.assignedTo = admin.mongoId;
-
     await message.save();
+
+    // Queue email job if public (outbound email) and message has user email
+    let emailJobId = null;
+    if (isPublic && message.email) {
+      try {
+        const { EmailJob } = await import('../models/emailJobModel.js');
+        const subject = `Re: ${message.subject || 'Your Support Inquiry'}`;
+        const body = response.trim();
+        const job = await EmailJob.create({
+          messageId: message._id,
+          responseId: message.responses.messages[message.responses.messages.length - 1]._id,
+          to: message.email,
+          subject,
+          body,
+          status: 'queued',
+          attemptCount: 0,
+          dedupeKey: Buffer.from(`${message.email}|${subject}|${body}`).toString('base64')
+        });
+        emailJobId = job._id;
+      } catch (e) {
+        console.error('Failed to queue email job:', e);
+      }
+    }
 
     res.json({
       success: true,
-      message: 'Response added successfully',
-      responseId: message.responses.messages[message.responses.messages.length - 1]._id
+      message: 'Response recorded and queued for delivery',
+      responseId: message.responses.messages[message.responses.messages.length - 1]._id,
+      emailJobId
     });
 
   } catch (error) {
@@ -467,6 +492,53 @@ router.post('/admin/message/:messageId/respond', adminAuth, async (req, res) => 
       success: false,
       error: 'Failed to add response'
     });
+  }
+});
+
+// Get delivery status for a specific response (admin)
+router.get('/admin/message/:messageId/response/:responseId/delivery-status', adminAuth, async (req, res) => {
+  try {
+    const { messageId, responseId } = req.params;
+    const message = await ContactMessage.findById(messageId).select('responses.messages email subject');
+    if (!message) {
+      return res.status(404).json({ success: false, error: 'Message not found' });
+    }
+    const responseDoc = message.responses?.messages?.find(r => r._id.toString() === responseId);
+    if (!responseDoc) {
+      return res.status(404).json({ success: false, error: 'Response not found' });
+    }
+    return res.json({
+      success: true,
+      delivery: responseDoc.emailDelivery || { status: 'not_applicable' }
+    });
+  } catch (err) {
+    console.error('Error fetching delivery status', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch delivery status' });
+  }
+});
+
+// Force retry of a failed/permanent_failure email job (admin)
+router.post('/admin/email-jobs/:jobId/retry', adminAuth, async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { EmailJob } = await import('../models/emailJobModel.js');
+    const job = await EmailJob.findById(jobId);
+    if (!job) return res.status(404).json({ success: false, error: 'Job not found' });
+    if (!['failed', 'permanent_failure'].includes(job.status)) {
+      return res.status(400).json({ success: false, error: 'Job not in a retryable state' });
+    }
+    if (job.status === 'permanent_failure') {
+      // Reset attempt counter cautiously (or could require a query param flag)
+      job.attemptCount = Math.max(0, job.maxAttempts - 2); // give it a couple more tries
+    }
+    job.status = 'queued';
+    job.nextAttemptAt = new Date();
+    job.lastError = undefined;
+    await job.save();
+    return res.json({ success: true, message: 'Job re-queued', jobId: job._id });
+  } catch (err) {
+    console.error('Retry job error', err);
+    return res.status(500).json({ success: false, error: 'Failed to retry job' });
   }
 });
 
@@ -616,7 +688,7 @@ router.post('/admin/recalculate-priorities', adminAuth, async (req, res) => {
   }
 });
 
-export default router;
+
 // ---- Additional Admin Utilities ----
 
 // Recalculate / normalize legacy spam scores (idempotent)
@@ -654,3 +726,61 @@ router.patch('/admin/message/:messageId/classification', adminAuth, async (req, 
     res.status(500).json({ success: false, error: 'Failed to update classification' });
   }
 });
+
+// -------- FAQ AUTO-RESOLVE LOGGING --------
+// Client can log when a question was answered locally without creating a full ticket
+router.post('/faq-auto-resolve', async (req, res) => {
+  try {
+    const { question, category, keywordsMatched = [], userEmail, fingerprint } = req.body || {};
+    if (!question) return res.status(400).json({ success: false, error: 'question required' });
+    const log = await FaqAutoResolveLog.create({
+      question,
+      category,
+      keywordsMatched,
+      userEmail: userEmail?.toLowerCase(),
+      userIp: req.ip || req.connection?.remoteAddress,
+      fingerprint
+    });
+    res.status(201).json({ success: true, id: log._id });
+  } catch (e) {
+    console.error('Error logging faq auto resolve:', e);
+    res.status(500).json({ success: false, error: 'Failed to log auto resolve' });
+  }
+});
+
+// Mark an auto-resolved FAQ as escalated (user still needed help and sent a ticket later)
+router.patch('/faq-auto-resolve/:id/escalate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updated = await FaqAutoResolveLog.findByIdAndUpdate(id, { escalated: true }, { new: true });
+    if (!updated) return res.status(404).json({ success: false, error: 'Log not found' });
+    res.json({ success: true, escalated: true });
+  } catch (e) {
+    console.error('Error escalating faq auto resolve:', e);
+    res.status(500).json({ success: false, error: 'Failed to escalate log' });
+  }
+});
+
+// Basic stats for admins (could be expanded later)
+router.get('/admin/faq-auto-resolve/stats', adminAuth, async (req, res) => {
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // last 30 days
+    const pipeline = [
+      { $match: { createdAt: { $gte: since } } },
+      { $group: { _id: { category: '$category', escalated: '$escalated' }, count: { $sum: 1 } } }
+    ];
+    const rows = await FaqAutoResolveLog.aggregate(pipeline);
+    const formatted = {};
+    for (const r of rows) {
+      const cat = r._id.category || 'uncategorized';
+      formatted[cat] = formatted[cat] || { autoResolved: 0, escalated: 0 };
+      if (r._id.escalated) formatted[cat].escalated += r.count; else formatted[cat].autoResolved += r.count;
+    }
+    res.json({ success: true, since, stats: formatted });
+  } catch (e) {
+    console.error('Error fetching faq auto resolve stats:', e);
+    res.status(500).json({ success: false, error: 'Failed to fetch stats' });
+  }
+});
+
+export default router;

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import API from '../api/api';
 import { useTheme } from '../contexts/ThemeContext';
+import AdminContactMessageModal from './AdminContactMessageModal.jsx';
 
 const AdminContactManagement = () => {
   const { isDark } = useTheme();
@@ -106,6 +107,14 @@ const AdminContactManagement = () => {
     } catch (error) {
       console.error('Error sending response:', error);
     }
+  };
+
+  // New callback for modal to update message list without full reload
+  const handleModalReplied = (id, payload) => {
+    setMessages(prev => prev.map(m => m._id === id ? { ...m, status: m.status==='pending' ? 'in_progress': m.status, responses: { ...(m.responses||{}), messages: [ ...(m?.responses?.messages||[]), { _id: Date.now().toString(), message: payload.response, respondedAt: new Date().toISOString(), isPublic: payload.isPublic } ] } } : m));
+  };
+  const handleModalMarkResolved = (id) => {
+    setMessages(prev => prev.map(m => m._id === id ? { ...m, status: 'resolved' } : m));
   };
 
   const handleBulkAction = async (action) => {
@@ -393,7 +402,9 @@ const AdminContactManagement = () => {
           <div className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
             <div className="flex items-center justify-between">
               <div>
-                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>🛡️ Blocked Spam</p>
+                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>
+                  🛡️ Blocked Spam
+                </p>
                 <p className={`text-2xl font-bold text-purple-600`}>
                   {filters.includeBlocked ? messages.filter(m => m.status === 'blocked' || m.status === 'quarantined').length : '?'}
                 </p>
@@ -800,141 +811,13 @@ const AdminContactManagement = () => {
 
         {/* Message Detail Modal */}
         {selectedMessage && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className={`max-w-2xl w-full max-h-[90vh] overflow-y-auto rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {selectedMessage.subject}
-                  </h3>
-                  <button
-                    onClick={() => setSelectedMessage(null)}
-                    className={`text-gray-400 hover:text-gray-600`}
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>From:</label>
-                    <p className={`${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedMessage.name} ({selectedMessage.email})</p>
-                  </div>
-
-                  {/* PRIORITY INTELLIGENCE SECTION */}
-                  <div className={`p-4 rounded-lg border ${isDark ? 'bg-gray-700 border-gray-600' : 'bg-blue-50 border-blue-200'}`}>
-                    <h4 className={`font-semibold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      🎯 Priority Intelligence Analysis
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Priority Level:</span>
-                        <div className="mt-1">
-                          <span className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full border ${getPriorityColor(selectedMessage.priority || 'medium')}`}>
-                            {getPriorityIcon(selectedMessage.priority || 'medium')} {(selectedMessage.priority || 'medium').toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {selectedMessage.priorityScore && (
-                        <div>
-                          <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Priority Score:</span>
-                          <div className="mt-1">
-                            <span className={`text-lg font-bold ${
-                              selectedMessage.priorityScore > 50 ? 'text-green-600' : 
-                              selectedMessage.priorityScore > 0 ? 'text-yellow-600' : 'text-red-600'
-                            }`}>
-                              {selectedMessage.priorityScore}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {selectedMessage.priorityFactors && selectedMessage.priorityFactors.length > 0 && (
-                      <div className="mt-4">
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Analysis Factors:</span>
-                        <ul className={`mt-2 space-y-1 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                          {selectedMessage.priorityFactors.slice(0, 5).map((factor, index) => (
-                            <li key={index} className="flex items-start">
-                              <span className="mr-2">•</span>
-                              <span>{factor}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {selectedMessage.priorityRecommendations && selectedMessage.priorityRecommendations.length > 0 && (
-                      <div className="mt-4">
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Admin Recommendations:</span>
-                        <ul className={`mt-2 space-y-1 text-sm ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
-                          {selectedMessage.priorityRecommendations.map((recommendation, index) => (
-                            <li key={index} className="flex items-start">
-                              <span className="mr-2">💡</span>
-                              <span className="font-medium">{recommendation}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {selectedMessage.customerTier && selectedMessage.customerTier !== 'new' && (
-                      <div className="mt-4">
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Customer Tier:</span>
-                        <div className="mt-1">
-                          <span className={`inline-flex items-center px-3 py-1 text-sm font-bold rounded-full ${
-                            selectedMessage.customerTier === 'vip' ? 'bg-purple-100 text-purple-800' :
-                            selectedMessage.customerTier === 'premium' ? 'bg-yellow-100 text-yellow-800' :
-                            selectedMessage.customerTier === 'verified' ? 'bg-blue-100 text-blue-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {selectedMessage.customerTier === 'vip' ? '👑' : 
-                             selectedMessage.customerTier === 'premium' ? '⭐' : 
-                             selectedMessage.customerTier === 'verified' ? '✅' : '👤'} 
-                            {selectedMessage.customerTier.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Message:</label>
-                    <p className={`${isDark ? 'text-white' : 'text-gray-900'} whitespace-pre-wrap`}>{selectedMessage.message}</p>
-                  </div>
-
-                  <div>
-                    <label className={`block text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Respond:</label>
-                    <textarea
-                      value={responseText}
-                      onChange={(e) => setResponseText(e.target.value)}
-                      rows={4}
-                      className={`w-full px-3 py-2 border rounded-lg ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                      placeholder="Type your response..."
-                    />
-                  </div>
-
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={() => respondToMessage(selectedMessage._id)}
-                      disabled={!responseText.trim()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      Send Response
-                    </button>
-                    <button
-                      onClick={() => updateMessageStatus(selectedMessage._id, 'resolved', 'Issue resolved')}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      Mark Resolved
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <AdminContactMessageModal
+            isDark={isDark}
+            message={selectedMessage}
+            onClose={()=>setSelectedMessage(null)}
+            onReplied={handleModalReplied}
+            onMarkResolved={handleModalMarkResolved}
+          />
         )}
       </div>
     </div>
