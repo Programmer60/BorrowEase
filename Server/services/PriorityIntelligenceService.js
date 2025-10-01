@@ -18,6 +18,15 @@ export class PriorityIntelligenceService {
       analysis.priorityScore += userVerification.score;
       analysis.factors.push(...userVerification.factors);
 
+      // 1b. MESSAGE-LEVEL EMAIL OWNERSHIP (guest verification MVP)
+      if (messageData.emailVerified === true) {
+        analysis.priorityScore += 12; // noticeable bump
+        analysis.factors.push('✅ Contact email ownership verified (code)');
+      } else if (messageData.emailVerified === false) {
+        analysis.priorityScore -= 18; // stronger penalty than unknown user alone
+        analysis.factors.push('⚠️ Email ownership unverified (awaiting code)');
+      }
+
       // 2. KYC COMPLETION STATUS (Critical for Financial Services)
       const kycStatus = await this.checkKYCStatus(messageData.email);
       analysis.priorityScore += kycStatus.score;

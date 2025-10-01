@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { 
   Mail, 
@@ -10,11 +10,16 @@ import {
   Reply,
   Filter,
   Search,
-  RefreshCw
+  RefreshCw,
+  ShieldQuestion,
+  Hourglass
 } from 'lucide-react';
 import API from '../api/api';
 import { useTheme } from '../contexts/ThemeContext';
 import AdminContactMessageModal from './AdminContactMessageModal.jsx';
+import CustomCheckbox from './ui/CustomCheckbox.jsx';
+import Badge from './ui/Badge.jsx';
+import ActionButton from './ui/ActionButton.jsx';
 
 const AdminContactManagement = () => {
   const { isDark } = useTheme();
@@ -40,28 +45,8 @@ const AdminContactManagement = () => {
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [responseText, setResponseText] = useState('');
   const [selectedMessages, setSelectedMessages] = useState([]);
-  const [statistics, setStatistics] = useState({
-    total: 0,
-    pending: 0,
-    resolved: 0,
-    spam: 0,
-    highPriority: 0,
-    needsReview: 0
-  });
   const [recalculating, setRecalculating] = useState(false);
   const [highSpamAlerts, setHighSpamAlerts] = useState([]);
-
-  useEffect(() => {
-    loadMessages();
-  }, [filters]);
-
-  // Check for high spam alerts when messages load
-  useEffect(() => {
-    const highSpamMessages = messages.filter(msg => 
-      msg.spamScore && (msg.spamScore * 100) > 100
-    );
-    setHighSpamAlerts(highSpamMessages);
-  }, [messages]);
 
   const loadMessages = async () => {
     try {
@@ -70,7 +55,6 @@ const AdminContactManagement = () => {
       Object.entries(filters).forEach(([key, value]) => {
         if (value) params.append(key, value);
       });
-
       const response = await API.get(`/contact/admin/messages?${params}`);
       if (response.data.success) {
         setMessages(response.data.messages);
@@ -82,6 +66,15 @@ const AdminContactManagement = () => {
       setLoading(false);
     }
   };
+
+  // Load messages when filters change
+  useEffect(() => { loadMessages(); }, [filters]);
+
+  // High spam alerts effect
+  useEffect(() => {
+    const highSpamMessages = messages.filter(msg => msg.spamScore && (msg.spamScore * 100) > 100);
+    setHighSpamAlerts(highSpamMessages);
+  }, [messages]);
 
   const updateMessageStatus = async (messageId, status, adminNote = '') => {
     try {
@@ -158,12 +151,11 @@ const AdminContactManagement = () => {
     );
   };
 
+  const allSelected = messages.length > 0 && selectedMessages.length === messages.length;
+  const indeterminate = selectedMessages.length > 0 && selectedMessages.length < messages.length;
   const handleSelectAll = () => {
-    if (selectedMessages.length === messages.length) {
-      setSelectedMessages([]);
-    } else {
-      setSelectedMessages(messages.map(m => m._id));
-    }
+    if (allSelected) setSelectedMessages([]);
+    else setSelectedMessages(messages.map(m => m._id));
   };
 
   const handleRecalculatePriorities = async () => {
@@ -240,6 +232,29 @@ const AdminContactManagement = () => {
       case 'closed': return 'text-gray-600 bg-gray-100';
       default: return 'text-gray-600 bg-gray-100';
     }
+  };
+
+  const renderVerificationBadges = (msg) => {
+    const badges = [];
+    if (msg.emailVerified === false) {
+      badges.push(
+        <span key="unverified" className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-300">
+          <ShieldQuestion className="w-3 h-3" /> Unverified
+        </span>
+      );
+    }
+    // Check responses for awaiting_verification delivery
+    const awaiting = msg.responses?.messages?.some(r => r.emailDelivery?.status === 'awaiting_verification');
+    if (awaiting) {
+      badges.push(
+        <span key="awaiting" className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-300">
+          <Hourglass className="w-3 h-3" /> Awaiting Code
+        </span>
+      );
+    }
+    return badges.length ? (
+      <div className="flex flex-wrap gap-1 mt-1">{badges}</div>
+    ) : null;
   };
 
   const getSpamScoreDisplay = (spamScore, rawScore) => {
@@ -626,11 +641,12 @@ const AdminContactManagement = () => {
                 <thead>
                   <tr className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
-                      <input
-                        type="checkbox"
-                        checked={selectedMessages.length === messages.length && messages.length > 0}
+                      <CustomCheckbox
+                        checked={allSelected}
+                        indeterminate={indeterminate}
                         onChange={handleSelectAll}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        size="5"
+                        className="ml-1"
                       />
                     </th>
                     <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
@@ -657,11 +673,10 @@ const AdminContactManagement = () => {
                   {messages.map((message) => (
                     <tr key={message._id} className={`hover:${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <td className="px-6 py-4">
-                        <input
-                          type="checkbox"
+                        <CustomCheckbox
                           checked={selectedMessages.includes(message._id)}
                           onChange={() => handleMessageSelect(message._id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          size="5"
                         />
                       </td>
                       <td className="px-6 py-4">
@@ -670,16 +685,8 @@ const AdminContactManagement = () => {
                             <div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
                               {message.subject || 'No Subject'}
                             </div>
-                            {message.requiresReview && (
-                              <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
-                                ⚠️ Needs Review
-                              </span>
-                            )}
-                            {message.autoResponseSent && (
-                              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                🤖 Auto-Replied
-                              </span>
-                            )}
+                            {message.requiresReview && <Badge tone="danger" size="xs" variant="soft">⚠️ Review</Badge>}
+                            {message.autoResponseSent && <Badge tone="success" size="xs" variant="soft">🤖 Auto</Badge>}
                           </div>
                           <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                             From: {message.name} ({message.email})
@@ -687,34 +694,43 @@ const AdminContactManagement = () => {
                           <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                             {message.category} • {message.message ? message.message.substring(0, 100) + '...' : 'No content'}
                           </div>
+                          {renderVerificationBadges(message)}
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col space-y-2">
-                          <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full border ${getPriorityColor(message.priority || 'medium')}`}>
+                          <Badge tone={
+                            (message.priority === 'critical' && 'rose') ||
+                            (message.priority === 'high' && 'amber') ||
+                            (message.priority === 'medium' && 'warning') ||
+                            (message.priority === 'low' && 'sky') ||
+                            (message.priority === 'very_low' && 'neutral') || 'neutral'
+                          } variant="soft" size="xs">
                             {getPriorityIcon(message.priority || 'medium')} {message.priority || 'medium'}
-                          </span>
+                          </Badge>
                           {message.priorityScore && (
-                            <span className={`text-xs px-2 py-1 rounded ${message.priorityScore > 50 ? 'bg-green-100 text-green-700' : message.priorityScore > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                              Score: {message.priorityScore}
-                            </span>
+                            <Badge
+                              tone={message.priorityScore > 50 ? 'success' : message.priorityScore > 0 ? 'warning' : 'danger'}
+                              variant="outline"
+                              size="xs"
+                            >Score {message.priorityScore}</Badge>
                           )}
                           {message.customerTier && message.customerTier !== 'new' && (
-                            <span className={`text-xs px-2 py-1 rounded font-medium ${
-                              message.customerTier === 'vip' ? 'bg-purple-100 text-purple-800' :
-                              message.customerTier === 'premium' ? 'bg-gold-100 text-gold-800' :
-                              message.customerTier === 'verified' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {message.customerTier.toUpperCase()}
-                            </span>
+                            <Badge tone={
+                              message.customerTier === 'vip' ? 'purple' :
+                              message.customerTier === 'premium' ? 'amber' :
+                              message.customerTier === 'verified' ? 'brand' : 'neutral'
+                            } variant="soft" size="xs">{message.customerTier.toUpperCase()}</Badge>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(message.status || 'pending')}`}>
-                          {(message.status || 'pending').replace('_', ' ')}
-                        </span>
+                        <Badge tone={
+                          (message.status === 'pending' && 'warning') ||
+                          (message.status === 'in_progress' && 'indigo') ||
+                          (message.status === 'resolved' && 'success') ||
+                          (message.status === 'closed' && 'neutral') || 'neutral'
+                        } variant="soft" size="xs">{(message.status || 'pending').replace('_',' ')}</Badge>
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-1">

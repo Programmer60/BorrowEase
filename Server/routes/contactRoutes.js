@@ -5,6 +5,9 @@ import ContactMessage, { FaqAutoResolveLog } from '../models/contactModel.js';
 import AdvancedSpamDetectionService from '../services/advancedSpamDetection.js';
 import { AutoResponseService } from '../services/autoResponseService.js';
 import PriorityIntelligenceService from '../services/PriorityIntelligenceService.js';
+import { isSuppressed, generateMisdirectedLink, verifyAndSuppressMisdirected } from '../services/suppressionService.js';
+import { checkSubmitLimits } from '../services/rateLimitService.js';
+import { analyzeContentQuality } from '../services/contentQualityService.js';
 
 const router = express.Router();
 
@@ -24,6 +27,18 @@ router.post('/submit', async (req, res) => {
       });
     }
     
+    // Rate limiting (before suppression to reduce DB work if flood)
+    const fingerprint = req.headers['x-client-fingerprint'];
+    const rl = await checkSubmitLimits({ ip: req.ip || req.connection.remoteAddress, email, fingerprint });
+    if (!rl.allowed) {
+      return res.status(429).json({ success:false, error:'Rate limit exceeded', reason: rl.reason, action: rl.action, retryAfterSeconds: rl.retryAfterSeconds });
+    }
+
+    // Suppression check (early exit)
+    if (await isSuppressed(email)) {
+      return res.status(403).json({ success:false, error:'This email is suppressed and cannot receive or create new messages.' });
+    }
+
     // Prepare message data
     const messageData = {
       name: name.trim(),
@@ -42,7 +57,7 @@ router.post('/submit', async (req, res) => {
     console.log('🔍 Running spam detection analysis...');
     const spamAnalysis = await AdvancedSpamDetectionService.analyzeMessage(messageData);
     
-    // 🎯 INTELLIGENT PRIORITY CALCULATION
+  // 🎯 INTELLIGENT PRIORITY CALCULATION
     console.log('🎯 Calculating intelligent priority based on user profile...');
     const priorityAnalysis = await PriorityIntelligenceService.calculateIntelligentPriority(messageData);
     
@@ -60,7 +75,20 @@ router.post('/submit', async (req, res) => {
     messageData.priorityFactors = priorityAnalysis.factors;
     messageData.priorityRecommendations = priorityAnalysis.recommendations;
     
-    console.log(`📊 Analysis Complete: Spam=${spamAnalysis.spamScore}, Priority=${priorityAnalysis.finalPriority.toUpperCase()} (${priorityAnalysis.priorityScore})`);
+    // 🧪 CONTENT QUALITY ANALYSIS
+    console.log('🧪 Assessing content quality...');
+    const quality = analyzeContentQuality({ subject: messageData.subject, message: messageData.message });
+    messageData.contentQuality = quality;
+    if (quality.label === 'gibberish') {
+      messageData.requiresReview = true; // force review
+      // Optionally downgrade priority if currently high
+      if (['high','critical'].includes(messageData.priority)) {
+        messageData.priority = 'low';
+        messageData.priorityFactors = [...(messageData.priorityFactors||[]), 'downgraded_due_to_gibberish'];
+      }
+    }
+
+    console.log(`📊 Analysis Complete: Spam=${spamAnalysis.spamScore}, Priority=${priorityAnalysis.finalPriority.toUpperCase()} (${priorityAnalysis.priorityScore}), Quality=${quality.label} (${quality.score})`);
     console.log(`🎯 Priority Factors: ${priorityAnalysis.factors.slice(0, 3).join(', ')}`);
 
     // 🤖 AUTO-RESPONSE ANALYSIS
@@ -69,7 +97,34 @@ router.post('/submit', async (req, res) => {
     
     // Create and save message
     const contactMessage = new ContactMessage(messageData);
-    await contactMessage.save();
+    // If user not authenticated (no req.user) treat as guest -> require email verification step
+    if (!req.user) {
+      // Create a verification code (6 digits) and store hash
+      const rawCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const crypto = await import('crypto');
+      const hash = crypto.createHash('sha256').update(rawCode).digest('hex');
+      contactMessage.emailVerified = false;
+      contactMessage.emailVerification = {
+        codeHash: hash,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
+        attempts: 0,
+        lastSentAt: new Date()
+      };
+      // (Send verification email asynchronously after save using quick fire-and-forget pattern)
+      // We'll reuse existing queue pipeline by creating a temporary EmailJob-like direct send.
+      // Simplicity: send immediately via emailService (no need to verify enabling worker yet).
+      const { sendEmail } = await import('../../Server/services/emailService.js');
+      // Save first to get _id
+      await contactMessage.save();
+      sendEmail({
+        to: contactMessage.email,
+        subject: 'Verify your email for BorrowEase Support',
+        body: `Your verification code is: ${rawCode}\n\nIt expires in 15 minutes. If you did not request support you can ignore this message.`
+      }).catch(e => console.error('Verification email send failed', e.message));
+    } else {
+      contactMessage.emailVerified = true; // authenticated path assumed verified
+      await contactMessage.save();
+    }
     
     console.log('✅ Contact message saved successfully:', contactMessage._id);
 
@@ -93,12 +148,16 @@ router.post('/submit', async (req, res) => {
       responseMessage = 'Message received and is under review for security purposes.';
     }
 
+    // Include misdirected link in response payload (client may ignore)
+    const misdirectedLink = generateMisdirectedLink(contactMessage.email, contactMessage._id.toString());
+
     res.status(201).json({
       success: true,
       message: responseMessage,
       messageId: contactMessage._id,
       autoResponseSent: autoResponse.shouldAutoRespond,
-      estimatedResponseTime: autoResponse.shouldAutoRespond ? '0 minutes' : '2-24 hours'
+      estimatedResponseTime: autoResponse.shouldAutoRespond ? '0 minutes' : '2-24 hours',
+      misdirectedLink
     });
 
   } catch (error) {
@@ -456,26 +515,35 @@ router.post('/admin/message/:messageId/respond', adminAuth, async (req, res) => 
   message.assignedTo = admin.mongoId;
     await message.save();
 
-    // Queue email job if public (outbound email) and message has user email
+    // Queue email job if public and verified; else set awaiting_verification
     let emailJobId = null;
+    const justAddedResponse = message.responses.messages[message.responses.messages.length - 1];
     if (isPublic && message.email) {
-      try {
-        const { EmailJob } = await import('../models/emailJobModel.js');
-        const subject = `Re: ${message.subject || 'Your Support Inquiry'}`;
-        const body = response.trim();
-        const job = await EmailJob.create({
-          messageId: message._id,
-          responseId: message.responses.messages[message.responses.messages.length - 1]._id,
-          to: message.email,
-          subject,
-          body,
-          status: 'queued',
-          attemptCount: 0,
-          dedupeKey: Buffer.from(`${message.email}|${subject}|${body}`).toString('base64')
-        });
-        emailJobId = job._id;
-      } catch (e) {
-        console.error('Failed to queue email job:', e);
+      if (message.emailVerified) {
+        try {
+          const { EmailJob } = await import('../models/emailJobModel.js');
+          const subject = `Re: ${message.subject || 'Your Support Inquiry'}`;
+          const body = response.trim();
+          const job = await EmailJob.create({
+            messageId: message._id,
+            responseId: justAddedResponse._id,
+            to: message.email,
+            subject,
+            body,
+            status: 'queued',
+            attemptCount: 0,
+            dedupeKey: Buffer.from(`${message.email}|${subject}|${body}`).toString('base64')
+          });
+          emailJobId = job._id;
+        } catch (e) {
+          console.error('Failed to queue email job:', e);
+        }
+      } else {
+        // Update embedded response delivery status to awaiting_verification
+        await ContactMessage.updateOne(
+          { _id: message._id, 'responses.messages._id': justAddedResponse._id },
+          { $set: { 'responses.messages.$.emailDelivery.status': 'awaiting_verification' } }
+        );
       }
     }
 
@@ -784,3 +852,15 @@ router.get('/admin/faq-auto-resolve/stats', adminAuth, async (req, res) => {
 });
 
 export default router;
+
+// Public endpoint for recipients to report misdirected email and suppress future sends
+router.get('/report-misdirected', async (req, res) => {
+  try {
+    const { m: messageId, e: email, t: token } = req.query;
+    const result = await verifyAndSuppressMisdirected({ email, messageId, token });
+    return res.status(result.status).json({ success: result.ok, message: result.message });
+  } catch (e) {
+    console.error('Error in report-misdirected endpoint', e);
+    return res.status(500).json({ success:false, error:'Internal error' });
+  }
+});

@@ -25,6 +25,14 @@ const contactMessageSchema = new mongoose.Schema({
       message: 'Please provide a valid email address'
     }
   },
+  // Whether the user proved ownership of the email (guest submissions start false)
+  emailVerified: { type: Boolean, default: false, index: true },
+  emailVerification: {
+    codeHash: { type: String }, // hashed verification code
+    expiresAt: { type: Date },
+    attempts: { type: Number, default: 0 },
+    lastSentAt: { type: Date }
+  },
   phone: {
     type: String,
     trim: true,
@@ -160,6 +168,22 @@ const contactMessageSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Content Quality Heuristics
+  contentQuality: {
+    score: { type: Number, min: 0, max: 100 },
+    label: { type: String, enum: ['gibberish','low_quality','acceptable','excellent'], default: 'acceptable' },
+    flags: [{ type: String }],
+    metrics: {
+      length: { type: Number },
+      entropy: { type: Number },
+      alphaRatio: { type: Number },
+      vowelBalance: { type: Number },
+      stopwordRatio: { type: Number },
+      repeats: { type: Number },
+      tokenCount: { type: Number },
+      uniqueTokenCount: { type: Number }
+    }
+  },
 
   // Status & Processing
   status: {
@@ -237,7 +261,7 @@ const contactMessageSchema = new mongoose.Schema({
       emailDelivery: {
         status: {
           type: String,
-          enum: ['not_applicable', 'queued', 'sending', 'sent', 'failed', 'permanent_failure', 'skipped'],
+          enum: ['not_applicable', 'queued', 'sending', 'sent', 'failed', 'permanent_failure', 'skipped', 'awaiting_verification'],
           default: 'queued'
         },
         queuedAt: { type: Date },

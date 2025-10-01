@@ -22,6 +22,7 @@ import Loan from "./models/loanModel.js";
 import User from "./models/userModel.js";
 import { auth } from "./firebase.js";
 import cloudinaryRoutes from "./routes/cloudinaryRoutes.js";
+import legalRoutes from "./routes/legalRoutes.js";
 
 
 dotenv.config();
@@ -79,6 +80,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api", cloudinaryRoutes);
+app.use("/legal", legalRoutes); // PDF legal docs
 
 // Store user-socket mapping to handle multiple tabs per user
 const userSockets = new Map(); // userId -> Set of socketIds

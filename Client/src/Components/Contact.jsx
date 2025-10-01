@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 import Navbar from './Navbar';
@@ -38,6 +38,19 @@ const Contact = () => {
   const [openCategories, setOpenCategories] = useState([]);
   const [openFAQ, setOpenFAQ] = useState({});
   const [faqSearch, setFaqSearch] = useState('');
+  // Email verification MVP (frontend)
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationMessageId, setVerificationMessageId] = useState(null);
+  const [verifyStatus, setVerifyStatus] = useState({ state: 'idle', error: '' }); // idle|verifying|success|error
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -131,8 +144,22 @@ const Contact = () => {
         console.log('✅ Message submitted successfully:', response.data);
         
         setIsSubmitted(true);
-        setSubmitMessage(response.data.message || 'Message sent successfully!');
-        setSubmitType('success');
+        // If backend triggered verification (guest path) it will still say success but we need to show code modal.
+        if (response.data.success && response.data.estimatedResponseTime && !response.data.autoResponseSent) {
+          // Heuristic: backend currently does not return explicit flag; we can add later. For now always allow verify flow for guests.
+        }
+        // Capture messageId to support verification requests
+        if (response.data.messageId) {
+          setVerificationMessageId(response.data.messageId);
+          // Assume guest path if not authenticated -> show verification modal (could refine if we pass a backend flag later)
+          setPendingVerification(true);
+          setSubmitMessage('Verification code sent to your email. Enter it below to unlock faster responses.');
+          setSubmitType('info');
+          toast.success('Verification code sent');
+        } else {
+          setSubmitMessage(response.data.message || 'Message sent successfully!');
+          setSubmitType('success');
+        }
         
         // If user chose to escalate after seeing FAQ, patch escalation
         if (faqEscalatePending && faqLogId) {
@@ -149,13 +176,16 @@ const Contact = () => {
         setFaqEscalatePending(false);
         setOverrideFAQ(false);
         setMatchedFAQ(null);
-        setFormData({
-          name: '',
-          email: '',
-          subject: '',
-          message: '',
-          category: 'general'
-        });
+        // Do NOT clear email/subject if awaiting verification so user can still see context
+        if (!pendingVerification) {
+          setFormData({
+            name: '',
+            email: '',
+            subject: '',
+            message: '',
+            category: 'general'
+          });
+        }
         
         // Auto-hide success message after 5 seconds
         setTimeout(() => {
@@ -195,6 +225,58 @@ const Contact = () => {
       }, 8000);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyCode = async (e) => {
+    e.preventDefault();
+    if (!verificationCode.trim() || verificationCode.length < 4) return;
+    setVerifyStatus({ state: 'verifying', error: '' });
+    try {
+      const res = await fetch('/api/contact/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: verificationMessageId, code: verificationCode.trim() })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        if (data.expired) throw new Error('Code expired. Request a new one.');
+        if (data.invalid) throw new Error(`Invalid code (attempts: ${data.attempts || 0})`);
+        throw new Error(data.error || 'Verification failed');
+      }
+      setVerifyStatus({ state: 'success', error: '' });
+      toast.success('Email verified!');
+      setPendingVerification(false);
+      // Reset form after verification success to avoid user confusion
+      setTimeout(() => {
+        setFormData({ name: '', email: '', subject: '', message: '', category: 'general' });
+        setIsSubmitted(false);
+        setVerificationCode('');
+        setVerificationMessageId(null);
+      }, 1800);
+    } catch (err) {
+      setVerifyStatus({ state: 'error', error: err.message });
+      toast.error(err.message);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!verificationMessageId || resendCooldown > 0) return;
+    try {
+      const res = await fetch('/api/contact/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: verificationMessageId, email: formData.email })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Verification code resent');
+        setResendCooldown(60);
+      } else {
+        toast.error(data.error || 'Failed to resend');
+      }
+    } catch (e) {
+      toast.error('Network error resending code');
     }
   };
 
@@ -733,6 +815,52 @@ const Contact = () => {
           </p>
         </div>
       </footer>
+
+      {/* Email Verification Modal */}
+      <AnimatePresence>
+        {pendingVerification && (
+          <motion.div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className={`w-full max-w-md rounded-xl p-6 shadow-2xl ${isDark ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'}`}>
+              <h3 className={`text-xl font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Verify Your Email</h3>
+              <p className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                We sent a 6-digit verification code to <span className="font-medium">{formData.email}</span>. Enter it below to confirm ownership so our team can send a reply. This prevents someone from using another person’s email.
+              </p>
+              <form onSubmit={handleVerifyCode} className="space-y-4">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  autoFocus
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                  className={`w-full tracking-widest text-center text-2xl font-mono py-3 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark ? 'bg-gray-700 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-gray-900'}`}
+                  placeholder="──────"
+                />
+                {verifyStatus.state === 'error' && (
+                  <p className="text-sm text-red-500">{verifyStatus.error}</p>
+                )}
+                {verifyStatus.state === 'success' && (
+                  <p className="text-sm text-green-600">Verified! Enqueued any pending replies.</p>
+                )}
+                <div className="flex items-center justify-between">
+                  <button type="button" onClick={handleResendCode} disabled={resendCooldown>0 || verifyStatus.state==='verifying'}
+                    className={`text-sm font-medium ${resendCooldown>0 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-700'}`}
+                  >{resendCooldown>0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}</button>
+                  <div className="text-xs text-gray-500">Expires in 15 min</div>
+                </div>
+                <button type="submit" disabled={verificationCode.length < 6 || verifyStatus.state==='verifying'}
+                  className={`w-full py-3 rounded-lg font-medium flex items-center justify-center ${verificationCode.length<6 || verifyStatus.state==='verifying' ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                >{verifyStatus.state==='verifying' ? 'Verifying...' : 'Verify Email'}</button>
+                <button type="button" onClick={() => { setPendingVerification(false); }}
+                  className="w-full py-2 text-xs text-gray-500 hover:text-gray-700 mt-1">Skip for now (reply will wait)</button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

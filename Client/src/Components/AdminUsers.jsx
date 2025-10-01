@@ -16,6 +16,7 @@ import {
   CreditCard
 } from "lucide-react";
 import Navbar from "./Navbar";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -33,6 +34,7 @@ export default function AdminUsers() {
     admins: 0
   });
   const navigate = useNavigate();
+  const { isDark } = useTheme();
 
   useEffect(() => {
     checkAdmin();
@@ -186,10 +188,16 @@ export default function AdminUsers() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className={`min-h-screen flex items-center justify-center ${
+        isDark
+          ? 'bg-gradient-to-br from-gray-950 via-gray-900 to-gray-800'
+          : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading admin panel...</p>
+          <div className={`animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4 ${
+            isDark ? 'border-indigo-400' : 'border-indigo-600'
+          }`}></div>
+          <p className={isDark ? 'text-gray-300' : 'text-gray-600'}>Loading admin panel...</p>
         </div>
       </div>
     );
@@ -198,28 +206,32 @@ export default function AdminUsers() {
   if (!isAuthorized) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className={`min-h-screen transition-colors ${
+      isDark
+        ? 'bg-gradient-to-br from-gray-950 via-gray-900 to-gray-800'
+        : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+    }`}>
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center mb-4">
-            <Shield className="w-8 h-8 text-indigo-600 mr-3" />
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+            <Shield className={`w-8 h-8 mr-3 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
+            <h1 className={`text-3xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>Admin Dashboard</h1>
           </div>
-          <p className="text-gray-600">Manage users, roles, and loan applications</p>
+          <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Manage users, roles, and loan applications</p>
         </div>
 
         {/* Tab Navigation */}
         <div className="mb-8">
-          <div className="border-b border-gray-200">
+          <div className={`border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
             <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab("users")}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === "users"
-                    ? "border-indigo-500 text-indigo-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'users'
+                    ? (isDark ? 'border-indigo-400 text-indigo-300' : 'border-indigo-500 text-indigo-600')
+                    : (isDark ? 'border-transparent text-gray-500 hover:text-gray-300 hover:border-gray-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')
                 }`}
               >
                 <Users className="w-5 h-5 inline-block mr-2" />
@@ -236,69 +248,70 @@ export default function AdminUsers() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className={`rounded-xl shadow-lg p-6 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className="flex items-center">
-              <Users className="w-8 h-8 text-blue-600 mr-3" />
+              <Users className={`w-8 h-8 mr-3 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
               <div>
-                <p className="text-sm text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Users</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{stats.totalUsers}</p>
               </div>
             </div>
           </div>
-          
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className={`rounded-xl shadow-lg p-6 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className="flex items-center">
-              <UserX className="w-8 h-8 text-green-600 mr-3" />
+              <UserX className={`w-8 h-8 mr-3 ${isDark ? 'text-green-400' : 'text-green-600'}`} />
               <div>
-                <p className="text-sm text-gray-600">Borrowers</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.borrowers}</p>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Borrowers</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{stats.borrowers}</p>
               </div>
             </div>
           </div>
-          
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className={`rounded-xl shadow-lg p-6 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className="flex items-center">
-              <UserCheck className="w-8 h-8 text-blue-600 mr-3" />
+              <UserCheck className={`w-8 h-8 mr-3 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
               <div>
-                <p className="text-sm text-gray-600">Lenders</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.lenders}</p>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Lenders</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{stats.lenders}</p>
               </div>
             </div>
           </div>
-          
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className={`rounded-xl shadow-lg p-6 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className="flex items-center">
-              <Shield className="w-8 h-8 text-red-600 mr-3" />
+              <Shield className={`w-8 h-8 mr-3 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
               <div>
-                <p className="text-sm text-gray-600">Admins</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.admins}</p>
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Admins</p>
+                <p className={`text-2xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{stats.admins}</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Filters and Search */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div className={`rounded-xl shadow-lg p-6 mb-8 border ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-100'}`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
               <input
                 type="text"
                 placeholder="Search by name or email..."
                 value={searchTerm}
                 onChange={handleSearchChange}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className={`pl-10 pr-4 py-2 w-full rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 border ${
+                  isDark ? 'bg-gray-800 border-gray-600 placeholder-gray-500 text-gray-100' : 'border-gray-300 bg-white text-gray-900'
+                }`}
               />
             </div>
 
             {/* Role Filter */}
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Filter className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
               <select
                 value={roleFilter}
                 onChange={handleRoleFilterChange}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                className={`pl-10 pr-4 py-2 w-full rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none border ${
+                  isDark ? 'bg-gray-800 border-gray-600 text-gray-100' : 'border-gray-300 bg-white text-gray-900'
+                }`}
               >
                 <option value="all">All Roles</option>
                 <option value="borrower">Borrowers</option>
@@ -309,11 +322,13 @@ export default function AdminUsers() {
 
             {/* Sort */}
             <div className="relative">
-              <ArrowUpDown className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <ArrowUpDown className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${isDark ? 'text-gray-500' : 'text-gray-400'}`} />
               <select
                 value={sortOrder}
                 onChange={handleSortChange}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none"
+                className={`pl-10 pr-4 py-2 w-full rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none border ${
+                  isDark ? 'bg-gray-800 border-gray-600 text-gray-100' : 'border-gray-300 bg-white text-gray-900'
+                }`}
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
@@ -323,58 +338,56 @@ export default function AdminUsers() {
             </div>
           </div>
 
-          <div className="mt-4 text-sm text-gray-600">
-            Showing {filteredUsers.length} of {users.length} users
-          </div>
+          <div className={`mt-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Showing {filteredUsers.length} of {users.length} users</div>
         </div>
 
         {/* Users Table */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div className={`rounded-xl shadow-lg overflow-hidden border ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-100'}`}>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className={`min-w-full divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-200'}`}>
+              <thead className={isDark ? 'bg-gray-800' : 'bg-gray-50'}>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
                     User
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
                     Role
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
                     Joined
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className={`${isDark ? 'bg-gray-900 divide-gray-700' : 'bg-white divide-gray-200'}`}>
                 {filteredUsers.map((user) => (
-                  <tr key={user._id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={user._id} className={`transition-colors ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                            <span className="text-indigo-600 font-medium text-sm">
+                          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isDark ? 'bg-indigo-950 border border-indigo-800' : 'bg-indigo-100'} }`}>
+                            <span className={`font-medium text-sm ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>
                               {user.name?.charAt(0)?.toUpperCase() || 'U'}
                             </span>
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{user.name || 'Unknown'}</div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
+                          <div className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{user.name || 'Unknown'}</div>
+                          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{user.email}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         {getRoleIcon(user.role)}
-                        <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(user.role)}`}>
+                        <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(user.role)} ${isDark ? 'bg-opacity-10' : ''}`}>
                           {user.role}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                       {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
@@ -382,7 +395,7 @@ export default function AdminUsers() {
                       <select
                         value={user.role}
                         onChange={(e) => handleRoleChange(user._id, e.target.value)}
-                        className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className={`px-3 py-1 border rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${isDark ? 'bg-gray-800 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'}`}
                       >
                         <option value="borrower">Borrower</option>
                         <option value="lender">Lender</option>
@@ -392,7 +405,11 @@ export default function AdminUsers() {
                       {/* Delete Button */}
                       <button
                         onClick={() => handleDeleteUser(user._id, user.name)}
-                        className="inline-flex items-center px-3 py-1 border border-red-300 text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors"
+                        className={`inline-flex items-center px-3 py-1 border rounded-md transition-colors ${
+                          isDark
+                            ? 'border-red-800 text-red-300 bg-red-950/40 hover:bg-red-900/50'
+                            : 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100'
+                        }`}
                         title="Delete User"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -406,8 +423,8 @@ export default function AdminUsers() {
 
           {filteredUsers.length === 0 && (
             <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No users found matching your criteria</p>
+              <Users className={`w-12 h-12 mx-auto mb-4 ${isDark ? 'text-gray-600' : 'text-gray-400'}`} />
+              <p className={isDark ? 'text-gray-500' : 'text-gray-500'}>No users found matching your criteria</p>
             </div>
           )}
         </div>

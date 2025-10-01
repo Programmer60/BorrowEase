@@ -23,6 +23,14 @@ let smtpTransporterPromise;
 async function getSmtpTransporter() {
   if (smtpTransporterPromise) return smtpTransporterPromise;
   if (process.env.SMTP_HOST) {
+    if (process.env.EMAIL_DEBUG === 'true') {
+      console.log('[EMAIL] Creating SMTP transporter', {
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: process.env.SMTP_SECURE === 'true',
+        hasAuth: !!process.env.SMTP_USER
+      });
+    }
     smtpTransporterPromise = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT || 587),
@@ -37,6 +45,9 @@ async function getSmtpTransporter() {
       secure: ethereal.smtp.secure,
       auth: { user: ethereal.user, pass: ethereal.pass }
     });
+    if (process.env.EMAIL_DEBUG === 'true') {
+      console.log('[EMAIL] Using Ethereal test account for SMTP');
+    }
   }
   return smtpTransporterPromise;
 }
@@ -44,6 +55,9 @@ async function getSmtpTransporter() {
 async function sendViaSmtp({ to, subject, body }) {
   const transporter = await getSmtpTransporter();
   const from = process.env.MAIL_FROM || process.env.SMTP_FROM || 'no-reply@example.com';
+  if (process.env.EMAIL_DEBUG === 'true') {
+    console.log('[EMAIL] Sending via SMTP', { from, to, subjectLength: subject?.length, bodyLength: body?.length });
+  }
   const info = await transporter.sendMail({ from, to, subject, text: body });
   const previewUrl = nodemailer.getTestMessageUrl(info);
   return { provider: process.env.SMTP_HOST ? 'smtp' : 'ethereal', providerMessageId: info.messageId, previewUrl };

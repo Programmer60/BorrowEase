@@ -1,12 +1,48 @@
-# React + Vite
+## BorrowEase Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Modern React + Vite front-end powering the BorrowEase platform. Includes advanced admin operations for the Contact & Support pipeline, real‑time UX enhancements, and layered anti-abuse features.
 
-Currently, two official plugins are available:
+### Key Front-End Features
+| Feature | Summary |
+|---------|---------|
+| Contact Management Admin | Intelligent filters, priority badges, spam/risk indicators, bulk actions. |
+| Verification UI | Guest email ownership modal & status badges. |
+| Custom Checkbox & Badges | Reusable accessible components for consistent visual language. |
+| Toast Notifications | Non-blocking feedback via `react-hot-toast`. |
+| Dark Mode | Theme toggle + Tailwind dark variant support. |
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Tech Stack
+- React 19 + Vite for fast HMR & modern build.
+- Tailwind CSS utility-first styling.
+- `react-hot-toast` for UX feedback.
+- `lucide-react` icons.
+- Framer Motion (available for animated sections / accordions).
 
-## Expanding the ESLint configuration
+### Support & Triage Pipeline (Client Hooks)
+The client consumes backend endpoints supporting:
+- Spam & risk scoring (display only; computed server-side).
+- Content quality flags (gibberish/low quality – future UI surface).
+- Rate limit responses (structured 429 handling recommended).
+- Verification state transitions.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Development Scripts
+`pnpm dev` or `npm run dev` – start dev server.
+`npm run build` – production build.
+`npm run preview` – preview built assets.
+
+### Environment
+Create a `.env` mirroring `.env.example` (if provided) with any API base URL variables you need.
+
+### Architectural Decisions
+See root-level `TECH_STACK_DECISIONS.md` for a comprehensive rationale of architectural, security, and scalability decisions (queue design, verification, suppression, rate limiting, content quality heuristics, and UI standardization).
+
+### Future Enhancements
+- Surface content quality badge.
+- Auto-refresh queued replies post-verification.
+- Embed misdirected suppression link in outbound email footers.
+
+### Contributing Guidelines
+Prefer small, focused PRs. For new UI primitives, add them under `src/Components/ui/` with a usage example in the relevant screen. Keep accessibility (keyboard + ARIA) in mind for interactive elements.
+
+### License
+Internal project – license details TBD.

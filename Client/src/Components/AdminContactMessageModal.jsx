@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { CheckCircle, X, Copy, Mail, Sparkles } from 'lucide-react';
+import Badge from './ui/Badge.jsx';
 import toast from 'react-hot-toast';
 import API from '../api/api';
 
@@ -135,11 +136,17 @@ const AdminContactMessageModal = ({ isDark, message, onClose, onReplied, onMarkR
         <div className="px-6 py-5 space-y-6">
           {/* Quick meta badges */}
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className={`px-2 py-1 rounded-full font-medium ${message.status === 'resolved' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'}`}>{message.status}</span>
-            {message.priority && <span className="px-2 py-1 rounded-full bg-purple-600 text-white">{message.priority}</span>}
-            {message.requiresReview && <span className="px-2 py-1 rounded-full bg-red-600 text-white">Needs Review</span>}
-            {message.autoResponseSent && <span className="px-2 py-1 rounded-full bg-emerald-600 text-white">Auto-Replied</span>}
-            {spamPercent != null && <span className={`px-2 py-1 rounded-full ${spamPercent>=80?'bg-red-600':'bg-emerald-600'} text-white`}>Spam {spamPercent}%</span>}
+            <Badge tone={message.status==='resolved'?'success':'brand'} variant="solid" size="xs">{message.status}</Badge>
+            {message.priority && <Badge tone={
+              (message.priority==='critical' && 'rose') ||
+              (message.priority==='high' && 'amber') ||
+              (message.priority==='medium' && 'warning') ||
+              (message.priority==='low' && 'sky') ||
+              (message.priority==='very_low' && 'neutral') || 'neutral'
+            } variant="soft" size="xs">{message.priority}</Badge>}
+            {message.requiresReview && <Badge tone="danger" size="xs" variant="soft">Needs Review</Badge>}
+            {message.autoResponseSent && <Badge tone="success" size="xs" variant="soft">Auto-Replied</Badge>}
+            {spamPercent != null && <Badge tone={spamPercent>=80?'danger':'success'} size="xs" variant="outline">Spam {spamPercent}%</Badge>}
           </div>
 
             <div>
