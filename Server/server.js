@@ -31,17 +31,68 @@ const server = createServer(app);
 
 // Socket.IO setup with proper authentication
 // Allowlist from env (comma-separated), with local dev defaults
-const envOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173")
+// Supports exact origins and wildcard entries like:
+//   https://*.vercel.app or *.vercel.app
+// Trailing slashes are ignored in comparison
+const rawOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173")
   .split(",")
   .map(o => o.trim())
   .filter(Boolean);
-const allowedOrigins = new Set(envOrigins);
+
+const normalizeOrigin = (origin) => {
+  if (!origin) return origin;
+  try {
+    // Use URL to normalize, then drop trailing slash
+    const u = new URL(origin);
+    return u.origin;
+  } catch {
+    // If origin is already a hostname pattern like *.vercel.app, return as-is
+    return origin.replace(/\/$/, "");
+  }
+};
+
+// Build rules: exact set and wildcard host suffix rules
+const exactOrigins = new Set();
+const wildcardRules = []; // { protocol: 'https:' | 'http:' | null, hostSuffix: string }
+
+for (const entry of rawOrigins) {
+  const e = entry.replace(/\s+/g, "");
+  if (!e) continue;
+  const hasWildcard = e.includes("*");
+  if (hasWildcard) {
+    // Accept formats like https://*.vercel.app or *.vercel.app
+    let protocol = null;
+    let host = e;
+    if (e.startsWith("http://") || e.startsWith("https://")) {
+      const proto = e.startsWith("https://") ? "https:" : "http:";
+      protocol = proto;
+      host = e.replace(/^https?:\/\//, "");
+    }
+    host = host.replace(/^\*\./, ""); // remove leading *.
+    wildcardRules.push({ protocol, hostSuffix: host.toLowerCase() });
+  } else {
+    exactOrigins.add(normalizeOrigin(e));
+  }
+}
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // same-origin or server-to-server
+  const norm = normalizeOrigin(origin);
+  if (exactOrigins.has(norm)) return true;
+  try {
+    const u = new URL(origin);
+    const host = u.hostname.toLowerCase();
+    const proto = u.protocol; // 'https:' | 'http:'
+    return wildcardRules.some(r => host.endsWith(r.hostSuffix) && (!r.protocol || r.protocol === proto));
+  } catch {
+    // Non-standard origin; deny by default
+    return false;
+  }
+};
 const io = new Server(server, {
   cors: {
     origin: (origin, cb) => {
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.has(origin)) return cb(null, true);
-      return cb(null, false);
+      return cb(null, isAllowedOrigin(origin));
     },
     methods: ["GET", "POST"],
     credentials: true
@@ -50,11 +101,7 @@ const io = new Server(server, {
 
 // REST CORS
 const corsConfig = {
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.has(origin)) return cb(null, true);
-    return cb(null, false);
-  },
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
