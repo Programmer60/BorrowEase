@@ -148,20 +148,25 @@ Email Input → Firebase Reset Email → User Clicks Link → New Password → U
 
 ### Frontend (React)
 ```javascript
-// Firebase config in src/firebase.js
+// Firebase config in src/firebase.js (use Vite env)
 const firebaseConfig = {
-  apiKey: "AIzaSyBNXmiPeruNlwxUmToNMcKdhQjNWn8E7AU",
-  authDomain: "borrowease-32c45.firebaseapp.com",
-  projectId: "borrowease-32c45",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   // ... other config
 };
 ```
 
 ### Backend (Node.js)
-```javascript
-// Environment variables
-MONGODB_URI=mongodb+srv://...
-FIREBASE_ADMIN_KEY=path/to/serviceAccountKey.json
+```bash
+# Environment variables (server)
+MONGO_URI=mongodb+srv://...
+# Prefer base64 service account or discrete fields
+# FIREBASE_SERVICE_ACCOUNT_BASE64=...
+# or
+# FIREBASE_PROJECT_ID=...
+# FIREBASE_CLIENT_EMAIL=...
+# FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 PORT=5000
 ```
 
