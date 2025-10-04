@@ -965,16 +965,6 @@ export default function Login() {
                                     )}
                                     {isSignUp ? 'Create Account' : 'Sign In'}
                                 </button>
-
-                                {/* Test API Connection Button */}
-                                <button
-                                    type="button"
-                                    onClick={testAPIConnection}
-                                    className="w-full py-3 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 transition-colors"
-                                >
-                                    🔍 Test Server Connection
-                                </button>
-
                                 <div className="text-center">
                                     <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                         {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
