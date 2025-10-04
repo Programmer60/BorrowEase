@@ -29,6 +29,7 @@ dist-ssr
 .env.development
 .env.test
 .env.production
+.env.example
 
 # Dependencies
 node_modules/
