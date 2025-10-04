@@ -53,6 +53,11 @@ export default function ProfilePage() {
 
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const fileInputRef = useRef(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  // Cloudinary configuration via env with sensible fallbacks for dev
+  const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -116,21 +121,34 @@ export default function ProfilePage() {
   };
 
   const handlePhotoUpload = async (event) => {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (!file) return;
+
+    // Basic client-side checks
+    const maxSizeMB = 5;
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      alert(`Please choose an image smaller than ${maxSizeMB}MB.`);
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", "borrowease_profile");
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
     try {
+      setIsUploadingPhoto(true);
       const res = await fetch(
-        "https://api.cloudinary.com/v1_1/dbvse3x8p/image/upload",
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
         {
           method: "POST",
           body: formData,
         }
       );
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "Cloudinary upload failed");
+      }
 
       const data = await res.json();
       const imageUrl = data.secure_url;
@@ -143,7 +161,10 @@ export default function ProfilePage() {
       }));
     } catch (error) {
       console.error("Image upload failed:", error);
-      alert("Image upload failed");
+      alert("Image upload failed. Please try again.");
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = ""; // reset input
     }
   };
 
@@ -198,9 +219,29 @@ export default function ProfilePage() {
                       ) : (
                         <User className="w-12 h-12 text-purple-600" />
                       )}
+                      {isUploadingPhoto && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                        </div>
+                      )}
                     </div>
-                    {/* Profile photo change disabled per requirement */}
-                    {/* Removed upload button & input */}
+                    {/* Change/Upload photo button */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute -bottom-2 -right-2 p-2 rounded-full shadow bg-white text-purple-600 hover:bg-purple-50 border border-purple-200"
+                      title="Change profile photo"
+                      aria-label="Change profile photo"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
                   </div>
                   <h2 className="text-2xl font-bold text-white mt-4">
                     {profileData.name}
@@ -340,7 +381,7 @@ export default function ProfilePage() {
 
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Email (locked)
+                      Email 
                     </label>
                     <p className={`px-3 py-2 rounded-lg ${
                       isDark 
