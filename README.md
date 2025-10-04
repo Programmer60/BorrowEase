@@ -291,10 +291,14 @@ Client/
 ### **Environment Configuration**
 
 1. **Firebase Setup**
-   - Create a Firebase project at [Firebase Console](https://console.firebase.google.com)
-   - Enable Authentication (Email/Password)
-   - Generate service account key
-   - Place `serviceAccountKey.json` in `Server/` directory
+  - Create a Firebase project at [Firebase Console](https://console.firebase.google.com)
+  - Enable Authentication (Email/Password)
+  - Create a Service Account key in Firebase → Project Settings → Service Accounts → Generate new private key.
+  - Do NOT commit this file. Instead, set these environment variables on the server:
+    - `FIREBASE_PROJECT_ID`
+    - `FIREBASE_CLIENT_EMAIL`
+    - Either `FIREBASE_PRIVATE_KEY_BASE64` (preferred; base64-encode the full private key) or `FIREBASE_PRIVATE_KEY` (escaped newlines as \n)
+  - For the client (web SDK), set the `VITE_FIREBASE_*` values from your Firebase Web App settings in `Client/.env`.
 
 2. **MongoDB Setup**
    - Create MongoDB database (local or Atlas)
@@ -307,26 +311,48 @@ Client/
 
 4. **Environment Variables**
    
-   Create `.env` files:
+  Copy the provided examples and fill in values (never commit real secrets):
+  - Server: `Server/.env.example` → `Server/.env`
+  - Client: `Client/.env.example` → `Client/.env`
    
-   **Server/.env**
-   ```env
-   PORT=5000
-   MONGODB_URI=your_mongodb_connection_string
-   RAZORPAY_KEY_ID=your_razorpay_key_id
-   RAZORPAY_KEY_SECRET=your_razorpay_key_secret
-   FIREBASE_PROJECT_ID=your_firebase_project_id
-   ```
+  Minimal examples below (refer to the examples in the repo for the full list):
    
-   **Client/.env**
-   ```env
-   VITE_FIREBASE_API_KEY=your_firebase_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
-   ```
+  **Server/.env**
+  ```env
+  PORT=5000
+  # Database
+  MONGO_URI=your_mongodb_connection_string
+   
+  # CORS allowlist (comma-separated)
+  CORS_ORIGIN=http://localhost:5173,https://your-frontend-domain.com
+   
+  # Firebase Admin (server-side)
+  FIREBASE_PROJECT_ID=your_firebase_project_id
+  FIREBASE_CLIENT_EMAIL=your_service_account_email@your-project.iam.gserviceaccount.com
+  # Prefer base64 to avoid newline escaping issues
+  FIREBASE_PRIVATE_KEY_BASE64=base64_of_your_private_key
+  # Or use the raw key with \n newlines escaped
+  # FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+   
+  # Cloudinary (server-side signing)
+  CLOUDINARY_CLOUD_NAME=your_cloud_name
+  CLOUDINARY_API_KEY=your_api_key
+  CLOUDINARY_API_SECRET=your_api_secret
+   
+  # Payments
+  RAZORPAY_KEY_ID=your_razorpay_key_id
+  RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+  ```
+   
+  **Client/.env**
+  ```env
+  VITE_FIREBASE_API_KEY=your_firebase_api_key
+  VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+  VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+  VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+  VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+  VITE_FIREBASE_APP_ID=your_app_id
+  ```
 
 ### **Running the Application**
 
@@ -528,6 +554,8 @@ POST /api/ai/borrower-analysis   # Individual borrower evaluation
 - **CORS Configuration** for secure cross-origin requests
 - **Audit Logging** for sensitive operations
 - **Secure Payment Processing** through Razorpay
+
+See `SECURITY.md` for public-repo readiness and a secrets hygiene checklist.
 
 ## 📱 Responsive Design
 
