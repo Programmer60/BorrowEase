@@ -2,17 +2,95 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <!-- Primary Meta -->
+  <title>BorrowEase – Smart Peer-to-Peer Lending & Credit Insights</title>
+  <meta name="description" content="BorrowEase is a modern peer-to-peer lending platform providing transparent loan assessments, AI-powered risk evaluation, and secure borrower–lender interactions." />
+  <meta name="keywords" content="peer to peer lending, p2p loans, borrower assessment, credit score analysis, lending platform, microloans, AI risk scoring, BorrowEase" />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://www.borrowease.example/" />
+
+  <!-- Favicon & App Icons -->
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" media="(prefers-color-scheme: light)" />
+  <link rel="icon" type="image/svg+xml" href="/logo-dark.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/logo-32.png" />
+  <link rel="apple-touch-icon" href="/Logo.png" />
+  <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="BorrowEase – Smart Peer-to-Peer Lending" />
+  <meta property="og:description" content="AI-enhanced lending platform offering fair loan assessments, transparent risk insights, and secure user verification." />
+  <meta property="og:url" content="https://www.borrowease.example/" />
+  <meta property="og:image" content="https://www.borrowease.example/og-cover.png" />
+  <meta property="og:site_name" content="BorrowEase" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="BorrowEase – Smart Peer-to-Peer Lending" />
+  <meta name="twitter:description" content="Instant borrower assessments, AI risk scoring, and secure lending workflows." />
+  <meta name="twitter:image" content="https://www.borrowease.example/og-cover.png" />
+  <meta name="twitter:site" content="@BorrowEase" />
+
+  <!-- Structured Data (Organization + Product) -->
+  <script type="application/ld+json">{
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "BorrowEase",
+    "url": "https://www.borrowease.example/",
+    "logo": "https://www.borrowease.example/logo.svg",
+    "sameAs": [
+      "https://twitter.com/BorrowEase",
+      "https://www.linkedin.com/company/borrowease"
+    ],
+    "description": "Peer-to-peer lending platform with AI-driven borrower assessment and transparent loan analytics.",
+    "brand": {
+      "@type": "Brand",
+      "name": "BorrowEase"
+    }
+  }</script>
+  <script type="application/ld+json">{
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "BorrowEase Platform",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "Any",
+    "url": "https://www.borrowease.example/",
+    "description": "BorrowEase enables users to request, assess, and fund peer-to-peer loans with AI-backed credit insights.",
+    "image": "https://www.borrowease.example/og-cover.png"
+  }</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Performance: preconnect/dns-prefetch to Razorpay -->
   <link rel="preconnect" href="https://checkout.razorpay.com" crossorigin>
   <link rel="dns-prefetch" href="https://checkout.razorpay.com">
   <link rel="preconnect" href="https://api.razorpay.com" crossorigin>
   <link rel="dns-prefetch" href="https://api.razorpay.com">
-    <title>Vite + React</title>
+  <!-- Preload critical logo for faster LCP -->
+  <link rel="preload" as="image" href="/logo.svg" />
+  <!-- Existing title kept for legacy fallback (overridden above if needed) -->
+  <meta name="author" content="BorrowEase" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="app-splash" style="display:flex;align-items:center;justify-content:center;min-height:40vh;flex-direction:column;gap:1rem;font-family:system-ui,Segoe UI,Roboto,sans-serif;">
+      <img src="/logo.svg" alt="BorrowEase Logo" width="96" height="96" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,0.25));" />
+      <noscript><p style="color:#555;font-size:14px">Enable JavaScript to use BorrowEase.</p></noscript>
+    </div>
+    <div id="root" style="display:none"></div>
+    <script>
+      // Remove splash once React mounts
+      window.addEventListener('DOMContentLoaded', () => {
+        const rootObserver = new MutationObserver(() => {
+          const root = document.getElementById('root');
+          if (root && root.children.length) {
+            document.getElementById('app-splash')?.remove();
+            root.style.display = 'block';
+            rootObserver.disconnect();
+          }
+        });
+        const root = document.getElementById('root');
+        if (root) rootObserver.observe(root, { childList: true });
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   </body>

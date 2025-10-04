@@ -1075,6 +1075,25 @@ router.post("/assess-borrower", verifyToken, async (req, res) => {
   }
 });
 
+// Model Variants Registry (central configuration)
+const MODEL_VARIANTS = {
+  comprehensive: {
+    id: 'comprehensive', label: 'Comprehensive AI', description: 'Deep model analyzing 200+ factors',
+    baseMultiplier: 1.0, accuracy: 94, latencyMs: 420,
+    emphasis: { creditworthiness: 1, behavioralRisk: 1, financialStability: 1, identityVerification: 1, platformHistory: 1 }
+  },
+  rapid: {
+    id: 'rapid', label: 'Rapid Assessment', description: 'Heuristic + cached features (instant)',
+    baseMultiplier: 0.92, accuracy: 87, latencyMs: 110,
+    emphasis: { creditworthiness: 0.9, behavioralRisk: 0.85, financialStability: 0.85, identityVerification: 0.6, platformHistory: 0.6 }
+  },
+  conservative: {
+    id: 'conservative', label: 'Conservative Model', description: 'Lower tolerance, extra weighting on identity & credit',
+    baseMultiplier: 1.05, accuracy: 96, latencyMs: 500,
+    emphasis: { creditworthiness: 1.1, behavioralRisk: 1.05, financialStability: 1.05, identityVerification: 1.1, platformHistory: 1 }
+  }
+};
+
 // AI Risk Assessment endpoint
 router.get("/risk-assessment", verifyToken, async (req, res) => {
   try {
@@ -1098,17 +1117,9 @@ router.get("/risk-assessment", verifyToken, async (req, res) => {
       ]
     });
 
-    // Create assessment data for industry-standard calculation
-    const assessmentData = {
-      borrower: user,
-      loanAmount: 50000, // Default amount for assessment
-      loanPurpose: 'general',
-      repaymentPeriod: 90,
-      borrowerLoans: loans
-    };
-
-    // Calculate industry-standard risk assessment
-    const riskAssessment = await calculateRiskScore(assessmentData);
+    // Properly invoke risk score with (user, loans, loanApplication)
+    const mockLoanApplication = { amount: 50000, purpose: 'general', repaymentPeriod: 90 };
+    const riskAssessment = await calculateRiskScore(user, loans, mockLoanApplication);
 
     // Calculate platform-wide statistics
     const totalUsers = await User.countDocuments();
@@ -1123,32 +1134,24 @@ router.get("/risk-assessment", verifyToken, async (req, res) => {
       avgProcessingTime: 2.3 // Static for now
     };
 
-    // Model-specific adjustments
-    let modelMultiplier = 1;
-    let modelAccuracy = 85;
-    
-    switch (model) {
-      case 'comprehensive':
-        modelMultiplier = 1;
-        modelAccuracy = 94;
-        break;
-      case 'rapid':
-        modelMultiplier = 0.9;
-        modelAccuracy = 87;
-        break;
-      case 'conservative':
-        modelMultiplier = 0.8;
-        modelAccuracy = 96;
-        break;
-    }
+    const variant = MODEL_VARIANTS[model] || MODEL_VARIANTS.comprehensive;
 
-    const adjustedScore = Math.round(riskAssessment.score * modelMultiplier);
+    // Apply emphasis to component-level contributions to derive variant view
+    const weightedComponents = { ...riskAssessment.riskComponents };
+    Object.keys(weightedComponents).forEach(k => {
+      if (variant.emphasis[k] != null) {
+        weightedComponents[k] = Math.round(weightedComponents[k] * variant.emphasis[k]);
+      }
+    });
+    const adjustedScore = Math.max(0, Math.min(100, Math.round(
+      Object.values(weightedComponents).reduce((s,c)=>s+c,0) * variant.baseMultiplier
+    )));
 
     res.json({
-      overallScore: adjustedScore,
-      modelUsed: model,
-      modelAccuracy,
-      riskComponents: riskAssessment.riskComponents,
+  overallScore: adjustedScore,
+  modelUsed: variant.id,
+  modelAccuracy: variant.accuracy,
+  riskComponents: weightedComponents,
       riskFactors: riskAssessment.riskFactors,
       warningFlags: riskAssessment.warningFlags,
       recommendations: riskAssessment.recommendations || [
@@ -1162,7 +1165,7 @@ router.get("/risk-assessment", verifyToken, async (req, res) => {
         decision: riskAssessment.recommendation,
         confidence: riskAssessment.confidence,
         suggestedRate: 15,
-        maxAmount: 50000
+        maxAmount: Math.round(50000 * (adjustedScore / 100))
       },
       platformStats,
       userProfile: {
@@ -1181,6 +1184,39 @@ router.get("/risk-assessment", verifyToken, async (req, res) => {
   } catch (error) {
     console.error("Error in AI risk assessment:", error);
     res.status(500).json({ error: "Failed to perform risk assessment" });
+  }
+});
+
+// Benchmark multiple models for a single user (for dashboard analytics)
+router.get('/model-evaluate', verifyToken, async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const targetUserId = userId || req.user.id;
+    const user = await User.findById(targetUserId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const loans = await Loan.find({
+      $or: [ { borrower: targetUserId }, { borrowerId: targetUserId }, { userId: targetUserId } ]
+    });
+    const baseAssessment = await calculateRiskScore(user, loans, { amount: 50000, purpose: 'general', repaymentPeriod: 90 });
+    const results = Object.values(MODEL_VARIANTS).map(v => {
+      const comps = { ...baseAssessment.riskComponents };
+      Object.keys(comps).forEach(k => { if (v.emphasis[k] != null) comps[k] = Math.round(comps[k] * v.emphasis[k]); });
+      const score = Math.max(0, Math.min(100, Math.round(Object.values(comps).reduce((s,c)=>s+c,0) * v.baseMultiplier)));
+      return {
+        id: v.id,
+        label: v.label,
+        accuracy: v.accuracy,
+        latencyMs: v.latencyMs,
+        score,
+        components: comps,
+        baseScore: baseAssessment.score,
+        riskLevel: baseAssessment.riskLevel
+      };
+    });
+    res.json({ userId: targetUserId, models: results, timestamp: new Date().toISOString() });
+  } catch (err) {
+    console.error('Error benchmarking models', err);
+    res.status(500).json({ error: 'Failed to benchmark models' });
   }
 });
 

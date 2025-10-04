@@ -1,5 +1,6 @@
 import express from "express";
 import User from "../models/userModel.js";
+import Loan from "../models/loanModel.js"; // Added for account summary stats
 import AuditLog from "../models/auditLogModel.js";
 import { verifyToken } from "../firebase.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
@@ -233,6 +234,55 @@ router.get("/me", verifyToken, async (req, res) => {
   } catch (error) {
     console.error('❌ Error in /users/me:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Real-time account summary stats for borrower or lender
+router.get('/stats', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.user.email });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const now = Date.now();
+    // Always compute borrower perspective (even if primary role is lender)
+    const borrowerLoans = await Loan.find({ borrowerId: user._id });
+    const borrowerFunded = borrowerLoans.filter(l => l.funded);
+    const borrowerActive = borrowerFunded.filter(l => !l.repaid);
+    const borrowerRepaid = borrowerFunded.filter(l => l.repaid);
+    const borrowerOverdue = borrowerActive.filter(l => l.repaymentDate && new Date(l.repaymentDate).getTime() < now);
+
+    // Always compute lender perspective (in case user also lends)
+    const lenderLoans = await Loan.find({ lenderId: user._id, funded: true });
+    const lenderActive = lenderLoans.filter(l => !l.repaid);
+    const lenderRepaid = lenderLoans.filter(l => l.repaid);
+    const lenderOverdue = lenderActive.filter(l => l.repaymentDate && new Date(l.repaymentDate).getTime() < now);
+
+    const successRate = lenderLoans.length ? Math.round((lenderRepaid.length / lenderLoans.length) * 100) : 0;
+
+    const response = {
+      creditScore: user.role === 'borrower' ? (user.trustScore || 650) : successRate,
+      successRate,
+      // Generic / legacy fields used by current UI
+      activeLoans: user.role === 'borrower' ? borrowerActive.length : lenderActive.length,
+      totalBorrowed: borrowerFunded.reduce((s,l)=> s + (l.amount || 0), 0),
+      totalLent: lenderLoans.reduce((s,l)=> s + (l.amount || 0), 0),
+      repaidLoans: user.role === 'borrower' ? borrowerRepaid.length : lenderRepaid.length,
+      overdueLoans: user.role === 'borrower' ? borrowerOverdue.length : lenderOverdue.length,
+      // Expanded fields so frontend can show both perspectives simultaneously
+      borrowerActiveLoans: borrowerActive.length,
+      borrowerRepaidLoans: borrowerRepaid.length,
+      borrowerOverdueLoans: borrowerOverdue.length,
+      lenderActiveLoans: lenderActive.length,
+      lenderRepaidLoans: lenderRepaid.length,
+      lenderOverdueLoans: lenderOverdue.length,
+      loansFunded: lenderLoans.length,
+      timestamp: new Date().toISOString()
+    };
+
+    res.json(response);
+  } catch (err) {
+    console.error('Error computing user stats', err);
+    res.status(500).json({ error: 'Failed to compute user stats' });
   }
 });
 

@@ -1,0 +1,17 @@
+User-agent: *
+# Block sensitive or non-index value endpoints
+Disallow: /api/
+Disallow: /admin/
+Disallow: /server-status
+Disallow: /private/
+
+# Allow everything else
+Allow: /
+
+# Optional: Uncomment if certain aggressive bots cause load issues
+# User-agent: AhrefsBot
+# Disallow: /
+# User-agent: SemrushBot
+# Disallow: /
+
+Sitemap: https://www.borrowease.example/sitemap.xml
