@@ -1,16 +1,41 @@
 import admin from "firebase-admin";
 import dotenv from "dotenv";
-import { createRequire } from "module";
 import User from "./models/userModel.js";
 dotenv.config();
 
-const require = createRequire(import.meta.url);
-const serviceAccount = require("./serviceAccountKey.json");
+// Prefer environment-based credentials; never require JSON from repo
+function initFirebaseAdmin() {
+  if (admin.apps?.length) return; // already initialized
 
-// ✅ Remove ".default"
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+  // Option A: Base64-encoded service account JSON (recommended for Render/Vercel)
+  const saBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+  if (saBase64) {
+    const json = JSON.parse(Buffer.from(saBase64, "base64").toString("utf8"));
+    admin.initializeApp({ credential: admin.credential.cert(json) });
+    return;
+  }
+
+  // Option B: Discrete env vars
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  // Private keys often have literal \n in env; convert them back to newlines
+  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
+  const privateKey = privateKeyRaw?.replace(/\\n/g, "\n");
+
+  if (projectId && clientEmail && privateKey) {
+    admin.initializeApp({
+      credential: admin.credential.cert({ projectId, clientEmail, privateKey })
+    });
+    return;
+  }
+
+  // If env is not provided, throw a clear error to avoid insecure fallbacks
+  throw new Error(
+    "Firebase Admin not configured. Set FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY in the environment."
+  );
+}
+
+initFirebaseAdmin();
 
 // Export the auth instance for use in other parts of the application
 export const auth = admin.auth();
