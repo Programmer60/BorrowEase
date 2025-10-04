@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { Toaster } from 'react-hot-toast';
 import { useEffect } from "react";
-import { auth } from "./firebase";
 import API from "./api/api";
 import { SocketProvider } from "./contexts/SocketContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -12,7 +11,7 @@ import LoginEnhanced from "./Components/LoginEnhanced";
 import About from "./Components/About";
 import HowItWorks from "./Components/HowItWorks";
 import Contact from "./Components/Contact";
-import BorrowerDashboard from "./Components/BorrowerDashBoard";
+import BorrowerDashboard from "./Components/BorrowerDashboard";
 import LenderDashboard from "./Components/LenderDashboard";
 import BorrowerHistory from "./Components/BorrowerHistory";
 import LenderHistory from "./Components/LenderHistory";
