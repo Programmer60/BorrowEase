@@ -30,10 +30,12 @@ const app = express();
 const server = createServer(app);
 
 // Socket.IO setup with proper authentication
-const allowedOrigins = new Set([
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-]);
+// Allowlist from env (comma-separated), with local dev defaults
+const envOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173")
+  .split(",")
+  .map(o => o.trim())
+  .filter(Boolean);
+const allowedOrigins = new Set(envOrigins);
 const io = new Server(server, {
   cors: {
     origin: (origin, cb) => {
@@ -81,6 +83,11 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api", cloudinaryRoutes);
 app.use("/legal", legalRoutes); // PDF legal docs
+
+// Health check (for Render and other PaaS)
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
 // Store user-socket mapping to handle multiple tabs per user
 const userSockets = new Map(); // userId -> Set of socketIds
