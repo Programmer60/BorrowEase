@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Brain,
   User,
@@ -61,6 +61,40 @@ class ErrorBoundary extends React.Component {
 
 const BorrowerAssessment = () => {
   const { isDark } = useTheme();
+  // Reduced motion preference (respect user/system setting)
+  const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Generic animated number hook (spring-ish easing with requestAnimationFrame)
+  const useAnimatedNumber = (value, duration = 800) => {
+    const [display, setDisplay] = useState(value);
+    const startRef = useRef(null);
+    const fromRef = useRef(value);
+    const valueRef = useRef(value);
+
+    useEffect(() => { valueRef.current = value; }, [value]);
+
+    useEffect(() => {
+      if (prefersReducedMotion) { setDisplay(value); return; }
+      const start = performance.now();
+      startRef.current = start;
+      const from = fromRef.current;
+      const to = valueRef.current;
+      const diff = to - from;
+      if (diff === 0) return; // no change
+      let raf;
+      const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+      const step = (now) => {
+        const elapsed = now - start;
+        const pct = Math.min(1, elapsed / duration);
+        const eased = easeOutCubic(pct);
+        setDisplay(Math.round(from + diff * eased));
+        if (pct < 1) raf = requestAnimationFrame(step); else fromRef.current = to;
+      };
+      raf = requestAnimationFrame(step);
+      return () => cancelAnimationFrame(raf);
+    }, [value, duration, prefersReducedMotion]);
+    return display;
+  };
   const [borrowerData, setBorrowerData] = useState({
     borrowerId: '',
     loanAmount: '',
@@ -144,8 +178,11 @@ const BorrowerAssessment = () => {
         return;
       }
 
-      const response = await API.post('/ai/assess-borrower', borrowerData);
-      console.log('✅ Assessment response:', response.data);
+      // Ensure numeric loan amount before sending (input stores string)
+      const payload = { ...borrowerData, loanAmount: Number(borrowerData.loanAmount) };
+      const response = await API.post('/ai/assess-borrower', payload);
+      console.log('✅ Assessment response (native schema):', response.data);
+      // Store raw backend schema directly (native consumption, no shim)
       setAssessment(response.data);
     } catch (error) {
       console.error('❌ Error assessing borrower:', error);
@@ -163,7 +200,7 @@ const BorrowerAssessment = () => {
         alert(`Failed to assess borrower: ${error.response?.data?.error || error.message}`);
       }
     } finally {
-      setLoading(false);
+      setLoading(false); 
     }
   };
 
@@ -348,41 +385,42 @@ const BorrowerAssessment = () => {
               </div>
             )}
 
-            {assessment && assessment.assessment && (
+            {assessment && assessment.riskAssessment && (
               <div className="space-y-6">
                 {/* Overall Assessment */}
                 <div className={`rounded-xl shadow-sm p-6 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Assessment Results</h3>
-                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{assessment.assessmentId || 'N/A'}</span>
+                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{assessment.assessment?.assessmentId || assessment.assessment?.assessmentId || assessment.assessment?.assessmentId || assessment.assessment?.assessmentId || assessment.assessment?.assessmentId || assessment.assessmentId || 'N/A'}</span>
                   </div>
-
+                  {/* Score range legend toggle */}
+                  <ScoreLegend isDark={isDark} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div className={`p-4 rounded-lg border ${getRiskColor(assessment.assessment?.loanSpecificScore || 0)}`}>
+                    <div className={`p-4 rounded-lg border ${getRiskColor(assessment.riskAssessment?.overallScore || 0)}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          {getRiskIcon(assessment.assessment?.loanSpecificScore || 0)}
+                          {getRiskIcon(assessment.riskAssessment?.overallScore || 0)}
                           <span className="ml-2 font-semibold">Final Risk Score</span>
                         </div>
-                        <span className="text-xl font-bold">{assessment.assessment?.loanSpecificScore || 0}/100</span>
+                        <AnimatedScore value={assessment.riskAssessment?.overallScore || 0} suffix="/100" />
                       </div>
                     </div>
 
                     <div className={`p-4 rounded-lg border ${
-                      assessment.assessment?.finalDecision === 'approve' 
+                      assessment.riskAssessment?.decision === 'approve' 
                         ? 'bg-green-100 text-green-800 border-green-200'
                         : 'bg-red-100 text-red-800 border-red-200'
                     }`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
-                          {assessment.assessment?.finalDecision === 'approve' ? 
+                          {assessment.riskAssessment?.decision === 'approve' ? 
                             <CheckCircle className="w-5 h-5" /> : 
                             <XCircle className="w-5 h-5" />
                           }
                           <span className="ml-2 font-semibold">Decision</span>
                         </div>
                         <span className="text-lg font-bold uppercase">
-                          {assessment.assessment?.finalDecision || 'PENDING'}
+                          {assessment.riskAssessment?.decision || 'PENDING'}
                         </span>
                       </div>
                     </div>
@@ -392,19 +430,19 @@ const BorrowerAssessment = () => {
                     <div className={`text-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Suggested Rate</div>
                       <div className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {assessment.assessment?.suggestedRate?.toFixed(1) || '0.0'}%
+                        {(assessment.pricing?.adjustedRate ?? 0).toFixed(1)}%
                       </div>
                     </div>
                     <div className={`text-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Confidence</div>
                       <div className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {assessment.assessment?.confidence || 0}%
+                        {assessment.riskAssessment?.confidence || 0}%
                       </div>
                     </div>
                     <div className={`text-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Max Amount</div>
                       <div className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        ₹{assessment.assessment?.maxRecommendedAmount?.toLocaleString() || '0'}
+                        ₹{assessment.pricing?.maxApprovedAmount?.toLocaleString() || '0'}
                       </div>
                     </div>
                   </div>
@@ -418,31 +456,53 @@ const BorrowerAssessment = () => {
                     <div>
                       <h4 className={`font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Borrower Profile Score</h4>
                       <div className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {assessment.assessment?.baseRiskScore || 0}/100
+                        <AnimatedScore value={assessment.riskAssessment?.baseScore || 0} suffix="/100" small />
                       </div>
-                      {assessment.riskFactors?.borrowerFactors && (
-                        <div className="space-y-2 text-sm">
+                      <div className="space-y-2 text-sm">
+                        {assessment.creditProfile?.creditScore && (
                           <div className="flex justify-between">
-                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Trust Score Impact:</span>
-                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{assessment.riskFactors.borrowerFactors.trustScore || 0}/100</span>
+                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Credit Score:</span>
+                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{assessment.creditProfile.creditScore}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>KYC Status:</span>
-                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{assessment.riskFactors.borrowerFactors.kycScore || 0}/100</span>
+                        )}
+                        {assessment.creditProfile?.creditFactors && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Payment History:</span>
+                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{assessment.creditProfile.creditFactors.paymentHistory || 0}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Utilization Score:</span>
+                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{assessment.creditProfile.creditFactors.creditUtilization || 0}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Loan Diversity:</span>
+                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{assessment.creditProfile.creditFactors.loanDiversity || 0}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>KYC Verified:</span>
+                              <span className={`font-medium ${assessment.creditProfile.creditFactors.kycVerified ? 'text-green-600' : 'text-red-600'}`}>{assessment.creditProfile.creditFactors.kycVerified ? 'Yes' : 'No'}</span>
+                            </div>
+                          </>
+                        )}
+                        {assessment.riskComponents && (
+                          <div className="pt-2 border-t border-gray-600/30 space-y-1">
+                            {Object.entries(assessment.riskComponents).map(([k,v]) => (
+                              <div key={k} className="flex justify-between text-xs">
+                                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>{k}</span>
+                                <span className={isDark ? 'text-gray-200' : 'text-gray-800'}>{v}</span>
+                              </div>
+                            ))}
                           </div>
-                          <div className="flex justify-between">
-                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Payment History:</span>
-                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{assessment.riskFactors.borrowerFactors.paymentHistory || 0}/100</span>
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
                     <div>
                       <h4 className={`font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Loan-Specific Adjustments</h4>
-                      {assessment.riskFactors?.loanSpecificFactors && assessment.riskFactors.loanSpecificFactors.length > 0 ? (
+                      {Array.isArray(assessment.riskFactors) && assessment.riskFactors.filter(f => f.category === 'loan_specific').length > 0 ? (
                         <div className="space-y-2">
-                          {assessment.riskFactors.loanSpecificFactors.map((factor, index) => (
+                          {assessment.riskFactors.filter(f => f.category === 'loan_specific').map((factor, index) => (
                             <div key={index} className={`p-2 rounded border-l-4 border-orange-400 ${
                               isDark ? 'bg-orange-900/30' : 'bg-orange-50'
                             }`}>
@@ -462,7 +522,11 @@ const BorrowerAssessment = () => {
                 </div>
 
                 {/* Enhanced Credit Profile Section */}
-                {assessment.creditProfile && assessment.creditProfile.creditScore && (
+        {/* Credit Profile Analysis uses adaptive palette:
+          - Light: standard Tailwind soft backgrounds (gray-50, *-100)
+          - Dark: translucent color accents with /20 overlays + subtle borders for contrast
+          This preserves WCAG contrast while avoiding harsh pure colors on dark backgrounds. */}
+        {assessment.creditProfile && assessment.creditProfile.creditScore && (
                   <div className={`rounded-xl shadow-sm p-6 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
                     <h3 className={`text-lg font-semibold mb-4 flex items-center ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       <CreditCard className="w-5 h-5 mr-2" />
@@ -472,46 +536,50 @@ const BorrowerAssessment = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Credit Score Display */}
                       <div className="text-center">
-                        <div className="text-3xl font-bold text-blue-600 mb-2">
-                          {assessment.creditProfile.creditScore}
+                        <div className={`text-3xl font-bold mb-2 ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                          <AnimatedScore value={assessment.creditProfile.creditScore} />
                         </div>
-                        <div className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Credit Score (300-850)</div>
-                        <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                          assessment.creditProfile.creditScore >= 750 ? 'bg-green-100 text-green-800' :
-                          assessment.creditProfile.creditScore >= 650 ? 'bg-blue-100 text-blue-800' :
-                          assessment.creditProfile.creditScore >= 550 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {assessment.creditProfile.creditScore >= 750 ? 'Excellent' :
-                           assessment.creditProfile.creditScore >= 650 ? 'Good' :
-                           assessment.creditProfile.creditScore >= 550 ? 'Fair' : 'Poor'}
-                        </div>
+                        <div className={`text-sm mb-4 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Credit Score (300-850)</div>
+                        {(() => {
+                          const cs = assessment.creditProfile.creditScore;
+                          const level = cs >= 750 ? 'excellent' : cs >= 650 ? 'good' : cs >= 550 ? 'fair' : 'poor';
+                          const themeMap = {
+                            excellent: isDark ? 'bg-green-500/20 text-green-300 border border-green-500/40' : 'bg-green-100 text-green-800',
+                            good: isDark ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' : 'bg-blue-100 text-blue-800',
+                            fair: isDark ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40' : 'bg-yellow-100 text-yellow-800',
+                            poor: isDark ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-red-100 text-red-800'
+                          };
+                          const label = level === 'excellent' ? 'Excellent' : level === 'good' ? 'Good' : level === 'fair' ? 'Fair' : 'Poor';
+                          return (
+                            <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${themeMap[level]}`}>{label}</div>
+                          );
+                        })()}
                       </div>
 
                       {/* Credit Factors */}
                       <div className="space-y-3">
-                        <h4 className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Credit Factors</h4>
+                        <h4 className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Credit Factors</h4>
                         {assessment.creditProfile.creditFactors && (
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Payment History:</span>
-                              <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{assessment.creditProfile.creditFactors.paymentHistory || 0}/192</span>
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-700'}>Payment History:</span>
+                              <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{assessment.creditProfile.creditFactors.paymentHistory || 0}/192</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Credit Utilization:</span>
-                              <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{assessment.creditProfile.creditFactors.creditUtilization || 50}%</span>
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-700'}>Credit Utilization:</span>
+                              <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{assessment.creditProfile.creditFactors.creditUtilization || 50}%</span>
                             </div>
                             <div className="flex justify-between">
-                              <span>Credit History:</span>
-                              <span className="font-medium">{assessment.creditProfile.creditFactors.creditHistory || 0} months</span>
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-700'}>Credit History:</span>
+                              <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{assessment.creditProfile.creditFactors.creditHistory || 0} months</span>
                             </div>
                             <div className="flex justify-between">
-                              <span>Loan Diversity:</span>
-                              <span className="font-medium">{assessment.creditProfile.creditFactors.loanDiversity || 0} types</span>
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-700'}>Loan Diversity:</span>
+                              <span className={`font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{assessment.creditProfile.creditFactors.loanDiversity || 0} types</span>
                             </div>
                             <div className="flex justify-between">
-                              <span>KYC Status:</span>
-                              <span className={`font-medium ${assessment.creditProfile.creditFactors.kycVerified ? 'text-green-600' : 'text-red-600'}`}>
+                              <span className={isDark ? 'text-gray-400' : 'text-gray-700'}>KYC Status:</span>
+                              <span className={`font-medium ${assessment.creditProfile.creditFactors.kycVerified ? (isDark ? 'text-green-400' : 'text-green-600') : (isDark ? 'text-red-400' : 'text-red-600')}`}>
                                 {assessment.creditProfile.creditFactors.kycVerified ? 'Verified' : 'Not Verified'}
                               </span>
                             </div>
@@ -525,26 +593,18 @@ const BorrowerAssessment = () => {
                       <div className={`mt-6 pt-6 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
                         <h4 className={`font-medium mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Score Breakdown</h4>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
-                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.paymentHistory || 0}</div>
-                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Payment History</div>
-                          </div>
-                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
-                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.creditUtilization || 0}</div>
-                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Credit Utilization</div>
-                          </div>
-                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
-                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.creditHistoryLength || 0}</div>
-                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Credit History</div>
-                          </div>
-                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
-                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.loanDiversity || 0}</div>
-                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Loan Diversity</div>
-                          </div>
-                          <div className={`text-center p-2 ${isDark ? 'bg-gray-700' : 'bg-gray-50'} rounded`}>
-                            <div className="font-medium">{assessment.creditProfile.creditBreakdown.trustFactors || 0}</div>
-                            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Trust Factors</div>
-                          </div>
+                          {[
+                            { key: 'paymentHistory', label: 'Payment History' },
+                            { key: 'creditUtilization', label: 'Credit Utilization' },
+                            { key: 'creditHistoryLength', label: 'Credit History' },
+                            { key: 'loanDiversity', label: 'Loan Diversity' },
+                            { key: 'trustFactors', label: 'Trust Factors' },
+                          ].map(item => (
+                            <div key={item.key} className={`text-center p-2 rounded ${isDark ? 'bg-gray-700/60 border border-gray-600/40' : 'bg-gray-50'} transition-colors`}>
+                              <div className={`font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{assessment.creditProfile.creditBreakdown[item.key] || 0}</div>
+                              <div className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{item.label}</div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -552,14 +612,14 @@ const BorrowerAssessment = () => {
                 )}
 
                 {/* Detailed Risk Analysis */}
-                {assessment.riskFactors.detailedAnalysis && assessment.riskFactors.detailedAnalysis.length > 0 && (
+                {Array.isArray(assessment.riskFactors) && assessment.riskFactors.length > 0 && (
                   <div className={`rounded-xl shadow-sm p-6 ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
                     <h3 className={`text-lg font-semibold mb-4 flex items-center ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       <Shield className="w-5 h-5 mr-2" />
                       Detailed Risk Analysis
                     </h3>
                     <div className="space-y-3">
-                      {assessment.riskFactors.detailedAnalysis.map((factor, index) => (
+                      {assessment.riskFactors.map((factor, index) => (
                         <div key={index} className={`flex items-start p-3 rounded-lg border ${
                           isDark ? 'border-gray-600 bg-gray-700' : 'border-gray-200 bg-white'
                         }`}>
@@ -605,20 +665,20 @@ const BorrowerAssessment = () => {
                 )}
 
                 {/* Suggested Modifications */}
-                {assessment.suggestedModifications && (
+                {assessment.pricing && (
                   <div className={`rounded-xl border p-6 ${isDark ? 'bg-yellow-900/30 border-yellow-700' : 'bg-yellow-50 border-yellow-200'}`}>
                     <h3 className={`text-lg font-semibold mb-4 ${isDark ? 'text-yellow-200' : 'text-yellow-800'}`}>Suggested Loan Modifications</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <span className={`text-sm ${isDark ? 'text-yellow-200' : 'text-yellow-700'}`}>Recommended Max Amount:</span>
                         <p className={`text-lg font-bold ${isDark ? 'text-yellow-200' : 'text-yellow-800'}`}>
-                          ₹{assessment.suggestedModifications.maxAmount?.toLocaleString()}
+                          ₹{assessment.pricing.maxApprovedAmount?.toLocaleString()}
                         </p>
                       </div>
                       <div>
                         <span className={`text-sm ${isDark ? 'text-yellow-200' : 'text-yellow-700'}`}>Adjusted Interest Rate:</span>
                         <p className={`text-lg font-bold ${isDark ? 'text-yellow-200' : 'text-yellow-800'}`}>
-                          {assessment.suggestedModifications.suggestedRate}%
+                          {(assessment.pricing.adjustedRate ?? 0).toFixed(1)}%
                         </p>
                       </div>
                     </div>
@@ -648,3 +708,70 @@ export default function BorrowerAssessmentWrapper() {
     </ErrorBoundary>
   );
 }
+
+// ------ Helper Components (legend / animated score / tooltips) ------
+
+const AnimatedScore = ({ value, suffix = '', small = false }) => {
+  // Local lightweight hook reuse (cannot call above custom hook here cleanly without prop drilling; inline logic)
+  const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const [display, setDisplay] = React.useState(value);
+  const prevRef = React.useRef(value);
+  React.useEffect(() => {
+    if (prefersReducedMotion) { setDisplay(value); prevRef.current = value; return; }
+    const from = prevRef.current;
+    const to = value;
+    const diff = to - from;
+    if (diff === 0) return;
+    const start = performance.now();
+    const duration = 700;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    let raf;
+    const step = (now) => {
+      const pct = Math.min(1, (now - start) / duration);
+      setDisplay(Math.round(from + diff * ease(pct)));
+      if (pct < 1) raf = requestAnimationFrame(step); else prevRef.current = to;
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value, prefersReducedMotion]);
+  return <span className={`${small ? '' : 'text-xl'} font-bold tabular-nums`}>{display}{suffix}</span>;
+};
+
+const ScoreLegend = ({ isDark }) => {
+  const [open, setOpen] = React.useState(false);
+  const toggle = () => setOpen(o => !o);
+  const baseCls = isDark ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-200 text-gray-800';
+  return (
+    <div className="mb-4 flex items-center justify-end relative">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-label="Toggle score legend"
+        className={`text-xs px-2 py-1 rounded border ${baseCls} hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500`}
+      >
+        Score Legend
+      </button>
+      {open && (
+        <div className={`absolute top-full mt-2 right-0 w-64 rounded-lg shadow-lg border z-20 p-3 text-xs space-y-2 ${baseCls}`}
+             role="dialog" aria-label="Risk score legend">
+          {[
+            { range: '85 – 100', label: 'Very Low Risk', color: 'text-green-500' },
+            { range: '70 – 84', label: 'Low Risk', color: 'text-emerald-400' },
+            { range: '55 – 69', label: 'Medium Risk', color: 'text-yellow-400' },
+            { range: '40 – 54', label: 'High Risk', color: 'text-orange-400' },
+            { range: '0 – 39', label: 'Very High Risk', color: 'text-red-500' },
+          ].map(item => (
+            <div key={item.range} className="flex justify-between">
+              <span className={`font-medium ${item.color}`}>{item.range}</span>
+              <span>{item.label}</span>
+            </div>
+          ))}
+          <p className="pt-1 border-t border-gray-500/30 text-[10px] leading-snug">
+            Scores aggregate weighted components: creditworthiness, behavioral, financial stability, identity, and platform history.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};

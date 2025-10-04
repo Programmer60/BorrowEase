@@ -36,11 +36,19 @@ export default function ProfilePage() {
   // Add separate state for real-time statistics
   const [userStats, setUserStats] = useState({
     creditScore: 0,
+    successRate: 0,
     activeLoans: 0,
     totalBorrowed: 0,
     totalLent: 0,
     repaidLoans: 0,
-    overdueLoans: 0
+    overdueLoans: 0,
+    borrowerActiveLoans: 0,
+    borrowerRepaidLoans: 0,
+    borrowerOverdueLoans: 0,
+    lenderActiveLoans: 0,
+    lenderRepaidLoans: 0,
+    lenderOverdueLoans: 0,
+    loansFunded: 0
   });
 
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -72,8 +80,8 @@ export default function ProfilePage() {
     const fetchUserStats = async () => {
       try {
         setIsLoadingStats(true);
-        const res = await API.get("/users/stats");
-        setUserStats(res.data);
+  const res = await API.get("/users/stats");
+  setUserStats(res.data);
       } catch (error) {
         console.error("Error fetching user stats:", error);
         // Set default values if API fails
@@ -191,19 +199,8 @@ export default function ProfilePage() {
                         <User className="w-12 h-12 text-purple-600" />
                       )}
                     </div>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="absolute -bottom-2 -right-2 w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center hover:bg-purple-600 transition-colors"
-                    >
-                      <Camera className="w-4 h-4 text-white" />
-                    </button>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handlePhotoUpload}
-                      accept="image/*"
-                      className="hidden"
-                    />
+                    {/* Profile photo change disabled per requirement */}
+                    {/* Removed upload button & input */}
                   </div>
                   <h2 className="text-2xl font-bold text-white mt-4">
                     {profileData.name}
@@ -343,13 +340,13 @@ export default function ProfilePage() {
 
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Email
+                      Email (locked)
                     </label>
                     <p className={`px-3 py-2 rounded-lg ${
                       isDark 
-                        ? 'text-white bg-gray-700' 
-                        : 'text-gray-900 bg-gray-50'
-                    }`}>
+                        ? 'text-white bg-gray-700 opacity-80' 
+                        : 'text-gray-900 bg-gray-50 opacity-80'
+                    }`} title="Email cannot be changed">
                       {profileData.email}
                     </p>
                   </div>
@@ -549,36 +546,37 @@ export default function ProfilePage() {
                         <CreditCard className="w-6 h-6 text-white" />
                       </div>
                       <div className="text-2xl font-bold text-blue-600">
-                        {userStats.activeLoans}
+                        {profileData.role === 'borrower' ? userStats.borrowerActiveLoans : userStats.lenderActiveLoans}
                       </div>
-                      <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Active Loans</div>
-                      {userStats.overdueLoans > 0 && (
+                      <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        Active Loans
+                      </div>
+                      {(profileData.role === 'borrower' ? userStats.borrowerOverdueLoans : userStats.lenderOverdueLoans) > 0 && (
                         <div className="mt-1">
                           <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
-                            {userStats.overdueLoans} Overdue
+                            {(profileData.role === 'borrower' ? userStats.borrowerOverdueLoans : userStats.lenderOverdueLoans)} Overdue
                           </span>
                         </div>
                       )}
                     </div>
                     
-                    <div className={`text-center p-4 rounded-lg ${
-                      isDark ? 'bg-green-900/30' : 'bg-green-50'
+                    <div className={`relative overflow-hidden text-center p-4 rounded-lg ${
+                      isDark ? 'bg-green-900/30 ring-1 ring-green-700/30' : 'bg-green-50 ring-1 ring-green-200'
                     }`}>
-                      <div className="flex items-center justify-center w-12 h-12 bg-green-600 rounded-lg mx-auto mb-3">
+                      <div className="flex items-center justify-center w-12 h-12 bg-green-600 rounded-lg mx-auto mb-3 shadow-inner">
                         <Shield className="w-6 h-6 text-white" />
                       </div>
-                      <div className="text-2xl font-bold text-green-600">
-                        ₹{profileData.role === 'borrower' ? 
-                          userStats.totalBorrowed.toLocaleString() : 
-                          userStats.totalLent.toLocaleString()
-                        }
+                      <div className="text-2xl font-bold text-green-600 tracking-tight">
+                        ₹{(profileData.role === 'borrower' ? userStats.totalBorrowed : userStats.totalLent).toLocaleString()}
                       </div>
-                      <div className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <div className={`text-sm font-medium mt-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                         {profileData.role === 'borrower' ? 'Total Borrowed' : 'Total Lent'}
                       </div>
-                      <div className="mt-1">
-                        <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {userStats.repaidLoans} Completed
+                      <div className="mt-2">
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          isDark ? 'bg-green-800/40 text-green-300' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {(profileData.role === 'borrower' ? userStats.borrowerRepaidLoans : userStats.lenderRepaidLoans)} Completed
                         </span>
                       </div>
                     </div>

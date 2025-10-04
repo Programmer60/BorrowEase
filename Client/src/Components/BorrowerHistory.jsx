@@ -264,6 +264,19 @@ export default function BorrowerHistory () {
                             }`}>
                                 {orderedLoans.map((loan) => {
                                     const statusInfo = getStatusInfo(loan);
+                                                                        const requestedTs = loan.requestedDate || loan.createdAt || loan.submittedAt || loan.updatedAt;
+                                                                        const requestedDateObj = requestedTs ? new Date(requestedTs) : null;
+                                                                        const requestedDateStr = requestedDateObj ? requestedDateObj.toLocaleDateString('en-IN') : null;
+                                                                        // Relative time helper (days ago)
+                                                                        let relativeStr = '';
+                                                                        if (requestedDateObj) {
+                                                                            const now = new Date();
+                                                                            const diffMs = now - requestedDateObj;
+                                                                            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                                                                            if (days === 0) relativeStr = ' (today)';
+                                                                            else if (days === 1) relativeStr = ' (1 day ago)';
+                                                                            else relativeStr = ` (${days} days ago)`;
+                                                                        }
                                     return (
                                         <div key={loan._id} className={`p-6 transition-colors ${
                                           isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
@@ -281,21 +294,41 @@ export default function BorrowerHistory () {
                                                             </div>
                                                         </div>
                                                         <div className="min-w-0 flex-1">
-                                                            <div className="flex items-center space-x-2">
-                                                                <h3 className={`text-lg font-medium truncate ${
-                                                                  isDark ? 'text-gray-200' : 'text-gray-900'
-                                                                }`}>{loan.purpose}</h3>
-                                                                <span className="text-xl font-bold text-purple-600">₹{loan.amount.toLocaleString()}</span>
-                                                            </div>
-                                                            <div className={`mt-1 flex items-center space-x-4 text-sm ${
+                                                                                                                        <div className="flex items-center space-x-3">
+                                                                                                                                <h3 className={`text-lg font-medium truncate ${
+                                                                                                                                    isDark ? 'text-gray-200' : 'text-gray-900'
+                                                                                                                                }`}>{loan.purpose}</h3>
+                                                                                                                                {loan.amount !== undefined && loan.amount !== null ? (
+                                                                                                                                    <span
+                                                                                                                                        aria-label={`Loan amount ₹${Number(loan.amount).toLocaleString('en-IN')}`}
+                                                                                                                                        className="text-sm sm:text-base font-semibold text-purple-600"
+                                                                                                                                    >
+                                                                                                                                        ₹{Number(loan.amount).toLocaleString('en-IN')}
+                                                                                                                                    </span>
+                                                                                                                                ) : (
+                                                                                                                                    <span className="text-xs italic opacity-60" aria-label="Loan amount unavailable">—</span>
+                                                                                                                                )}
+                                                                                                                        </div>
+                                                                                                                        <div className={`mt-1 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm ${
                                                               isDark ? 'text-gray-400' : 'text-gray-500'
                                                             }`}>
                                                                 <span className="flex items-center">
                                                                     <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                                     </svg>
-                                                                    Requested: {loan.requestedDate}
-                                                                </span>
+                                                                                                                                        Requested:&nbsp;
+                                                                                                                                        {requestedDateStr ? (
+                                                                                                                                            <span
+                                                                                                                                                aria-label={"Requested date " + requestedDateStr}
+                                                                                                                                                className={`${isDark ? 'text-gray-300' : 'text-gray-700'} font-medium`}
+                                                                                                                                            >
+                                                                                                                                                {requestedDateStr}
+                                                                                                                                                <span className={`ml-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{relativeStr}</span>
+                                                                                                                                            </span>
+                                                                                                                                        ) : (
+                                                                                                                                            <span className="italic opacity-70" aria-label="Requested date unavailable">date unavailable</span>
+                                                                                                                                        )}
+                                                                                                                                </span>
                                                                 {loan.funded && loan.lender && (
                                                                     <span className="flex items-center">
                                                                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

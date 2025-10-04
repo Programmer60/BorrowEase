@@ -1,4 +1,3 @@
-// Industrial-level authentication service
 import { 
   auth, 
   provider, 

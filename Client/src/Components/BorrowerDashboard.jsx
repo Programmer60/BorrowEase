@@ -886,87 +886,89 @@ export default function BorrowerDashboard() {
                 <>
                   {/* Make the loans list scrollable to avoid growing the whole page and increasing empty space */}
                   <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-                    {loansToDisplay.map((loan) => (
-                      <div
-                        key={loan._id}
-                        className={`border rounded-lg p-4 transition-colors ${
-                          isDark 
-                            ? 'border-gray-600 bg-gray-700 hover:border-indigo-500' 
-                            : 'border-gray-200 bg-white hover:border-indigo-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center">
+                    {loansToDisplay.map((loan) => {
+                      const requestedTs = loan.createdAt || loan.submittedAt || loan.requestedAt || loan.updatedAt;
+                      const requestedDate = requestedTs ? new Date(requestedTs).toLocaleDateString() : null;
+                      return (
+                        <div
+                          key={loan._id}
+                          className={`border rounded-lg p-4 transition-colors ${
+                            isDark 
+                              ? 'border-gray-600 bg-gray-700 hover:border-indigo-500' 
+                              : 'border-gray-200 bg-white hover:border-indigo-300'
+                          }`}
+                        >
+                          {/* Status Row */}
+                          <div className="flex items-center mb-2">
                             {getStatusIcon(loan)}
                             <span
-                              className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                                loan
-                              )}`}
+                              className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(loan)}`}
                             >
                               {getStatusText(loan)}
                             </span>
                           </div>
-                          <span className={`text-lg font-bold ${
-                            isDark 
-                              ? 'text-gray-100' 
-                              : 'text-gray-900'
-                          }`}>
-                            ₹{loan.amount?.toLocaleString()}
-                          </span>
-                        </div>
 
-                        <div className={`space-y-2 text-sm ${
-                          isDark 
-                            ? 'text-gray-300' 
-                            : 'text-gray-600'
-                        }`}>
-                          <div className="flex justify-between">
-                            <span>Purpose:</span>
-                            <span className={`font-medium ${
-                              isDark 
-                                ? 'text-gray-100' 
-                                : 'text-gray-900'
-                            }`}>
-                              {loan.purpose}
+                          {/* Requested Amount + Date */}
+                          <div className={`flex items-center text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            <Calendar className="w-4 h-4 mr-1 opacity-80" />
+                            <span>
+                              Requested: <span className={`font-semibold ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>₹{(loan.amount || 0).toLocaleString()}</span>
+                              {requestedDate && <span className="ml-1 opacity-70">on {requestedDate}</span>}
                             </span>
                           </div>
-                          <div className="flex justify-between">
-                            <span>Phone:</span>
-                            <span className={`font-medium ${
-                              isDark 
-                                ? 'text-gray-100' 
-                                : 'text-gray-900'
-                            }`}>
-                              {loan.phoneNumber}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Repayment Date:</span>
-                            <span className={`font-medium ${
-                              isDark 
-                                ? 'text-gray-100' 
-                                : 'text-gray-900'
-                            }`}>
-                              {new Date(loan.repaymentDate).toLocaleDateString()}
-                            </span>
-                          </div>
-                          {loan.interest && (
+
+                          <div className={`space-y-2 text-sm ${
+                            isDark 
+                              ? 'text-gray-300' 
+                              : 'text-gray-600'
+                          }`}>
                             <div className="flex justify-between">
-                              <span>Interest:</span>
-                              <span className="font-medium text-purple-600">
-                                ₹{loan.interest.toLocaleString()}
+                              <span>Purpose:</span>
+                              <span className={`font-medium ${
+                                isDark 
+                                  ? 'text-gray-100' 
+                                  : 'text-gray-900'
+                              }`}>
+                                {loan.purpose || '—'}
                               </span>
                             </div>
-                          )}
-                          {loan.totalRepayable && (
                             <div className="flex justify-between">
-                              <span>Total Repayable:</span>
-                              <span className="font-medium text-green-600">
-                                ₹{loan.totalRepayable.toLocaleString()}
+                              <span>Phone:</span>
+                              <span className={`font-medium ${
+                                isDark 
+                                  ? 'text-gray-100' 
+                                  : 'text-gray-900'
+                              }`}>
+                                {loan.phoneNumber || '—'}
                               </span>
                             </div>
-                          )}
-                        </div>
+                            <div className="flex justify-between">
+                              <span>Repayment Date:</span>
+                              <span className={`font-medium ${
+                                isDark 
+                                  ? 'text-gray-100' 
+                                  : 'text-gray-900'
+                              }`}>
+                                {loan.repaymentDate ? new Date(loan.repaymentDate).toLocaleDateString() : '—'}
+                              </span>
+                            </div>
+                            {loan.interest && (
+                              <div className="flex justify-between">
+                                <span>Interest:</span>
+                                <span className="font-medium text-purple-600">
+                                  ₹{loan.interest.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {loan.totalRepayable && (
+                              <div className="flex justify-between">
+                                <span>Total Repayable:</span>
+                                <span className="font-medium text-green-600">
+                                  ₹{loan.totalRepayable.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
 
                         {loan.funded && !loan.repaid && (
                           <div className="mt-4 flex space-x-2">
@@ -1004,8 +1006,9 @@ export default function BorrowerDashboard() {
                             </button>
                           </div>
                         )}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {hasMoreLoans && (
