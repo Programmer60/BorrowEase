@@ -5,7 +5,7 @@ import { auth } from "./firebase";
 import API from "./api/api";
 import { SocketProvider } from "./contexts/SocketContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { NotificationProvider } from "./components/NotificationSystem";
+import { NotificationProvider } from "./Components/NotificationSystem";
 import Home from "./Components/Home";
 import Login from "./Components/Login";
 import LoginEnhanced from "./Components/LoginEnhanced";
