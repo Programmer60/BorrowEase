@@ -15,8 +15,12 @@ dotenv.config();
 const router = express.Router();
 
 // Normalize keys and keep consistent fallbacks for both order creation and verification
-const RZP_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_test_pBgIF99r7ZIsb7";
-const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "OpkPKasxawRNSCPHCBY1u66J";
+const RZP_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+
+if (!RZP_KEY_ID || !RZP_KEY_SECRET) {
+  console.warn("Razorpay keys are not set in environment. Payment routes will be disabled.");
+}
 
 // Initialize Razorpay with environment variables
 const instance = new Razorpay({
