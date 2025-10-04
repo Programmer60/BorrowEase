@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import mongoose from "mongoose";
 import connectDB from "./config/db.js";
 import loanRoutes from "./routes/loanroutes.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -134,6 +135,20 @@ app.use("/legal", legalRoutes); // PDF legal docs
 // Health check (for Render and other PaaS)
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
+});
+
+// DB health (ping) to diagnose Atlas connectivity in prod
+app.get("/health/db", async (req, res) => {
+  const state = mongoose.connection.readyState; // 0=disconnected,1=connected,2=connecting,3=disconnecting
+  try {
+    if (state === 1 && mongoose.connection.db) {
+      await mongoose.connection.db.admin().ping();
+      return res.json({ ok: true, state });
+    }
+    return res.status(503).json({ ok: false, state });
+  } catch (e) {
+    return res.status(503).json({ ok: false, state, error: e?.message });
+  }
 });
 
 // Store user-socket mapping to handle multiple tabs per user
