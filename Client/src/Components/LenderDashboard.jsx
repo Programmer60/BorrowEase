@@ -24,11 +24,9 @@ export default function LenderDashboard() {
   const [redirecting, setRedirecting] = useState(false); // show overlay while creating order and redirecting
   const [paymentBanner, setPaymentBanner] = useState(null); // { type, message }
   const token = localStorage.getItem('token');
-  // Derive backend origin from Axios baseURL (e.g., http://localhost:5000)
   const API_BASE = API?.defaults?.baseURL || '';
-  const SERVER_ORIGIN = (() => {
-    try { return new URL(API_BASE).origin; } catch { return 'http://localhost:5000'; }
-  })();
+    // Derive backend origin from configured API base
+    const BACKEND_ORIGIN = (() => { try { return new URL(API_BASE).origin; } catch { return window.location.origin; } })();
 
   // Filter and search functionality
   useEffect(() => {
@@ -133,7 +131,7 @@ export default function LenderDashboard() {
       }
 
       // Always use redirect-based flow to avoid modal issues in emulated/preview contexts
-      console.log('➡️ Creating order at', `${SERVER_ORIGIN}/api/payment/create-order`);
+  console.log('➡️ Creating order at', `${BACKEND_ORIGIN}/api/payment/create-order`);
       // Proactively ensure a fresh token is attached (avoid rare race where interceptor runs before auth restores after redirect)
       const user = auth.currentUser;
       if (!user) {
@@ -162,7 +160,7 @@ export default function LenderDashboard() {
       }
 
       // Redirect to backend-hosted checkout page (avoid SPA intercept on :5173)
-      const checkoutUrl = `${SERVER_ORIGIN}/api/payment/checkout/${id}`;
+  const checkoutUrl = `${BACKEND_ORIGIN}/api/payment/checkout/${id}`;
       console.log('↪️ Redirecting to checkout:', checkoutUrl);
       // Persist last order id in case the user closes the checkout page
       try { localStorage.setItem('last_order_id', id); } catch {}
@@ -170,7 +168,7 @@ export default function LenderDashboard() {
       return;
       
       // --- Modal path retained for future enablement ---
-      // const options = { ... , callback_url: `${SERVER_ORIGIN}/api/payment/callback` };
+  // const options = { ... , callback_url: `${BACKEND_ORIGIN}/api/payment/callback` };
     } catch (error) {
       const status = error?.response?.status;
       const details = error?.response?.data || error?.message || error;

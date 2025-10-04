@@ -15,6 +15,7 @@ import {
   Smile
 } from "lucide-react";
 import { io } from "socket.io-client";
+import { SOCKET_URL } from "../config";
 import API from "../api/api";
 import { auth } from "../firebase";
 import { useSocket } from "../contexts/SocketContext";
@@ -184,7 +185,7 @@ export default function EnhancedChatRoom() {
     try {
       console.log("🔌 Initializing Socket.IO connection...");
       
-      socketRef.current = io("http://localhost:5000", {
+      socketRef.current = io(SOCKET_URL, {
         auth: {
           token: token
         },

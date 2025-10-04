@@ -34,7 +34,7 @@ export default function Login() {
     const testAPIConnection = async () => {
         try {
             console.log('🔍 Testing API connection...');
-            const response = await fetch('http://localhost:5000/api/users/test-connection', {
+            const response = await fetch(`${API.defaults.baseURL}/users/test-connection`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
