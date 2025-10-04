@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Mail, Lock, CreditCard, Users, TrendingUp, Shield, CheckCircle, ArrowRight, Star, MessageCircle, Zap, DollarSign, Clock } from 'lucide-react';
 import { useNavigate } from "react-router-dom";
 import { useTheme } from '../contexts/ThemeContext';
-import { useNotifications } from '../components/NotificationSystem';
+import { useNotifications } from '../Components/NotificationSystem';
 import { auth, provider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken, sendEmailVerification, sendPasswordResetEmail } from '../firebase';
 import API from '../api/api';
 import Navbar from './Navbar';
