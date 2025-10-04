@@ -31,10 +31,30 @@ The client consumes backend endpoints supporting:
 `npm run preview` – preview built assets.
 
 ### Environment
-Create a `.env` mirroring `.env.example` (if provided) with any API base URL variables you need.
+Create a `.env` from `.env.example` and set:
+
+- VITE_API_BASE_URL: Backend origin (no trailing slash).
+	- Dev: http://localhost:5000
+	- Prod: https://<your-backend-on-render>.onrender.com
+- VITE_SOCKET_URL (optional): Socket.IO origin. Defaults to VITE_API_BASE_URL origin when unset.
+
+Notes
+- All frontend API calls use a centralized Axios instance configured from these env vars.
+- Some development-only fetch calls were updated to use the same base, so your production build will point to the Render backend.
 
 ### Architectural Decisions
 See root-level `TECH_STACK_DECISIONS.md` for a comprehensive rationale of architectural, security, and scalability decisions (queue design, verification, suppression, rate limiting, content quality heuristics, and UI standardization).
+
+### Deployment (Vercel/Netlify)
+1) Build locally to verify:
+	- npm run build
+	- npm run preview
+2) Deploy to your static host (e.g., Vercel or Netlify).
+3) Configure environment variables in the host dashboard:
+	- VITE_API_BASE_URL = https://<your-backend-on-render>.onrender.com
+	- VITE_SOCKET_URL = (optional) leave blank to reuse API origin
+4) On the backend (Render), ensure CORS_ORIGIN includes your frontend domain(s), e.g.:
+	- CORS_ORIGIN = https://<your-frontend>.vercel.app,https://<staging>.vercel.app
 
 ### Future Enhancements
 - Surface content quality badge.

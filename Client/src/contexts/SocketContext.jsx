@@ -1,5 +1,6 @@
 ﻿import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import { SOCKET_URL } from '../config';
 import { auth } from '../firebase';
 
 const SocketContext = createContext();
@@ -110,7 +111,7 @@ export const SocketProvider = ({ children }) => {
           const token = await user.getIdToken();
           
           // Initialize Socket.IO connection (single instance)
-          const newSocket = io("http://localhost:5000", {
+          const newSocket = io(SOCKET_URL, {
             auth: {
               token: token
             },

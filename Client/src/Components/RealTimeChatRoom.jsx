@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Send, ArrowLeft, MessageCircle, Users, Wifi, WifiOff } from "lucide-react";
 import { io } from "socket.io-client";
+import { SOCKET_URL } from "../config";
 import API from "../api/api";
 import { auth } from "../firebase";
 
@@ -97,7 +98,7 @@ export default function RealTimeChatRoom() {
     try {
       console.log("🔌 Initializing Socket.IO connection...");
       
-      socketRef.current = io("http://localhost:5000", {
+      socketRef.current = io(SOCKET_URL, {
         auth: {
           token: token
         },

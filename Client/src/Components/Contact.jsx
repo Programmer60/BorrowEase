@@ -63,7 +63,7 @@ const Contact = () => {
   const logFaqAutoResolve = async (faq) => {
     if (faqLogId) return; // already logged
     try {
-      const res = await fetch('/api/contact/faq-auto-resolve', {
+      const res = await fetch(`${API.defaults.baseURL}/contact/faq-auto-resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,7 +164,7 @@ const Contact = () => {
         // If user chose to escalate after seeing FAQ, patch escalation
         if (faqEscalatePending && faqLogId) {
           try {
-            await fetch(`/api/contact/faq-auto-resolve/${faqLogId}/escalate`, { method: 'PATCH' });
+            await fetch(`${API.defaults.baseURL}/contact/faq-auto-resolve/${faqLogId}/escalate`, { method: 'PATCH' });
             console.log('↗️ Escalated FAQ log', faqLogId);
           } catch (err) {
             console.warn('Failed to escalate FAQ log', err);
@@ -233,7 +233,7 @@ const Contact = () => {
     if (!verificationCode.trim() || verificationCode.length < 4) return;
     setVerifyStatus({ state: 'verifying', error: '' });
     try {
-      const res = await fetch('/api/contact/verify-email', {
+      const res = await fetch(`${API.defaults.baseURL}/contact/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messageId: verificationMessageId, code: verificationCode.trim() })
@@ -263,7 +263,7 @@ const Contact = () => {
   const handleResendCode = async () => {
     if (!verificationMessageId || resendCooldown > 0) return;
     try {
-      const res = await fetch('/api/contact/resend-verification', {
+      const res = await fetch(`${API.defaults.baseURL}/contact/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messageId: verificationMessageId, email: formData.email })

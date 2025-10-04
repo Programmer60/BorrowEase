@@ -1,8 +1,9 @@
 import axios from "axios";
 import { auth } from "../firebase";
+import { API_BASE_URL } from "../config";
 
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: API_BASE_URL,
 });
 
 let inFlightRefresh = null;
@@ -64,3 +65,8 @@ export default API;
 // Exporting the API instance for use in other parts of the application
 // API is used to make HTTP requests to the backend server
 // The interceptor adds the Firebase authentication token to the request headers
+
+// Expose for places that reference window.API defensively
+if (typeof window !== 'undefined') {
+  window.API = API;
+}

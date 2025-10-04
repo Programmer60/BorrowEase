@@ -15,20 +15,6 @@ function initFirebaseAdmin() {
     return;
   }
 
-  // Option B: Discrete env vars
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  // Private keys often have literal \n in env; convert them back to newlines
-  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
-  const privateKey = privateKeyRaw?.replace(/\\n/g, "\n");
-
-  if (projectId && clientEmail && privateKey) {
-    admin.initializeApp({
-      credential: admin.credential.cert({ projectId, clientEmail, privateKey })
-    });
-    return;
-  }
-
   // If env is not provided, throw a clear error to avoid insecure fallbacks
   throw new Error(
     "Firebase Admin not configured. Set FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY in the environment."
@@ -150,3 +136,5 @@ export const verifyToken = async (req, res, next) => {
     return res.status(401).json(errorResponse);
   }
 };
+
+
