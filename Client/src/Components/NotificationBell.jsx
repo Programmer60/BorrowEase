@@ -40,41 +40,75 @@ export default function NotificationBell() {
   const [error, setError] = useState("");
   const [isRinging, setIsRinging] = useState(false);
   const bellRef = useRef(null);
-  const prevNotificationCount = useRef(0);
+  const prevUnreadCount = useRef(0);
+  const lastFetchTime = useRef(null);
+  const pollTimer = useRef(null);
   const { isDark } = useTheme();
 
+  // Efficient polling: unread count every 30s; full list only on demand or when unread increases
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError("");
+    let cancelled = false;
+
+    const fetchUnreadCount = async () => {
       try {
-        const res = await API.get("/notifications");
-        const newNotifications = res.data;
-        
-        // Check if there are new notifications
-        const currentUnreadCount = newNotifications.filter(n => !n.read).length;
-        if (prevNotificationCount.current > 0 && currentUnreadCount > prevNotificationCount.current) {
-          // Trigger bell animation for new notifications
+        const res = await API.get('/notifications/unread-count');
+        if (cancelled) return;
+        const { count } = res.data || { count: 0 };
+        if (count > prevUnreadCount.current) {
+          // New items arrived: fetch the delta or full list
+          await fetchNotifications(true);
+          // ring bell
           setIsRinging(true);
           setTimeout(() => setIsRinging(false), 1000);
         }
-        
-        setNotifications(newNotifications);
-        prevNotificationCount.current = currentUnreadCount;
-      } catch (err) {
-        setError("Failed to load notifications");
-      } finally {
-        setLoading(false);
+        prevUnreadCount.current = count;
+      } catch (e) {
+        // silent failure; don't disrupt UI
       }
     };
-    
-    // Initial fetch
-    fetchData();
-    
-    // Poll for new notifications every 3 seconds
-    const interval = setInterval(fetchData, 3000);
-    
-    return () => clearInterval(interval);
+
+    const fetchNotifications = async (preferIncremental = false) => {
+      setError("");
+      // Keep previous list rendered; only show loading skeleton when dropdown is open
+      const shouldShowLoading = dropdownOpen && notifications.length === 0;
+      if (shouldShowLoading) setLoading(true);
+      try {
+        const params = {};
+        if (preferIncremental && lastFetchTime.current) {
+          params.since = lastFetchTime.current.toISOString();
+        }
+        const res = await API.get('/notifications', { params });
+        const list = res.data || [];
+        if (preferIncremental && notifications.length > 0) {
+          // Merge: prepend any new items by createdAt desc, avoid duplicates by _id
+          const existingIds = new Set(notifications.map(n => n._id));
+          const newOnes = list.filter(n => !existingIds.has(n._id));
+          setNotifications(prev => [...newOnes, ...prev]);
+        } else {
+          setNotifications(list);
+        }
+        lastFetchTime.current = new Date();
+      } catch (e) {
+        setError('Failed to load notifications');
+      } finally {
+        if (shouldShowLoading) setLoading(false);
+      }
+    };
+
+    // initial bootstrap: get full list and establish unread baseline
+    (async () => {
+      await fetchNotifications(false);
+      await fetchUnreadCount();
+    })();
+
+    // start polling unread count every 30s
+    pollTimer.current = setInterval(fetchUnreadCount, 30000);
+
+    return () => {
+      cancelled = true;
+      if (pollTimer.current) clearInterval(pollTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Mark all as read in backend
@@ -86,15 +120,32 @@ export default function NotificationBell() {
         )
       );
       setNotifications(notifications.map(n => ({ ...n, read: true })));
+      prevUnreadCount.current = 0;
     } catch (err) {
       setError("Failed to mark notifications as read");
     }
   };
 
   // Handle bell click
-  const handleClick = () => {
-    setDropdownOpen(!dropdownOpen);
-    if (!dropdownOpen) markAllAsRead();
+  const handleClick = async () => {
+    const willOpen = !dropdownOpen;
+    setDropdownOpen(willOpen);
+    if (willOpen) {
+      // Ensure we have the latest list on open, but don’t flicker if we already have items
+      await (async () => {
+        try {
+          await API.get('/notifications/unread-count').then(({ data }) => {
+            prevUnreadCount.current = data?.count ?? prevUnreadCount.current;
+          }).catch(() => {});
+          await new Promise(r => setTimeout(r, 50)); // tiny debounce for smoother UI
+          await API.get('/notifications').then(({ data }) => {
+            setNotifications(Array.isArray(data) ? data : []);
+          }).catch(() => {});
+        } catch {}
+      })();
+      // Optionally mark as read on dropdown open
+      markAllAsRead();
+    }
   };
   // Close dropdown on escape key
   useEffect(() => {

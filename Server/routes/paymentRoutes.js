@@ -181,6 +181,8 @@ router.get("/health", (req, res) => {
 router.post("/create-order", verifyToken, async (req, res) => {
   // Debug helpful headers to track CORS/abort issues
   try {
+    // Capture client origin from the request for reliable callback redirects later
+    const reqClientOrigin = getClientOrigin(req);
     console.log("➡️  /payment/create-order hit", {
       origin: req.headers.origin,
       referer: req.headers.referer,
@@ -215,7 +217,7 @@ router.post("/create-order", verifyToken, async (req, res) => {
       return res.status(400).json({ error: "Minimum amount is ₹1.00" });
     }
 
-  const options = {
+    const options = {
       amount: paise,
       currency: "INR",
       receipt: `rcptid_${Date.now()}`,
@@ -225,8 +227,9 @@ router.post("/create-order", verifyToken, async (req, res) => {
         type: "loan_payment",
         loanId: loanId || "",
         isRepayment: Boolean(isRepayment) === true,
-  userId: req.user?.id || req.user?.uid || "",
-  userName: req.user?.name || req.user?.email || ""
+        userId: req.user?.id || req.user?.uid || "",
+        userName: req.user?.name || req.user?.email || "",
+        clientOrigin: reqClientOrigin,
       },
     };
 
@@ -481,7 +484,7 @@ router.post("/callback", async (req, res) => {
     });
     if (!orderResp.ok) {
       const text = await orderResp.text().catch(() => '');
-      const redirectUrl = `${clientOrigin}/lender?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=ORDER_FETCH_FAILED&reason=${encodeURIComponent(text || 'Failed to fetch order')}`;
+  const redirectUrl = `${clientOrigin}/lender?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=ORDER_FETCH_FAILED&reason=${encodeURIComponent(text || 'Failed to fetch order')}`;
       res.setHeader('Content-Type', 'text/html');
       return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
         title: 'Processing error',
@@ -489,14 +492,17 @@ router.post("/callback", async (req, res) => {
         status: 'error'
       }));
     }
-    const orderJson = await orderResp.json();
-    const notes = orderJson?.notes || {};
+  const orderJson = await orderResp.json();
+  const notes = orderJson?.notes || {};
+  // Prefer clientOrigin provided at order creation to avoid localhost fallbacks
+  const clientOriginFromNotes = notes.clientOrigin;
     const loanId = notes.loanId;
     const isRepayment = notes.isRepayment === true || notes.isRepayment === 'true';
     const routeBase = isRepayment ? '/borrower' : '/lender';
 
     if (!loanId) {
-      const redirectUrl = `${clientOrigin}${routeBase}?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=MISSING_CONTEXT&reason=${encodeURIComponent('Order missing loanId context')}`;
+      const redirectBase = clientOriginFromNotes || clientOrigin;
+      const redirectUrl = `${redirectBase}${routeBase}?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=MISSING_CONTEXT&reason=${encodeURIComponent('Order missing loanId context')}`;
       res.setHeader('Content-Type', 'text/html');
       return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
         title: 'Missing context',
@@ -508,7 +514,8 @@ router.post("/callback", async (req, res) => {
     // Update loan similar to /verify route
     const loan = await Loan.findById(loanId).populate('borrowerId lenderId');
     if (!loan) {
-      const redirectUrl = `${clientOrigin}${routeBase}?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=LOAN_NOT_FOUND&reason=${encodeURIComponent('Loan not found')}`;
+      const redirectBase = clientOriginFromNotes || clientOrigin;
+      const redirectUrl = `${redirectBase}${routeBase}?payment=failed&order=${encodeURIComponent(razorpay_order_id)}&code=LOAN_NOT_FOUND&reason=${encodeURIComponent('Loan not found')}`;
       res.setHeader('Content-Type', 'text/html');
       return res.status(200).send(renderAutoRedirectPage(redirectUrl, {
         title: 'Loan not found',
@@ -550,7 +557,7 @@ router.post("/callback", async (req, res) => {
     } catch (_) {}
 
     // Redirect back to app with success status
-    const successUrl = `${clientOrigin}${routeBase}?payment=success&order=${encodeURIComponent(razorpay_order_id)}`;
+  const successUrl = `${(clientOriginFromNotes || clientOrigin)}${routeBase}?payment=success&order=${encodeURIComponent(razorpay_order_id)}`;
     res.setHeader('Content-Type', 'text/html');
     return res.status(200).send(renderAutoRedirectPage(successUrl, {
       title: 'Payment successful',
@@ -597,6 +604,22 @@ router.get("/callback", async (req, res) => {
           const notes = orderJson?.notes || {};
           const isRepayment = notes.isRepayment === true || notes.isRepayment === 'true';
           routeBase = isRepayment ? '/borrower' : '/lender';
+          // If we can, override clientOrigin with the one captured at order creation
+          if (notes.clientOrigin) {
+            // Validate and prefer https
+            try {
+              const u = new URL(notes.clientOrigin);
+              const host = u.host;
+              const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+              if (!isLocal && u.protocol === 'http:') {
+                clientOrigin = `https://${host}`;
+              } else {
+                clientOrigin = u.origin;
+              }
+            } catch (_) {
+              clientOrigin = notes.clientOrigin;
+            }
+          }
         }
       }
     } catch (_) {}

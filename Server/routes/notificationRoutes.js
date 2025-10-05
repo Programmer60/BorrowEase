@@ -4,11 +4,29 @@ import { verifyToken } from "../firebase.js";
 
 const router = express.Router();
 
-// Get user's notifications
+// Get user's notifications with optional incremental fetch (?since=ISO8601)
 router.get("/", verifyToken, async (req, res) => {
   try {
-    const notifications = await Notification.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    const query = { userId: req.user.id };
+    const { since } = req.query || {};
+    if (since) {
+      const d = new Date(since);
+      if (!isNaN(d.getTime())) {
+        query.createdAt = { $gt: d };
+      }
+    }
+    const notifications = await Notification.find(query).sort({ createdAt: -1 });
     res.json(notifications);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Lightweight unread count for efficient polling
+router.get('/unread-count', verifyToken, async (req, res) => {
+  try {
+    const count = await Notification.countDocuments({ userId: req.user.id, read: false });
+    res.json({ count });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
