@@ -33,14 +33,65 @@ const rzpAgent = new https.Agent({ keepAlive: true });
 
 // Helper to build absolute callback URL (dev default)
 const getCallbackUrl = (req) => {
-  const host = process.env.PUBLIC_SERVER_ORIGIN || `${req.protocol}://${req.get('host')}`;
-  // Ensure we point to this server origin
-  return `${host}/api/payment/callback`;
+  // If explicitly configured, always trust this origin
+  const configured = process.env.PUBLIC_SERVER_ORIGIN;
+  if (configured) {
+    let base = configured.replace(/\/$/, '');
+    try {
+      const u = new URL(base);
+      const host = u.host;
+      const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+      if (!isLocal && u.protocol === 'http:') {
+        // Prevent insecure callback in production
+        base = `https://${host}`;
+      }
+    } catch (_) {}
+    return `${base}/api/payment/callback`;
+  }
+
+  // Derive from request headers and ensure https for non-local envs
+  const xfProto = (req.headers["x-forwarded-proto"] || '').toString().split(',')[0].trim();
+  const xfHost = (req.headers["x-forwarded-host"] || '').toString().split(',')[0].trim();
+  const host = xfHost || req.get('host');
+  let protocol = (xfProto || req.protocol || 'https').toLowerCase();
+
+  // Force https if host is not localhost/127.0.0.1 to avoid insecure callback warnings
+  const isLocal = host && /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+  if (!isLocal) protocol = 'https';
+
+  return `${protocol}://${host}/api/payment/callback`;
 };
 
 // Helper to build client (SPA) origin to return the user after payment
 const getClientOrigin = (req) => {
-  return process.env.PUBLIC_CLIENT_ORIGIN || 'http://localhost:5173';
+  const configured = process.env.PUBLIC_CLIENT_ORIGIN;
+  if (configured) {
+    try {
+      const u = new URL(configured);
+      const host = u.host;
+      const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+      if (!isLocal && u.protocol === 'http:') {
+        return `https://${host}`;
+      }
+      return u.origin;
+    } catch (_) {
+      // Fallback to as-is if not a full URL
+      return configured.replace(/\/$/, '');
+    }
+  }
+  // Try to infer from referrer/origin headers
+  const hdr = (req.headers.origin || req.headers.referer || '').toString();
+  try {
+    const u = new URL(hdr);
+    const host = u.host;
+    const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+    if (!isLocal && u.protocol === 'http:') {
+      return `https://${host}`;
+    }
+    return u.origin;
+  } catch (_) {}
+  // Dev default
+  return 'http://localhost:5173';
 };
 
 // Pretty redirect page (used in callback) so users don't see a blank screen

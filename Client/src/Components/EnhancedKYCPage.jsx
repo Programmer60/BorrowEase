@@ -219,7 +219,7 @@ const DocumentUploadCard = ({
         ) : (
           <div className="space-y-3">
             {/* Upload Progress Bar */}
-            {uploadProgress[type] && uploadProgress[type] > 0 && uploadProgress[type] < 100 && (
+            {(Number(uploadProgress[type] ?? 0) > 0 && Number(uploadProgress[type]) < 100) && (
               <div className="w-full">
                 <div className={`flex justify-between text-sm mb-1 ${
                   isDark ? 'text-gray-300' : 'text-gray-600'
@@ -240,7 +240,7 @@ const DocumentUploadCard = ({
             
             <button
               onClick={() => document.getElementById(`file-${type}`).click()}
-              disabled={uploadProgress[type] && uploadProgress[type] > 0 && uploadProgress[type] < 100}
+              disabled={(Number(uploadProgress[type] ?? 0) > 0 && Number(uploadProgress[type]) < 100)}
               className={`flex items-center justify-center px-4 py-2 rounded-lg mx-auto transition-colors cursor-pointer ${
                 uploadProgress[type] && uploadProgress[type] > 0 && uploadProgress[type] < 100
                   ? isDark ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -248,7 +248,7 @@ const DocumentUploadCard = ({
               }`}
             >
               <Upload className="w-4 h-4 mr-2" />
-              {uploadProgress[type] && uploadProgress[type] > 0 && uploadProgress[type] < 100 
+              {(Number(uploadProgress[type] ?? 0) > 0 && Number(uploadProgress[type]) < 100) 
                 ? 'Uploading...' 
                 : `Upload ${title}`
               }
