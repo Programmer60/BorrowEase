@@ -32,9 +32,12 @@ export default function Navbar() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [authReady, setAuthReady] = useState(false);
   const navigate = useNavigate();
 
+  // Fetch notifications whenever a user is present
   useEffect(() => {
+    if (!user) return;
     const fetchNotifications = async () => {
       try {
         const res = await API.get("/notifications");
@@ -44,44 +47,38 @@ export default function Navbar() {
         console.error("Error fetching notifications:", error);
       }
     };
-
     fetchNotifications();
-  }, []);
+  }, [user]);
 
+  // Keep Navbar in sync with Firebase auth across redirects/tab switches
   useEffect(() => {
-  const fetchNotifications = async () => {
-    try {
-      const res = await API.get("/notifications");
-      setNotifications(res.data);
-      setUnreadCount(res.data.filter(n => !n.read).length);
-    } catch (err) {
-      console.error("Notification fetch error:", err);
-    }
-  };
-  fetchNotifications();
-}, []);
-
-  useEffect(() => {
-    const fetchUser = async () => {
+    const unsubscribe = auth.onAuthStateChanged(async (fbUser) => {
       try {
-        const res = await API.get("/users/me");
-        setUser({
-          displayName: res.data.name,
-          email: res.data.email,
-          photoURL: auth.currentUser?.photoURL || null,
-          kyc: res.data.kyc || null,
-          kycStatus: res.data.kycStatus || 'not_submitted'
-        });
-        console.log('👤 User role fetched in Navbar:', res.data.role);
-        setUserRole(res.data.role);
-      } catch (error) {
-        console.error("Error fetching user:", error.message);
+        if (fbUser) {
+          // Ensure API has a fresh token
+          const token = await fbUser.getIdToken();
+          API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+          // Load current user from API
+          const res = await API.get("/users/me");
+          setUser({
+            displayName: res.data.name,
+            email: res.data.email,
+            photoURL: fbUser.photoURL || null,
+            kyc: res.data.kyc || null,
+            kycStatus: res.data.kycStatus || 'not_submitted'
+          });
+          setUserRole(res.data.role);
+        } else {
+          setUser(null);
+          setUserRole("");
+        }
+      } catch (e) {
+        console.error('Navbar auth sync error:', e);
+      } finally {
+        setAuthReady(true);
       }
-    };
-
-    if (auth.currentUser) {
-      fetchUser();
-    }
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
@@ -251,7 +248,7 @@ export default function Navbar() {
 
           {/* Profile & Auth */}
           <div className="hidden md:flex items-center space-x-4">
-            {user ? (
+            {authReady && user ? (
               <>
                 {/* Theme Toggle */}
                 <ThemeToggle variant="simple" />
@@ -400,7 +397,7 @@ export default function Navbar() {
                   )}
                 </div>
               </>
-            ) : (
+            ) : authReady ? (
               <div className="flex items-center space-x-3">
                 {/* Theme Toggle for non-authenticated users */}
                 <ThemeToggle variant="simple" />
@@ -410,6 +407,9 @@ export default function Navbar() {
                   </button>
                 </Link>
               </div>
+            ) : (
+              // While auth is initializing, keep the area stable to avoid flicker
+              <div style={{ width: 160, height: 32 }} />
             )}
           </div>
 
