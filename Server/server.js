@@ -30,6 +30,10 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 
+// Behind Render/other proxies, trust the proxy so req.protocol reflects 'https'
+// This helps us generate correct absolute URLs (e.g., payment callback) without downgrading to http
+app.set('trust proxy', 1);
+
 // Socket.IO setup with proper authentication
 // Allowlist from env (comma-separated), with local dev defaults
 // Supports exact origins and wildcard entries like:
