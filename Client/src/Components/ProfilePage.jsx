@@ -16,6 +16,7 @@ import {
 import Navbar from "./Navbar";
 import API from "../api/api";
 import { useTheme } from '../contexts/ThemeContext';
+import { toast } from 'react-hot-toast';
 
 export default function ProfilePage() {
   const { isDark } = useTheme();
@@ -55,9 +56,9 @@ export default function ProfilePage() {
   const fileInputRef = useRef(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  // Cloudinary configuration via env with sensible fallbacks for dev
-  const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  // Cloudinary configuration via env with sensible fallbacks for local dev when unset
+  const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dbvse3x8p";
+  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "borrowease_profile";
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -124,10 +125,23 @@ export default function ProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Misconfiguration guard: using a signed preset (e.g., borrowease_kyc) for unsigned upload will fail
+    if (/kyc/i.test(CLOUDINARY_UPLOAD_PRESET)) {
+      toast.error(
+        'Profile uploads require an UNSIGNED preset. Set VITE_CLOUDINARY_UPLOAD_PRESET=borrowease_profile in Vercel and redeploy.'
+      );
+      return;
+    }
+
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      toast.error('Cloudinary not configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.');
+      return;
+    }
+
     // Basic client-side checks
     const maxSizeMB = 5;
     if (file.size > maxSizeMB * 1024 * 1024) {
-      alert(`Please choose an image smaller than ${maxSizeMB}MB.`);
+      toast.error(`Please choose an image smaller than ${maxSizeMB}MB.`);
       return;
     }
 
@@ -137,6 +151,7 @@ export default function ProfilePage() {
 
     try {
       setIsUploadingPhoto(true);
+      const toastId = toast.loading('Uploading photo...');
       const res = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
         {
@@ -146,8 +161,20 @@ export default function ProfilePage() {
       );
 
       if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || "Cloudinary upload failed");
+        let message = "Cloudinary upload failed";
+        try {
+          const errJson = await res.json();
+          message = errJson?.error?.message || message;
+        } catch {
+          const errText = await res.text();
+          if (errText) message = errText;
+        }
+        // Common misconfig: unsigned preset not whitelisted
+        if (message.toLowerCase().includes("preset") && message.toLowerCase().includes("whitelist")) {
+          message = "Upload preset is not whitelisted for unsigned uploads. In Cloudinary → Settings → Upload → Upload presets → borrowease_profile: set Signing mode to Unsigned and add your domains (vercel app + localhost) to Allowed origins.";
+        }
+        toast.dismiss(toastId);
+        throw new Error(message);
       }
 
       const data = await res.json();
@@ -159,9 +186,11 @@ export default function ProfilePage() {
         ...prev,
         profilePicture: imageUrl,
       }));
+      toast.success('Profile photo updated');
+      toast.dismiss();
     } catch (error) {
       console.error("Image upload failed:", error);
-      alert("Image upload failed. Please try again.");
+      toast.error(typeof error?.message === 'string' ? error.message : 'Image upload failed. Please try again.');
     } finally {
       setIsUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = ""; // reset input
@@ -171,6 +200,7 @@ export default function ProfilePage() {
   const handleSave = async () => {
     try {
       // Save updated profile data to API
+      const toastId = toast.loading('Saving profile...');
       await API.patch("/users/me", {
         name: profileData.name,
         phone: profileData.phone,
@@ -181,10 +211,12 @@ export default function ProfilePage() {
       });
       
       console.log("Profile data saved successfully");
+      toast.success('Profile saved');
+      toast.dismiss(toastId);
       setIsEditing(false);
     } catch (error) {
       console.error("Error saving profile data:", error);
-      alert("Failed to save profile data");
+      toast.error('Failed to save profile data');
     }
   };
 
