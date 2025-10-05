@@ -32,6 +32,14 @@ const upload = multer({
 // Upload endpoint
 router.post('/kyc-document', verifyToken, upload.single('file'), async (req, res) => {
   try {
+    // Config sanity check
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(500).json({
+        error: 'Cloudinary is not configured on the server',
+        hint: 'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET in server environment and redeploy.'
+      });
+    }
+
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -70,8 +78,15 @@ router.post('/kyc-document', verifyToken, upload.single('file'), async (req, res
         uploadOptions,
         (error, result) => {
           if (error) {
-            console.error('Cloudinary upload error:', error);
-            reject(error);
+            // Cloudinary errors often carry http_code and message
+            const errPayload = {
+              message: error?.message || 'Cloudinary upload failed',
+              http_code: error?.http_code,
+              name: error?.name,
+              code: error?.code,
+            };
+            console.error('Cloudinary upload error:', errPayload);
+            reject(Object.assign(new Error(errPayload.message), errPayload));
           } else {
             resolve(result);
           }
@@ -104,9 +119,11 @@ router.post('/kyc-document', verifyToken, upload.single('file'), async (req, res
 
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({ 
+    const http = error?.http_code && Number.isInteger(error.http_code) ? error.http_code : 500;
+    res.status(http).json({ 
       error: 'Upload failed', 
-      details: error.message 
+      details: error?.message || 'Unknown error',
+      code: error?.code || undefined
     });
   }
 });
