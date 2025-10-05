@@ -34,6 +34,29 @@ router.post('/sign-upload', verifyToken, (req, res) => {
   });
 });
 
+// POST /api/sign-upload-profile - Signed upload for profile pictures
+router.post('/sign-upload-profile', verifyToken, (req, res) => {
+  const timestamp = Math.round((new Date()).getTime() / 1000);
+  // keep folder simple and separate from KYC documents
+  const folder = 'borrowease/profile-pictures';
+
+  const params_to_sign = {
+    timestamp,
+    folder,
+  };
+
+  const signature = cloudinary.utils.api_sign_request(
+    params_to_sign,
+    process.env.CLOUDINARY_API_SECRET
+  );
+
+  res.json({
+    timestamp,
+    signature,
+    folder,
+  });
+});
+
 // POST /api/sign-view-url - Generate signed URL for viewing documents
 router.post('/sign-view-url', verifyToken, (req, res) => {
   try {
