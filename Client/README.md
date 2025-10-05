@@ -38,6 +38,17 @@ Create a `.env` from `.env.example` and set:
 	- Prod: https://<your-backend-on-render>.onrender.com
 - VITE_SOCKET_URL (optional): Socket.IO origin. Defaults to VITE_API_BASE_URL origin when unset.
 
+Cloudinary (for profile photo uploads)
+- VITE_CLOUDINARY_CLOUD_NAME: your Cloudinary cloud name
+- VITE_CLOUDINARY_API_KEY: public API key (optional, not used for unsigned upload request)
+- VITE_CLOUDINARY_UPLOAD_PRESET: borrowease_profile (recommended)
+
+In Cloudinary → Settings → Upload → Upload presets:
+- Create/Edit `borrowease_profile`
+- Set Signing mode: Unsigned
+- Add Allowed origins: your Vercel domain(s) and http://localhost:5173
+- Optionally restrict file types and size
+
 Notes
 - All frontend API calls use a centralized Axios instance configured from these env vars.
 - Some development-only fetch calls were updated to use the same base, so your production build will point to the Render backend.
