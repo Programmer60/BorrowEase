@@ -56,9 +56,10 @@ export default function ProfilePage() {
   const fileInputRef = useRef(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  // Cloudinary configuration via env with sensible fallbacks for local dev when unset
+  // Cloudinary configuration: prefer signed uploads via backend signature
   const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dbvse3x8p";
-  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "borrowease_profile";
+  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "borrowease_profile"; // still used if you keep unsigned
+  const CLOUDINARY_API_KEY = import.meta.env.VITE_CLOUDINARY_API_KEY; // optional, only for signed client request
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -125,16 +126,8 @@ export default function ProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Misconfiguration guard: using a signed preset (e.g., borrowease_kyc) for unsigned upload will fail
-    if (/kyc/i.test(CLOUDINARY_UPLOAD_PRESET)) {
-      toast.error(
-        'Profile uploads require an UNSIGNED preset. Set VITE_CLOUDINARY_UPLOAD_PRESET=borrowease_profile in Vercel and redeploy.'
-      );
-      return;
-    }
-
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
-      toast.error('Cloudinary not configured. Set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET.');
+    if (!CLOUDINARY_CLOUD_NAME) {
+      toast.error('Cloudinary not configured. Set VITE_CLOUDINARY_CLOUD_NAME');
       return;
     }
 
@@ -145,20 +138,25 @@ export default function ProfilePage() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
     try {
       setIsUploadingPhoto(true);
       const toastId = toast.loading('Uploading photo...');
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      // Request a signature from backend for signed upload
+      const sigRes = await API.post('/sign-upload-profile');
+      const { timestamp, signature, folder } = sigRes.data || {};
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('timestamp', String(timestamp));
+      if (folder) formData.append('folder', folder);
+      if (CLOUDINARY_API_KEY) formData.append('api_key', CLOUDINARY_API_KEY);
+      if (signature) formData.append('signature', signature);
+      // Note: no upload_preset for signed direct upload when signature is present
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+        method: 'POST',
+        body: formData,
+      });
 
       if (!res.ok) {
         let message = "Cloudinary upload failed";

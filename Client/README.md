@@ -49,6 +49,8 @@ In Cloudinary → Settings → Upload → Upload presets:
 - Add Allowed origins: your Vercel domain(s) and http://localhost:5173
 - Optionally restrict file types and size
 
+Signed uploads (recommended): the client now requests a signature from the backend at `/api/sign-upload-profile` and uploads directly to Cloudinary with `timestamp`, `signature`, and optional `folder`. Ensure the server has `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, and `CLOUDINARY_API_SECRET` set.
+
 Notes
 - All frontend API calls use a centralized Axios instance configured from these env vars.
 - Some development-only fetch calls were updated to use the same base, so your production build will point to the Render backend.
