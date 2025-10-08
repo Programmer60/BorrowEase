@@ -57,8 +57,8 @@ export default function ProfilePage() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   // Cloudinary configuration: prefer signed uploads via backend signature
-  const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || "dbvse3x8p";
-  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "borrowease_profile"; // still used if you keep unsigned
+  const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET; // still used if you keep unsigned
   const CLOUDINARY_API_KEY = import.meta.env.VITE_CLOUDINARY_API_KEY; // optional, only for signed client request
 
   // Cache-busted fetchers to avoid any intermediary cache

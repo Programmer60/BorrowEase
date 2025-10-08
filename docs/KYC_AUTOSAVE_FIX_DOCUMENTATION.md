@@ -188,9 +188,9 @@ The restored data now matches this format exactly.
 ### Cloudinary Configuration
 Ensure these environment variables are set in `Server/.env`:
 ```env
-CLOUDINARY_CLOUD_NAME=dbvse3x8p
-CLOUDINARY_API_KEY=187681591197656
-CLOUDINARY_API_SECRET=9BIaXZhgfu_wHueMy387-z2jH6U
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
 ```
 
 ### Upload Endpoint
