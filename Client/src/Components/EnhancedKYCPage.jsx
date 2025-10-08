@@ -464,6 +464,7 @@ const EnhancedKYCPage = () => {
   });
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [showRestoredNotification, setShowRestoredNotification] = useState(false);
 
   // Missing steps definition - ADD this:
   const steps = [
@@ -883,17 +884,53 @@ const EnhancedKYCPage = () => {
     };
   }, []);
 
-  // Auto-save form data to localStorage
+  // Auto-save form data to localStorage (Enhanced to save all progress)
   useEffect(() => {
     const saveData = {
       personalInfo: kycData.personalInfo,
+      documents: {
+        aadharCard: { 
+          number: kycData.documents.aadharCard.number,
+          hasFile: !!kycData.documents.aadharCard.file,
+          cloudinaryUrl: kycData.documents.aadharCard.cloudinaryUrl,
+          publicId: kycData.documents.aadharCard.publicId,
+          fileInfo: kycData.documents.aadharCard.fileInfo
+        },
+        panCard: { 
+          number: kycData.documents.panCard.number,
+          hasFile: !!kycData.documents.panCard.file,
+          cloudinaryUrl: kycData.documents.panCard.cloudinaryUrl,
+          publicId: kycData.documents.panCard.publicId,
+          fileInfo: kycData.documents.panCard.fileInfo
+        },
+        bankStatement: { 
+          hasFile: !!kycData.documents.bankStatement.file,
+          cloudinaryUrl: kycData.documents.bankStatement.cloudinaryUrl,
+          publicId: kycData.documents.bankStatement.publicId,
+          fileInfo: kycData.documents.bankStatement.fileInfo
+        },
+        salarySlip: { 
+          hasFile: !!kycData.documents.salarySlip.file,
+          cloudinaryUrl: kycData.documents.salarySlip.cloudinaryUrl,
+          publicId: kycData.documents.salarySlip.publicId,
+          fileInfo: kycData.documents.salarySlip.fileInfo
+        },
+        selfie: { 
+          hasFile: !!kycData.documents.selfie.file,
+          cloudinaryUrl: kycData.documents.selfie.cloudinaryUrl,
+          publicId: kycData.documents.selfie.publicId,
+          fileInfo: kycData.documents.selfie.fileInfo
+        }
+      },
+      verification: kycData.verification,
       currentStep,
+      formattedAadhar,
       lastSaved: new Date().toISOString()
     };
     localStorage.setItem('kycFormData', JSON.stringify(saveData));
-  }, [kycData.personalInfo, currentStep]);
+  }, [kycData, currentStep, formattedAadhar]);
 
-  // Load saved form data on component mount
+  // Load saved form data on component mount (Enhanced to restore all progress)
   useEffect(() => {
     try {
       const savedData = localStorage.getItem('kycFormData');
@@ -904,20 +941,100 @@ const EnhancedKYCPage = () => {
         const hoursDiff = (now - lastSaved) / (1000 * 60 * 60);
         
         // Only restore if saved within last 24 hours
-        if (hoursDiff < 24 && parsed.personalInfo) {
-          setKycData(prev => ({
-            ...prev,
-            personalInfo: { ...prev.personalInfo, ...parsed.personalInfo }
-          }));
-          
-          // Optionally restore step if not completed
-          if (parsed.currentStep && parsed.currentStep > currentStep) {
-            setCurrentStep(parsed.currentStep);
+        if (hoursDiff < 24) {
+          // Restore personal info
+          if (parsed.personalInfo) {
+            setKycData(prev => ({
+              ...prev,
+              personalInfo: { ...prev.personalInfo, ...parsed.personalInfo }
+            }));
           }
+          
+          // Restore document metadata (URLs from Cloudinary)
+          if (parsed.documents) {
+            setKycData(prev => ({
+              ...prev,
+              documents: {
+                aadharCard: {
+                  ...prev.documents.aadharCard,
+                  number: parsed.documents.aadharCard?.number || '',
+                  file: parsed.documents.aadharCard?.cloudinaryUrl || null,
+                  preview: parsed.documents.aadharCard?.cloudinaryUrl || null,
+                  cloudinaryUrl: parsed.documents.aadharCard?.cloudinaryUrl,
+                  publicId: parsed.documents.aadharCard?.publicId,
+                  fileInfo: parsed.documents.aadharCard?.fileInfo || null
+                },
+                panCard: {
+                  ...prev.documents.panCard,
+                  number: parsed.documents.panCard?.number || '',
+                  file: parsed.documents.panCard?.cloudinaryUrl || null,
+                  preview: parsed.documents.panCard?.cloudinaryUrl || null,
+                  cloudinaryUrl: parsed.documents.panCard?.cloudinaryUrl,
+                  publicId: parsed.documents.panCard?.publicId,
+                  fileInfo: parsed.documents.panCard?.fileInfo || null
+                },
+                bankStatement: {
+                  ...prev.documents.bankStatement,
+                  file: parsed.documents.bankStatement?.cloudinaryUrl || null,
+                  preview: parsed.documents.bankStatement?.cloudinaryUrl || null,
+                  cloudinaryUrl: parsed.documents.bankStatement?.cloudinaryUrl,
+                  publicId: parsed.documents.bankStatement?.publicId,
+                  fileInfo: parsed.documents.bankStatement?.fileInfo || null
+                },
+                salarySlip: {
+                  ...prev.documents.salarySlip,
+                  file: parsed.documents.salarySlip?.cloudinaryUrl || null,
+                  preview: parsed.documents.salarySlip?.cloudinaryUrl || null,
+                  cloudinaryUrl: parsed.documents.salarySlip?.cloudinaryUrl,
+                  publicId: parsed.documents.salarySlip?.publicId,
+                  fileInfo: parsed.documents.salarySlip?.fileInfo || null
+                },
+                selfie: {
+                  ...prev.documents.selfie,
+                  file: parsed.documents.selfie?.cloudinaryUrl || null,
+                  preview: parsed.documents.selfie?.cloudinaryUrl || null,
+                  cloudinaryUrl: parsed.documents.selfie?.cloudinaryUrl,
+                  publicId: parsed.documents.selfie?.publicId,
+                  fileInfo: parsed.documents.selfie?.fileInfo || null
+                }
+              }
+            }));
+          }
+          
+          // Restore verification status
+          if (parsed.verification) {
+            setKycData(prev => ({
+              ...prev,
+              verification: { ...prev.verification, ...parsed.verification }
+            }));
+          }
+          
+          // Restore formatted Aadhar
+          if (parsed.formattedAadhar) {
+            setFormattedAadhar(parsed.formattedAadhar);
+          }
+          
+          // Restore step
+          if (parsed.currentStep && parsed.currentStep > 1) {
+            setCurrentStep(parsed.currentStep);
+            
+            // Show a notification that progress was restored
+            console.log('✅ KYC form progress restored from', new Date(lastSaved).toLocaleString());
+            setShowRestoredNotification(true);
+            
+            // Hide notification after 5 seconds
+            setTimeout(() => {
+              setShowRestoredNotification(false);
+            }, 5000);
+          }
+        } else {
+          // Data is too old, clear it
+          localStorage.removeItem('kycFormData');
         }
       }
     } catch (error) {
       console.log('Error loading saved data:', error);
+      localStorage.removeItem('kycFormData');
     }
   }, []);
 
@@ -1325,6 +1442,9 @@ const EnhancedKYCPage = () => {
       // Show success message with attempt information
       const attemptMsg = response.data.attempts ? ` (Attempt ${response.data.attempts}/3)` : '';
       alert(`KYC submitted successfully${attemptMsg}! Your documents will be reviewed within 24-48 hours.`);
+      
+      // Clear saved form data from localStorage after successful submission
+      localStorage.removeItem('kycFormData');
       
       // Clear phone verification status after successful submission
       localStorage.removeItem('phoneVerified');
@@ -2264,6 +2384,33 @@ const EnhancedKYCPage = () => {
     }`}>
       <Navbar />
       
+      {/* Progress Restored Notification Toast */}
+      {showRestoredNotification && (
+        <div className="fixed top-20 right-4 z-50 animate-fade-in">
+          <div className={`rounded-lg shadow-2xl p-4 flex items-center space-x-3 ${
+            isDark ? 'bg-gray-800 border border-green-700' : 'bg-white border border-green-300'
+          }`}>
+            <div className="flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-green-500" />
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Progress Restored
+              </p>
+              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Your previous progress has been restored
+              </p>
+            </div>
+            <button
+              onClick={() => setShowRestoredNotification(false)}
+              className={`flex-shrink-0 ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Main Content Container */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
@@ -2332,6 +2479,16 @@ const EnhancedKYCPage = () => {
                 )}
               </React.Fragment>
             ))}
+          </div>
+          
+          {/* Auto-save Indicator */}
+          <div className="mt-4 flex items-center justify-center">
+            <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs ${
+              isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-700'
+            }`}>
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span className="font-medium">Progress Auto-saved</span>
+            </div>
           </div>
         </div>
 

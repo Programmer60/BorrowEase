@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Wallet,
   User,
@@ -34,6 +34,36 @@ export default function Navbar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [authReady, setAuthReady] = useState(false);
   const navigate = useNavigate();
+  const profileRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+
+  // Close profile dropdown on outside click or Escape
+  useEffect(() => {
+    if (!isProfileOpen) return;
+    const onDocClick = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setIsProfileOpen(false);
+      }
+    };
+    const onEsc = (e) => {
+      if (e.key === 'Escape') setIsProfileOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [isProfileOpen]);
+
+  // Prevent background scroll when mobile menu is open
+  useEffect(() => {
+    if (isMenuOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [isMenuOpen]);
 
   // Fetch notifications whenever a user is present
   useEffect(() => {
@@ -53,8 +83,20 @@ export default function Navbar() {
   // Keep Navbar in sync with Firebase auth across redirects/tab switches
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (fbUser) => {
+      console.log('🔄 Navbar auth state change:', fbUser ? `${fbUser.email} (verified: ${fbUser.emailVerified})` : 'No user');
       try {
         if (fbUser) {
+          // Critical Security Check: Email Verification for password providers
+          if (!fbUser.emailVerified && fbUser.providerData[0]?.providerId === 'password') {
+            console.log('🚫 Navbar: Email not verified for:', fbUser.email, '- showing public navigation');
+            // Don't set user or userRole - this will hide all authenticated features
+            setUser(null);
+            setUserRole("");
+            setAuthReady(true);
+            return;
+          }
+
+          console.log('✅ Navbar: User authenticated and verified, loading user data...');
           // Ensure API has a fresh token
           const token = await fbUser.getIdToken();
           API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -63,19 +105,29 @@ export default function Navbar() {
           setUser({
             displayName: res.data.name,
             email: res.data.email,
-            photoURL: fbUser.photoURL || null,
+            photoURL: res.data.profilePicture || fbUser.photoURL || null,
             kyc: res.data.kyc || null,
-            kycStatus: res.data.kycStatus || 'not_submitted'
+            kycStatus: res.data.kycStatus || 'not_submitted',
+            emailVerified: fbUser.emailVerified
           });
           setUserRole(res.data.role);
+          console.log('✅ Navbar: User data loaded, role:', res.data.role, 'photoURL:', res.data.profilePicture);
         } else {
+          console.log('❌ Navbar: No authenticated user - showing public navigation');
           setUser(null);
           setUserRole("");
         }
       } catch (e) {
-        console.error('Navbar auth sync error:', e);
+        console.error('❌ Navbar auth sync error:', e);
+        // If API call fails (e.g., due to email verification requirement), clear user state
+        if (e?.response?.status === 403 && e?.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
+          console.log('🚫 API blocked due to email verification requirement - showing public navigation');
+          setUser(null);
+          setUserRole("");
+        }
       } finally {
         setAuthReady(true);
+        console.log('🏁 Navbar auth ready. User:', !!fbUser, 'Role:', userRole);
       }
     });
     return () => unsubscribe();
@@ -90,13 +142,13 @@ export default function Navbar() {
 
   const navLinks = [
     {
-      label: "Borrower Dashboard",
+      label: "Dashboard",
       path: "/borrower",
       icon: <User className="w-4 h-4" />,
       show: user && userRole === "borrower",
     },
     {
-      label: "Lender Dashboard",
+      label: "Dashboard",
       path: "/lender",
       icon: <TrendingUp className="w-4 h-4" />,
       show: user && userRole === "lender",
@@ -159,27 +211,27 @@ export default function Navbar() {
     },
   ];
 
-  // Public navigation links that show only for non-authenticated users
+  // Public navigation links - only show when user is NOT authenticated and auth is ready
   const publicNavLinks = [
     {
       label: "About",
       path: "/about",
-      show: !user, // Only show when user is not logged in
+      show: authReady && !user, // Only show when no authenticated user
     },
     {
       label: "How it Works",
       path: "/how-it-works",
-      show: !user, // Only show when user is not logged in
+      show: authReady && !user, // Only show when no authenticated user
     },
     {
       label: "Contact",
       path: "/contact",
-      show: !user, // Only show when user is not logged in
+      show: authReady && !user, // Only show when no authenticated user
     },
   ];
 
   return (
-    <header className={`shadow-lg sticky top-0 z-50 theme-transition ${
+    <header style={{ paddingTop: 'env(safe-area-inset-top)' }} className={`shadow-lg sticky top-0 z-50 theme-transition ${
       isDark 
         ? 'bg-gray-900 border-b border-gray-700' 
         : 'bg-white border-b border-gray-200'
@@ -188,11 +240,11 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div
-            className="flex items-center cursor-pointer group"
+            className="flex items-center cursor-pointer group transition-transform transform hover:scale-105"
             onClick={() => navigate("/")}
           >
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-2 mr-3">
-              <Wallet className="w-6 h-6 text-white" />
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-2 mr-3 shadow-lg group-hover:shadow-xl transition-shadow">
+              <Wallet className="w-6 h-6 text-white group-hover:rotate-12 transition-transform" />
             </div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               BorrowEase
@@ -201,16 +253,24 @@ export default function Navbar() {
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-1">
-            {navLinks
+            {/* Auth Loading State */}
+            {!authReady && (
+              <div className={`px-4 py-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Loading...
+              </div>
+            )}
+
+            {/* Role-Based Navigation Links */}
+            {authReady && navLinks
               .filter((link) => link.show && link.label !== "Admin Panel")
               .map((link) => (
                 <button
                   key={link.path}
                   onClick={() => navigate(link.path)}
-                  className={`relative flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  className={`relative flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer transform hover:scale-105 ${
                     isDark 
-                      ? 'hover:bg-gray-800' 
-                      : 'hover:bg-gray-100'
+                      ? 'hover:bg-gray-800 active:scale-95' 
+                      : 'hover:bg-gray-100 active:scale-95'
                   } ${
                     link.className || (isDark 
                       ? "text-gray-300 hover:text-indigo-400" 
@@ -221,29 +281,34 @@ export default function Navbar() {
                   {link.icon}
                   <span className="ml-2">{link.label}</span>
                   {link.badge && (
-                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-lg animate-pulse">
                       {link.badge > 99 ? '99+' : link.badge}
                     </span>
                   )}
                 </button>
               ))}
             
-            {/* Public Navigation Links */}
-            {publicNavLinks
-              .filter((link) => link.show)
-              .map((link) => (
-                <Link
-                  key={link.label}
-                  to={link.path}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    isDark 
-                      ? 'text-gray-300 hover:text-indigo-400 hover:bg-gray-800' 
-                      : 'text-gray-700 hover:text-indigo-600 hover:bg-gray-100'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+            {/* Conditional Navigation: Public OR Authenticated, never both */}
+            {authReady && !user && (
+              <>
+                {/* Public Navigation Links - Only for guests */}
+                {publicNavLinks
+                  .filter((link) => link.show)
+                  .map((link) => (
+                    <Link
+                      key={link.label}
+                      to={link.path}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer transform hover:scale-105 active:scale-95 ${
+                        isDark 
+                          ? 'text-gray-300 hover:text-indigo-400 hover:bg-gray-800' 
+                          : 'text-gray-700 hover:text-indigo-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+              </>
+            )}
           </nav>
 
           {/* Profile & Auth */}
@@ -255,32 +320,36 @@ export default function Navbar() {
 
                 <NotificationBell/>
 
-                <div className="relative">
+                <div className="relative" ref={profileRef}>
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    className="flex items-center space-x-3"
+                    className={`flex items-center space-x-3 cursor-pointer transition-all transform hover:scale-105 active:scale-95 px-2 py-1 rounded-lg ${
+                      isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                    }`}
                   >
-                    <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center">
-                      {user.photoURL ? (
-                        <img
-                          src={user.photoURL}
-                          alt="Profile"
-                          className="w-8 h-8 rounded-full"
-                        />
-                      ) : (
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full object-cover shadow-lg ring-2 ring-indigo-400 ring-opacity-50"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg ring-2 ring-indigo-400 ring-opacity-50">
                         <User className="w-4 h-4 text-white" />
-                      )}
-                    </div>
+                      </div>
+                    )}
                     <div className="text-left">
-                      <p className={`text-sm font-medium ${
+                      <p className={`text-sm font-semibold ${
                         isDark ? 'text-gray-100' : 'text-gray-900'
                       }`}>{user.displayName}</p>
-                      <p className={`text-xs ${
-                        isDark ? 'text-gray-400' : 'text-gray-500'
+                      <p className={`text-xs capitalize ${
+                        isDark ? 'text-indigo-400' : 'text-indigo-600'
                       }`}>{userRole}</p>
                     </div>
-                    <ChevronDown className={`w-4 h-4 ${
-                      isDark ? 'text-gray-500' : 'text-gray-400'
+                    <ChevronDown className={`w-4 h-4 transition-transform ${
+                      isProfileOpen ? 'transform rotate-180' : ''
+                    } ${
+                      isDark ? 'text-gray-400' : 'text-gray-500'
                     }`} />
                   </button>
 
@@ -324,18 +393,19 @@ export default function Navbar() {
                       </div>
                       <button
                         onClick={() => navigate("/profile")}
-                        className={`w-full text-left px-4 py-2 text-sm ${
+                        className={`w-full text-left px-4 py-2 text-sm cursor-pointer transition-colors flex items-center space-x-2 ${
                           isDark 
                             ? 'hover:bg-gray-700 text-gray-300' 
                             : 'hover:bg-gray-100 text-gray-700'
                         }`}
                       >
-                        Profile Settings
+                        <Settings className="w-4 h-4" />
+                        <span>Profile Settings</span>
                       </button>
                       {userRole === "borrower" && (
                         <button
                           onClick={() => navigate("/kyc")}
-                          className={`w-full text-left px-4 py-2 text-sm flex items-center ${
+                          className={`w-full text-left px-4 py-2 text-sm flex items-center space-x-2 cursor-pointer transition-colors ${
                             isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
                           } ${
                             user.kycStatus === 'verified' 
@@ -385,13 +455,14 @@ export default function Navbar() {
                       )}
                       <button
                         onClick={handleLogout}
-                        className={`w-full text-left px-4 py-2 text-sm ${
+                        className={`w-full text-left px-4 py-2 text-sm cursor-pointer transition-colors flex items-center space-x-2 border-t ${
                           isDark 
-                            ? 'text-red-400 hover:bg-red-900/20' 
-                            : 'text-red-600 hover:bg-red-50'
+                            ? 'text-red-400 hover:bg-red-900/20 border-gray-700' 
+                            : 'text-red-600 hover:bg-red-50 border-gray-200'
                         }`}
                       >
-                        Logout
+                        <LogOut className="w-4 h-4" />
+                        <span>Logout</span>
                       </button>
                     </div>
                   )}
@@ -413,15 +484,23 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Hamburger */}
+          {/* Mobile Header Actions */}
           <div className="md:hidden flex items-center space-x-2">
             {/* Mobile Theme Toggle */}
             <ThemeToggle variant="simple" />
+            {/* Mobile Notifications Bell (only when logged in) */}
+            {authReady && user && (
+              <div className="mr-1">
+                <NotificationBell />
+              </div>
+            )}
+            {/* Mobile Hamburger */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className={`p-2 ${
-                isDark ? 'text-gray-400' : 'text-gray-500'
+              className={`p-2 rounded-lg cursor-pointer transition-all transform hover:scale-110 active:scale-95 ${
+                isDark ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-500 hover:bg-gray-100'
               }`}
+              aria-label="Toggle navigation menu"
             >
               {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -429,87 +508,146 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu: overlay + slide-out panel */}
       {isMenuOpen && (
-        <div className={`md:hidden border-t shadow ${
-          isDark 
-            ? 'bg-gray-800 border-gray-700' 
-            : 'bg-white border-gray-200'
-        }`}>
-          {navLinks
-            .filter((link) => link.show && link.label !== "Admin Panel")
-            .map((link) => (
-              <button
-                key={link.path}
-                onClick={() => {
-                  navigate(link.path);
-                  setIsMenuOpen(false);
-                }}
-                className={`relative w-full px-4 py-3 text-left text-sm flex items-center ${
-                  isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
-                } ${
-                  link.className || (isDark ? "text-gray-300" : "text-gray-700")
-                }`}
-              >
-                {link.icon}
-                <span className="ml-2">{link.label}</span>
-                {link.badge && (
-                  <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
-                    {link.badge > 99 ? '99+' : link.badge}
-                  </span>
-                )}
-                {link.label === "KYC Verification" && user?.kycStatus === 'verified' && (
-                  <CheckCircle className="w-4 h-4 ml-auto text-green-600" />
-                )}
-                {link.label === "KYC Verification" && user?.kycStatus === 'pending' && (
-                  <Clock className="w-4 h-4 ml-auto text-yellow-600" />
-                )}
-                {link.label === "KYC Verification" && user?.kycStatus === 'rejected' && (
-                  <X className="w-4 h-4 ml-auto text-red-600" />
-                )}
-              </button>
-            ))}
-          
-          {/* Public Navigation Links in Mobile Menu */}
-          {publicNavLinks
-            .filter((link) => link.show)
-            .map((link) => (
-              <Link
-                key={link.label}
-                to={link.path}
-                onClick={() => setIsMenuOpen(false)}
-                className={`block w-full px-4 py-3 text-left text-sm ${
-                  isDark 
-                    ? 'text-gray-300 hover:bg-gray-700' 
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
-          
-          {/* Admin Panel only in profile dropdown for admin users */}
-          <div className="border-t px-4 py-2">
-            {user ? (
-              <button
-                onClick={handleLogout}
-                className={`text-sm ${
-                  isDark 
-                    ? 'text-red-400 hover:text-red-300' 
-                    : 'text-red-600 hover:text-red-700'
-                }`}
-              >
-                Logout
-              </button>
-            ) : (
-              <Link to="/login">
-                <button className="w-full text-left text-sm text-indigo-600">
-                  Login
+        <>
+          <div 
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] md:hidden"
+            onClick={() => setIsMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            ref={mobileMenuRef}
+            className={`fixed top-[env(safe-area-inset-top)] right-0 h-[calc(100vh-env(safe-area-inset-top))] w-72 max-w-[85vw] z-50 overflow-y-auto border-l shadow-xl md:hidden ${
+              isDark 
+                ? 'bg-gray-800 border-gray-700' 
+                : 'bg-white border-gray-200'
+            }`}
+            role="dialog"
+            aria-label="Mobile navigation"
+          >
+            {navLinks
+              .filter((link) => link.show && link.label !== "Admin Panel")
+              .map((link) => (
+                <button
+                  key={link.path}
+                  onClick={() => {
+                    navigate(link.path);
+                    setIsMenuOpen(false);
+                  }}
+                  className={`relative w-full px-4 py-3 text-left text-sm flex items-center cursor-pointer transition-colors ${
+                    isDark ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-gray-50 active:bg-gray-100'
+                  } ${
+                    link.className || (isDark ? "text-gray-300" : "text-gray-700")
+                  }`}
+                >
+                  {link.icon}
+                  <span className="ml-2 font-medium">{link.label}</span>
+                  {link.badge && (
+                    <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-lg animate-pulse">
+                      {link.badge > 99 ? '99+' : link.badge}
+                    </span>
+                  )}
+                  {link.label === "KYC Verification" && user?.kycStatus === 'verified' && (
+                    <CheckCircle className="w-4 h-4 ml-auto text-green-600" />
+                  )}
+                  {link.label === "KYC Verification" && user?.kycStatus === 'pending' && (
+                    <Clock className="w-4 h-4 ml-auto text-yellow-600" />
+                  )}
+                  {link.label === "KYC Verification" && user?.kycStatus === 'rejected' && (
+                    <X className="w-4 h-4 ml-auto text-red-600" />
+                  )}
                 </button>
-              </Link>
+              ))}
+
+            {/* Conditional Mobile Navigation: Public OR Authenticated, never both */}
+            {authReady && !user && (
+              <>
+                {/* Public Navigation Links - Only for guests */}
+                {publicNavLinks
+                  .filter((link) => link.show)
+                  .map((link) => (
+                    <Link
+                      key={link.label}
+                      to={link.path}
+                      onClick={() => setIsMenuOpen(false)}
+                      className={`block w-full px-4 py-3 text-left text-sm font-medium cursor-pointer transition-colors ${
+                        isDark 
+                          ? 'text-gray-300 hover:bg-gray-700 active:bg-gray-600' 
+                          : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+              </>
             )}
+
+            {authReady && user && (
+              <>
+                {/* Quick Dashboard Access for Authenticated Users */}
+                {authenticatedNavLinks
+                  .filter((link) => link.show)
+                  .map((link) => (
+                    <Link
+                      key={link.label}
+                      to={link.path}
+                      onClick={() => setIsMenuOpen(false)}
+                      className={`block w-full px-4 py-3 text-left text-sm flex items-center space-x-2 font-medium cursor-pointer transition-colors ${
+                        link.className || (isDark 
+                          ? 'text-gray-300 hover:bg-gray-700 active:bg-gray-600' 
+                          : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100')
+                      }`}
+                    >
+                      {link.icon}
+                      <span>{link.label}</span>
+                    </Link>
+                  ))}
+              </>
+            )}
+
+            <div className={`border-t px-4 py-2 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              {user ? (
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      navigate('/profile');
+                      setIsMenuOpen(false);
+                    }}
+                    className={`text-sm cursor-pointer transition-colors ${
+                      isDark 
+                        ? 'text-indigo-300 hover:text-indigo-200' 
+                        : 'text-indigo-600 hover:text-indigo-700'
+                    }`}
+                  >
+                    Profile Settings
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className={`text-sm font-medium cursor-pointer transition-colors flex items-center space-x-1 ${
+                      isDark 
+                        ? 'text-red-400 hover:text-red-300' 
+                        : 'text-red-600 hover:text-red-700'
+                    }`}
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              ) : (
+                <Link to="/login" className="block">
+                  <button className={`w-full px-4 py-2 text-center text-sm font-semibold rounded-lg cursor-pointer transition-all transform active:scale-95 ${
+                    isDark 
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white' 
+                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
+                  } shadow-lg hover:shadow-xl`}>
+                    Sign In
+                  </button>
+                </Link>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </header>
   );
