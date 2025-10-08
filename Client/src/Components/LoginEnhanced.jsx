@@ -91,8 +91,22 @@ export default function Login() {
             
             const userData = await API.get("/users/me");
             const userRole = userData.data.role;
+            const isVerified = userData.data.verified && user.emailVerified;
             
-            console.log('User authenticated with role:', userRole);
+            console.log('User authenticated - Role:', userRole, 'Verified:', isVerified, 'Email verified:', user.emailVerified, 'DB verified:', userData.data.verified);
+            
+            // Check email verification for email-based accounts
+            if (!user.providerData.some(p => p.providerId === 'google.com') && !isVerified) {
+                console.log('❌ Email verification required for email-based account');
+                setVerificationEmail(user.email);
+                setAwaitingVerification(true);
+                showWarning('Please verify your email to continue accessing your dashboard.', {
+                    title: 'Email Verification Required',
+                    duration: 8000
+                });
+                return;
+            }
+            
             setIsLoggedIn(true);
             
             // Navigate based on role
@@ -103,6 +117,16 @@ export default function Login() {
             
         } catch (error) {
             console.error('Error handling auth state change:', error);
+            
+            // Handle verification required error
+            if (error.response?.status === 403 && error.response?.data?.code === 'EMAIL_VERIFICATION_REQUIRED') {
+                console.log('❌ Email verification required from API');
+                setVerificationEmail(user.email);
+                setAwaitingVerification(true);
+                showError(error.response.data.error || 'Email verification required');
+                return;
+            }
+            
             // If user data fetch fails, they might need to complete setup
             if (error.response?.status === 404) {
                 showInfo('Please complete your account setup');
@@ -329,16 +353,14 @@ export default function Login() {
             // Step 4: Check if user exists in database with verified status
             console.log('👤 Step 4: Checking user in database...');
             try {
-                console.log('🔍 Making API call to /users/me...');
+                // Update verification status in database since Firebase email is verified
+                console.log('📝 Updating verification status in database...');
+                await API.patch("/users/verify", { verified: true });
+                console.log('✅ Verification status updated');
+                
+                console.log('� Making API call to /users/me...');
                 const userData = await API.get("/users/me");
                 console.log('✅ User found in database:', userData.data);
-                
-                // Update verification status in database if needed
-                if (!userData.data.verified) {
-                    console.log('📝 Updating verification status in database...');
-                    await API.patch("/users/verify", { verified: true });
-                    console.log('✅ Verification status updated');
-                }
                 
                 showSuccess('Successfully signed in!');
                 

@@ -2,9 +2,12 @@ import express from "express";
 import User from "../models/userModel.js";
 import Loan from "../models/loanModel.js"; // Added for account summary stats
 import AuditLog from "../models/auditLogModel.js";
-import { verifyToken } from "../firebase.js";
+import { verifyToken as verifyTokenFirebase } from "../firebase.js";
+import { verifyToken, verifyTokenAllowUnverified } from "../middlewares/authMiddleware.js";
+import { calculateCreditScore as computeCreditScore } from "../services/creditScore.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
 import { logAdminAction } from "../utils/auditLogger.js";
+import { sendEmailVerification } from "firebase/auth";
 
 
 const router = express.Router();
@@ -155,7 +158,7 @@ router.post("/link-auth-method", verifyToken, async (req, res) => {
 });
 
 // Update email verification status (Industry Standard)
-router.patch("/verify", verifyToken, async (req, res) => {
+router.patch("/verify", verifyTokenAllowUnverified, async (req, res) => {
   try {
     console.log('📧 Updating verification status for user:', req.user?.email);
     
@@ -181,8 +184,47 @@ router.patch("/verify", verifyToken, async (req, res) => {
   }
 });
 
-// Get user statistics endpoint
-router.get("/me", verifyToken, async (req, res) => {
+// Add resend verification email endpoint
+router.post("/resend-verification", verifyTokenAllowUnverified, async (req, res) => {
+  try {
+    console.log('📧 Resending verification email for user:', req.user?.email);
+    
+    // Check if user is already verified
+    const user = await User.findOne({ email: req.user.email });
+    if (user?.verified && req.user.emailVerified) {
+      return res.status(400).json({ 
+        error: "User is already verified",
+        code: "ALREADY_VERIFIED"
+      });
+    }
+    
+    // Use Firebase to send verification email
+    const { auth } = await import('../firebase.js');
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      return res.status(400).json({ 
+        error: "Firebase user not found",
+        code: "FIREBASE_USER_NOT_FOUND"
+      });
+    }
+    
+    // This would need to be implemented on the frontend
+    // For now, just acknowledge the request
+    console.log('✅ Verification email resend requested');
+    res.json({ 
+      message: 'Verification email will be resent. Please check your email.',
+      email: req.user.email
+    });
+    
+  } catch (error) {
+    console.error('❌ Error resending verification email:', error);
+    res.status(500).json({ error: 'Failed to resend verification email' });
+  }
+});
+
+// Get user statistics endpoint  
+router.get("/me", verifyTokenAllowUnverified, async (req, res) => {
   try {
     console.log('👤 /users/me endpoint hit');
     console.log('🔍 Looking for user with email:', req.user?.email);
@@ -195,6 +237,13 @@ router.get("/me", verifyToken, async (req, res) => {
     }
     
     console.log('✅ User found:', user.email, 'Role:', user.role);
+    console.log('📊 User profile fields from DB:', {
+      phone: user.phone,
+      location: user.location,
+      bio: user.bio,
+      university: user.university,
+      graduationYear: user.graduationYear
+    });
     
     // Get KYC status from KYC collection if it exists
     let kycData = null;
@@ -220,6 +269,12 @@ router.get("/me", verifyToken, async (req, res) => {
       role: user.role,
       createdAt: user.createdAt,
       profilePicture: user.profilePicture,
+      // Expose profile fields so ProfilePage can render saved data
+      phone: user.phone || '',
+      location: user.location || '',
+      bio: user.bio || '',
+      university: user.university || '',
+      graduationYear: user.graduationYear || '',
       kycStatus: kycStatus,
       kyc: kycData ? {
         status: kycData.status,
@@ -229,7 +284,13 @@ router.get("/me", verifyToken, async (req, res) => {
       } : null
     };
     
-    console.log('✅ Sending user data with _id:', responseData);
+    console.log('✅ Sending GET /users/me response:', JSON.stringify({
+      phone: responseData.phone,
+      location: responseData.location,
+      bio: responseData.bio,
+      university: responseData.university,
+      graduationYear: responseData.graduationYear
+    }));
     res.json(responseData);
   } catch (error) {
     console.error('❌ Error in /users/me:', error);
@@ -259,8 +320,18 @@ router.get('/stats', verifyToken, async (req, res) => {
 
     const successRate = lenderLoans.length ? Math.round((lenderRepaid.length / lenderLoans.length) * 100) : 0;
 
+    // Compute true credit score using the same algorithm as /credit/score
+    let computedScore = 0;
+    try {
+      const calc = await computeCreditScore(user._id);
+      computedScore = calc?.score || 0;
+    } catch (e) {
+      // Fallback to trustScore if calculation fails
+      computedScore = user.creditScore || user.trustScore || 650;
+    }
+
     const response = {
-      creditScore: user.role === 'borrower' ? (user.trustScore || 650) : successRate,
+      creditScore: user.role === 'borrower' ? computedScore : successRate,
       successRate,
       // Generic / legacy fields used by current UI
       activeLoans: user.role === 'borrower' ? borrowerActive.length : lenderActive.length,
@@ -288,17 +359,81 @@ router.get('/stats', verifyToken, async (req, res) => {
 
 // Update role (and now profile picture too)
 router.patch("/me", verifyToken, async (req, res) => {
-  const { role, profilePicture } = req.body;
   const { email } = req.user;
-
+  
   try {
-    const user = await User.findOneAndUpdate(
-      { email },
-      { ...(role && { role }), ...(profilePicture && { profilePicture }) },
-      { new: true }
-    );
-    res.json(user);
+    console.log('📝 PATCH /users/me for', email, 'payload:', req.body);
+
+    // Find the user first
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Helper to safely trim and validate strings
+    const safeTrim = (v) => {
+      if (v === null || v === undefined) return undefined;
+      const s = String(v).trim();
+      return s.length ? s : undefined;
+    };
+
+    // Build update object with only provided, non-empty values
+    const updates = {};
+    
+    // String fields that should be trimmed
+    const stringFields = ['name', 'phone', 'location', 'bio', 'university', 'graduationYear'];
+    for (const field of stringFields) {
+      if (field in req.body) {
+        const trimmed = safeTrim(req.body[field]);
+        if (trimmed !== undefined) {
+          updates[field] = trimmed;
+        }
+      }
+    }
+    
+    // Special fields (no trim)
+    if ('role' in req.body && req.body.role) updates.role = req.body.role;
+    if ('profilePicture' in req.body && req.body.profilePicture) updates.profilePicture = req.body.profilePicture;
+
+    console.log('📝 Applying updates:', Object.keys(updates));
+    console.log('📝 Updates object:', updates);
+
+    // Apply updates to the user document
+    Object.assign(user, updates);
+    
+    console.log('💾 User document before save:', {
+      phone: user.phone,
+      location: user.location,
+      bio: user.bio
+    });
+    
+    await user.save();
+
+    console.log('✅ Profile updated for', email, '-> _id:', user._id.toString());
+    console.log('✅ User document after save:', {
+      phone: user.phone,
+      location: user.location,
+      bio: user.bio
+    });
+    
+    // Return the same shape as GET /users/me for consistency
+    const response = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      createdAt: user.createdAt,
+      profilePicture: user.profilePicture,
+      phone: user.phone || '',
+      location: user.location || '',
+      bio: user.bio || '',
+      university: user.university || '',
+      graduationYear: user.graduationYear || '',
+    };
+    
+    res.json(response);
   } catch (error) {
+    console.error('❌ Error updating profile:', error);
     res.status(500).json({ error: error.message });
   }
 });

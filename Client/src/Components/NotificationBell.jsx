@@ -43,7 +43,17 @@ export default function NotificationBell() {
   const prevUnreadCount = useRef(0);
   const lastFetchTime = useRef(null);
   const pollTimer = useRef(null);
+  const supportsUnreadCount = useRef(true); // disable if backend doesn't have the endpoint yet
   const { isDark } = useTheme();
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Track viewport size to tailor mobile vs desktop dropdown behavior
+  useEffect(() => {
+    const update = () => setIsMobile(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   // Efficient polling: unread count every 30s; full list only on demand or when unread increases
   useEffect(() => {
@@ -51,6 +61,7 @@ export default function NotificationBell() {
 
     const fetchUnreadCount = async () => {
       try {
+        if (!supportsUnreadCount.current) return; // disabled if endpoint missing in prod
         const res = await API.get('/notifications/unread-count');
         if (cancelled) return;
         const { count } = res.data || { count: 0 };
@@ -63,7 +74,18 @@ export default function NotificationBell() {
         }
         prevUnreadCount.current = count;
       } catch (e) {
-        // silent failure; don't disrupt UI
+        // If the endpoint doesn't exist on the server yet, stop polling it
+        if (e?.response?.status === 404) {
+          supportsUnreadCount.current = false;
+          if (pollTimer.current) clearInterval(pollTimer.current);
+          // Fallback: poll the full list less frequently to avoid noise and keep data fresh
+          pollTimer.current = setInterval(async () => {
+            try {
+              await fetchNotifications(true);
+            } catch (_) {}
+          }, 60000); // 1 min
+        }
+        // otherwise silent failure; don't disrupt UI
       }
     };
 
@@ -101,8 +123,8 @@ export default function NotificationBell() {
       await fetchUnreadCount();
     })();
 
-    // start polling unread count every 30s
-    pollTimer.current = setInterval(fetchUnreadCount, 30000);
+  // start polling unread count every 30s (will auto-disable if 404)
+  pollTimer.current = setInterval(fetchUnreadCount, 30000);
 
     return () => {
       cancelled = true;
@@ -199,11 +221,20 @@ export default function NotificationBell() {
         )}
       </button>
       {dropdownOpen && (
-        <div className={`absolute right-0 mt-2 w-80 border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto ${
-          isDark 
-            ? 'bg-gray-800 border-gray-700' 
-            : 'bg-white border-gray-200'
-        }`}>
+        <div
+          className={[
+            // Mobile: full-width floating panel
+            isMobile
+              ? 'fixed left-2 right-2 top-[calc(env(safe-area-inset-top)+4rem)] w-auto max-w-[calc(100vw-1rem)]'
+              : 'absolute right-0 mt-2 w-80 max-w-[90vw]',
+            // Common styles
+            'border rounded-xl shadow-2xl z-50 overflow-y-auto overscroll-contain',
+            // Height constraints (mobile taller, desktop compact)
+            isMobile ? 'max-h-[70vh]' : 'max-h-96',
+            // Theming
+            isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+          ].join(' ')}
+        >
           {loading ? (
             <div className={`p-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</div>
           ) : error ? (

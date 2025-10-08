@@ -24,6 +24,15 @@ const AuthenticatedRoute = ({ children }) => {
           return;
         }
 
+        // Critical Security Check: Email Verification Required
+        if (!user.emailVerified && user.providerData[0]?.providerId === 'password') {
+          console.log('🚫 AuthenticatedRoute: Email not verified for:', user.email);
+          alert('Please verify your email address before accessing this page. Check your inbox for the verification link.');
+          await auth.signOut(); // Sign out unverified user
+          navigate('/login');
+          return;
+        }
+
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Authentication error:', error);

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Camera,
   User,
@@ -61,59 +61,117 @@ export default function ProfilePage() {
   const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || "borrowease_profile"; // still used if you keep unsigned
   const CLOUDINARY_API_KEY = import.meta.env.VITE_CLOUDINARY_API_KEY; // optional, only for signed client request
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const res = await API.get("/users/me");
-        const user = res.data;
-        setProfileData((prev) => ({
-          ...prev,
-          name: user.name || "",
-          email: user.email || "",
-          phone: user.phone || "",
-          location: user.location || "",
-          bio: user.bio || "",
-          university: user.university || "",
-          graduationYear: user.graduationYear || "",
-          role: user.role || "",
-          joinDate: new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }) || "",
-          profilePicture: user.profilePicture || null,
-        }));
-      } catch (error) {
-        console.error("Error fetching user data:", error);
+  // Cache-busted fetchers to avoid any intermediary cache
+  const fetchUserData = useCallback(async () => {
+    try {
+      console.log('🔄 Fetching user data...');
+      const res = await API.get(`/users/me`, { params: { t: Date.now() } });
+      const user = res.data;
+      console.log('📥 Received user data:', user);
+      console.log('📥 Phone field specifically:', user.phone, 'Type:', typeof user.phone);
+      
+      const newData = {
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        location: user.location || "",
+        bio: user.bio || "",
+        university: user.university || "",
+        graduationYear: user.graduationYear || "",
+        role: user.role || "",
+        joinDate: user?.createdAt
+          ? new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+          : "",
+        profilePicture: user.profilePicture || null,
+      };
+      
+      console.log('📝 Setting profile data:', newData);
+      console.log('📝 Phone in newData:', newData.phone, 'Length:', newData.phone?.length);
+      setProfileData(newData);
+      
+      // Only use localStorage fallback if backend has no picture yet
+      const savedPhoto = localStorage.getItem("profilePicture");
+      if (!user.profilePicture && savedPhoto) {
+        setProfileData((prev) => ({ ...prev, profilePicture: savedPhoto }));
       }
-    };
-
-    const fetchUserStats = async () => {
-      try {
-        setIsLoadingStats(true);
-  const res = await API.get("/users/stats");
-  setUserStats(res.data);
-      } catch (error) {
-        console.error("Error fetching user stats:", error);
-        // Set default values if API fails
-        setUserStats({
-          creditScore: 750,
-          activeLoans: 0,
-          totalBorrowed: 0,
-          totalLent: 0,
-          repaidLoans: 0,
-          overdueLoans: 0
-        });
-      } finally {
-        setIsLoadingStats(false);
-      }
-    };
-
-    fetchUserData();
-    fetchUserStats();
-
-    // Load persisted profile picture from localStorage
-    const savedPhoto = localStorage.getItem("profilePicture");
-    if (savedPhoto) {
-      setProfileData((prev) => ({ ...prev, profilePicture: savedPhoto }));
+    } catch (error) {
+      console.error("Error fetching user data:", error);
     }
   }, []);
+
+  const fetchUserStats = useCallback(async () => {
+    try {
+      setIsLoadingStats(true);
+      const [statsRes, creditRes] = await Promise.all([
+        API.get(`/users/stats`, { params: { t: Date.now() } }),
+        API.get(`/credit/score`, { params: { t: Date.now() } }).catch(() => null)
+      ]);
+
+      const stats = statsRes?.data || {};
+      const credit = creditRes?.data || {};
+
+      setUserStats({
+        // Prefer computed credit score from dedicated endpoint; fallback to stats' creditScore
+        creditScore: typeof credit.score === 'number' ? credit.score : (stats.creditScore ?? 0),
+        successRate: stats.successRate ?? 0,
+        activeLoans: stats.activeLoans ?? 0,
+        totalBorrowed: stats.totalBorrowed ?? 0,
+        totalLent: stats.totalLent ?? 0,
+        repaidLoans: stats.repaidLoans ?? 0,
+        overdueLoans: stats.overdueLoans ?? 0,
+        borrowerActiveLoans: stats.borrowerActiveLoans ?? 0,
+        borrowerRepaidLoans: stats.borrowerRepaidLoans ?? 0,
+        borrowerOverdueLoans: stats.borrowerOverdueLoans ?? 0,
+        lenderActiveLoans: stats.lenderActiveLoans ?? 0,
+        lenderRepaidLoans: stats.lenderRepaidLoans ?? 0,
+        lenderOverdueLoans: stats.lenderOverdueLoans ?? 0,
+        loansFunded: stats.loansFunded ?? 0,
+      });
+    } catch (error) {
+      console.error("Error fetching user stats:", error);
+      setUserStats({
+        creditScore: 0,
+        successRate: 0,
+        activeLoans: 0,
+        totalBorrowed: 0,
+        totalLent: 0,
+        repaidLoans: 0,
+        overdueLoans: 0,
+        borrowerActiveLoans: 0,
+        borrowerRepaidLoans: 0,
+        borrowerOverdueLoans: 0,
+        lenderActiveLoans: 0,
+        lenderRepaidLoans: 0,
+        lenderOverdueLoans: 0,
+        loansFunded: 0,
+      });
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchUserData();
+    fetchUserStats();
+  }, [fetchUserData, fetchUserStats]);
+
+  // Re-fetch on tab focus or when visibility changes back to visible
+  useEffect(() => {
+    const onFocus = () => {
+      fetchUserData();
+      fetchUserStats();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') onFocus();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [fetchUserData, fetchUserStats]);
 
   const handleInputChange = (field, value) => {
     setProfileData((prev) => ({
@@ -184,8 +242,12 @@ export default function ProfilePage() {
         ...prev,
         profilePicture: imageUrl,
       }));
+      // Persist the latest photo locally for faster first paint, but only as cache
+      try { localStorage.setItem('profilePicture', imageUrl); } catch {}
+      // Re-fetch fresh user data for consistency
+      fetchUserData();
       toast.success('Profile photo updated');
-      toast.dismiss();
+      toast.dismiss(toastId);
     } catch (error) {
       console.error("Image upload failed:", error);
       toast.error(typeof error?.message === 'string' ? error.message : 'Image upload failed. Please try again.');
@@ -196,29 +258,83 @@ export default function ProfilePage() {
   };
 
   const handleSave = async () => {
+    const toastId = toast.loading('Saving profile...');
     try {
-      // Save updated profile data to API
-      const toastId = toast.loading('Saving profile...');
-      await API.patch("/users/me", {
-        name: profileData.name,
-        phone: profileData.phone,
-        location: profileData.location,
-        bio: profileData.bio,
-        university: profileData.university,
-        graduationYear: profileData.graduationYear,
-      });
+      // Build payload with only changed/defined fields; guard undefined safely
+      const safeTrim = (v) => {
+        if (v === null || v === undefined) return undefined;
+        const s = String(v).trim();
+        return s.length ? s : undefined;
+      };
+
+      const payload = {
+        name: safeTrim(profileData.name),
+        phone: safeTrim(profileData.phone),
+        location: safeTrim(profileData.location),
+        bio: safeTrim(profileData.bio),
+        university: safeTrim(profileData.university),
+        graduationYear: safeTrim(profileData.graduationYear),
+      };
+      Object.keys(payload).forEach(k => (payload[k] === undefined) && delete payload[k]);
+
+      console.log('💾 Saving profile with payload:', payload);
+
+      // Ensure we have a fresh auth token before the request
+      let headers = {};
+      try {
+        const { auth } = await import('../firebase');
+        const fbUser = auth.currentUser;
+        if (!fbUser) {
+          throw new Error('Not authenticated. Please log in again.');
+        }
+        // Force a fresh token to avoid 401
+        const token = await fbUser.getIdToken(true);
+        headers = { Authorization: `Bearer ${token}` };
+        console.log('🔑 Got fresh token for save request');
+      } catch (authError) {
+        toast.dismiss(toastId);
+        toast.error('Authentication error. Please log in again.');
+        console.error('Auth error:', authError);
+        // Redirect to login after a delay
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
+      const res = await API.patch('/users/me', payload, { headers });
+      console.log('✅ Profile save response:', res.data);
+
+      // Re-fetch to ensure full sync (including stats recalcs)
+      // Do this BEFORE updating local state to ensure we get fresh data
+      console.log('🔄 Re-fetching user data after save...');
+      await Promise.all([fetchUserData(), fetchUserStats()]);
+      console.log('✅ Data re-fetch complete');
       
-      console.log("Profile data saved successfully");
-      toast.success('Profile saved');
-      toast.dismiss(toastId);
+      // Switch to view mode and show success AFTER all fetches complete
       setIsEditing(false);
+      toast.success('Profile saved');
     } catch (error) {
-      console.error("Error saving profile data:", error);
-      toast.error('Failed to save profile data');
+      console.error('Error saving profile data:', error);
+      
+      // Handle specific error types
+      if (error?.response?.status === 401) {
+        toast.error('Session expired. Please log in again.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      } else {
+        const message = error?.response?.data?.error || error?.message || 'Failed to save profile data';
+        toast.error(message);
+      }
+    } finally {
+      toast.dismiss(toastId);
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    // Re-fetch to reset any unsaved changes
+    await fetchUserData();
     setIsEditing(false);
   };
 
@@ -231,7 +347,7 @@ export default function ProfilePage() {
       {/* Header */}
       <Navbar />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-28">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Profile Card */}
           <div className="lg:col-span-1">
@@ -340,11 +456,11 @@ export default function ProfilePage() {
           <div className="lg:col-span-2">
             <div className={`rounded-2xl shadow-lg overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
               <div className={`px-6 py-4 border-b ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                   <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     Profile Information
                   </h3>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2 md:space-x-2">
                     {isEditing ? (
                       <>
                         <button
@@ -658,6 +774,38 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Mobile floating edit button when not editing */}
+      {!isEditing && (
+        <button
+          onClick={() => setIsEditing(true)}
+          className="fixed md:hidden bottom-20 right-5 z-40 rounded-full bg-purple-600 text-white shadow-lg w-14 h-14 flex items-center justify-center hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400"
+          aria-label="Edit profile"
+        >
+          <Edit2 className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Sticky bottom action bar on mobile when editing */}
+      {isEditing && (
+        <div className={`md:hidden fixed bottom-0 left-0 right-0 safe-bottom border-t ${
+          isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'
+        } px-4 py-3 flex items-center justify-between z-40`}
+        >
+          <button
+            onClick={handleCancel}
+            className={`${isDark ? 'bg-gray-700 text-gray-200' : 'bg-gray-200 text-gray-800'} px-4 py-2 rounded-lg`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="bg-purple-600 text-white px-5 py-2 rounded-lg shadow hover:bg-purple-700"
+          >
+            Save
+          </button>
+        </div>
+      )}
     </div>
   );
 }

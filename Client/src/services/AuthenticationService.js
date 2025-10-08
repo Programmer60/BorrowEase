@@ -22,10 +22,11 @@ const getErrorMessage = (error) => {
     'auth/account-exists-with-different-credential': 'An account already exists with this email using a different sign-in method.',
     'auth/invalid-credential': 'Invalid credentials. Please check your email and password.',
     'auth/operation-not-allowed': 'This sign-in method is not enabled. Please contact support.',
-    'auth/network-request-failed': 'Network error. Please check your connection and try again.'
+    'auth/network-request-failed': 'Network error. Please check your connection and try again.',
+    'EMAIL_NOT_VERIFIED': 'Please verify your email address before signing in. Check your inbox for the verification link.'
   };
   
-  return errorMessages[error.code] || error.message || 'An unexpected error occurred.';
+  return errorMessages[error.code] || errorMessages[error.message] || error.message || 'An unexpected error occurred.';
 };
 
 // Token management
@@ -221,6 +222,13 @@ class AuthenticationService {
 
       console.log('✅ Email sign-in successful:', user.email);
 
+      // Check if email is verified
+      if (!user.emailVerified) {
+        console.log('❌ Email not verified for:', user.email);
+        await auth.signOut(); // Sign out immediately
+        throw new Error('EMAIL_NOT_VERIFIED');
+      }
+
       // Get fresh token
       const token = await TokenManager.getValidToken();
       
@@ -359,6 +367,11 @@ class AuthenticationService {
   // Get current user
   getCurrentUser() {
     return this.currentUser;
+  }
+
+  // Check if current user's email is verified
+  isEmailVerified() {
+    return this.currentUser?.emailVerified ?? false;
   }
 
   // Refresh authentication token
