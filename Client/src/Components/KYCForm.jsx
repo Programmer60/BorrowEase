@@ -40,11 +40,18 @@ const KYCForm = ({ user, onKYCSubmitted }) => {
   const uploadToCloudinary = async (file, type) => {
     setUploading(prev => ({ ...prev, [type]: true }));
     try {
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+      
+      if (!cloudName || !uploadPreset) {
+        throw new Error('Cloudinary configuration missing');
+      }
+      
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('upload_preset', 'your_preset'); // You'll need to set this up
+      formData.append('upload_preset', uploadPreset);
       
-      const res = await fetch('https://api.cloudinary.com/v1_1/dbvse3x8p/image/upload', {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
         method: 'POST',
         body: formData,
       });
