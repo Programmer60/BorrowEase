@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import { useTheme } from "../contexts/ThemeContext";
+import usePlatformStats from "../hooks/usePlatformStats";
 import { 
   TrendingUp, 
   Shield, 
@@ -28,6 +29,9 @@ export default function Home() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const { isDark } = useTheme();
+  
+  // 🔥 Fetch REAL platform statistics
+  const platformStats = usePlatformStats();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => setUser(u));
@@ -77,7 +81,7 @@ export default function Home() {
                     : 'bg-blue-100 text-blue-800'
                 }`}>
                   <Sparkles className="w-4 h-4 mr-2" />
-                  Trusted by 10,000+ Students
+                  Trusted by {platformStats.studentsHelped} Students
                 </div>
                 <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight ${
                   isDark ? 'text-gray-100' : 'text-gray-900'
@@ -360,7 +364,7 @@ export default function Home() {
                 Connect with verified students and trusted lenders in our secure community. 
                 KYC verification ensures authenticity.
               </p>
-              <div className="mt-4 text-orange-600 font-semibold">10,000+ Members</div>
+              <div className="mt-4 text-orange-600 font-semibold">{platformStats.totalUsers} Members</div>
             </div>
 
             {/* Feature 5 */}
@@ -428,25 +432,25 @@ export default function Home() {
           
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">10K+</div>
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">{platformStats.studentsHelped}</div>
               <div className={`${
                 isDark ? 'text-blue-200' : 'text-blue-100'
               }`}>Students Helped</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">₹50Cr+</div>
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">{platformStats.loansFunded}</div>
               <div className={`${
                 isDark ? 'text-blue-200' : 'text-blue-100'
               }`}>Loans Funded</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">98%</div>
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">{platformStats.successRate}</div>
               <div className={`${
                 isDark ? 'text-blue-200' : 'text-blue-100'
               }`}>Success Rate</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">24hrs</div>
+              <div className="text-4xl sm:text-5xl font-bold text-white mb-2">{platformStats.avgApprovalTime}</div>
               <div className={`${
                 isDark ? 'text-blue-200' : 'text-blue-100'
               }`}>Avg. Approval</div>
@@ -525,22 +529,19 @@ export default function Home() {
             </div>
             
             <div>
-              <h4 className="font-semibold mb-4">Product</h4>
+              <h4 className="font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">For Students</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">For Lenders</a></li>
-                <li><a href="/how-it-works" className="hover:text-white transition-colors">How it Works</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><Link to="/about" className="hover:text-white transition-colors">About Us</Link></li>
+                <li><Link to="/how-it-works" className="hover:text-white transition-colors">How it Works</Link></li>
+                <li><Link to="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
               </ul>
             </div>
             
             <div>
-              <h4 className="font-semibold mb-4">Support</h4>
+              <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-gray-400">
-                <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
-                <li><a href="contact" className="hover:text-white transition-colors">Contact Us</a></li>
-                <li><a href="/legal/privacy-policy" className="hover:text-white transition-colors" title="View Privacy Policy">Privacy Policy</a></li>
-                <li><a href="/legal/terms-of-service" className="hover:text-white transition-colors" title="View Terms of Service">Terms of Service</a></li>
+                <li><Link to="/legal/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+                <li><Link to="/legal/terms-of-service" className="hover:text-white transition-colors">Terms of Service</Link></li>
               </ul>
             </div>
           </div>
