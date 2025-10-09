@@ -7,11 +7,15 @@ import { useNotifications } from '../Components/NotificationSystem';
 import { auth, provider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken, sendEmailVerification, sendPasswordResetEmail } from '../firebase';
 import API from '../api/api';
 import Navbar from './Navbar';
+import usePlatformStats from '../hooks/usePlatformStats';
 
 export default function Login() {
     const { isDark } = useTheme();
     const navigate = useNavigate();
     const { showSuccess, showError, showInfo, showWarning } = useNotifications();
+    
+    // 🔥 Fetch REAL platform statistics
+    const platformStats = usePlatformStats();
     
     // Component state
     const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -582,17 +586,36 @@ export default function Login() {
                             </div>
                             
                             <div className="grid grid-cols-3 gap-6 mb-8">
-                                <div className="text-center">
-                                    <div className="text-3xl font-bold text-cyan-400">10K+</div>
+                                <div className="text-center transform hover:scale-105 transition-transform duration-300">
+                                    <div className="text-3xl font-bold text-cyan-400">{platformStats.studentsHelped}</div>
                                     <div className="text-sm opacity-90">Students</div>
                                 </div>
-                                <div className="text-center">
-                                    <div className="text-3xl font-bold text-green-400">₹50Cr+</div>
+                                <div className="text-center transform hover:scale-105 transition-transform duration-300">
+                                    <div className="text-3xl font-bold text-green-400">{platformStats.loansFunded}</div>
                                     <div className="text-sm opacity-90">Funded</div>
                                 </div>
-                                <div className="text-center">
+                                <div className="text-center transform hover:scale-105 transition-transform duration-300">
                                     <div className="text-3xl font-bold text-yellow-400">4.9★</div>
                                     <div className="text-sm opacity-90">Rating</div>
+                                </div>
+                            </div>
+                            
+                            {/* Success Rate Badge */}
+                            <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-4 border border-green-500/30 mb-8">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
+                                        <div className="w-12 h-12 bg-green-500/30 rounded-full flex items-center justify-center">
+                                            <TrendingUp className="w-6 h-6 text-green-400" />
+                                        </div>
+                                        <div>
+                                            <div className="text-sm opacity-90">Success Rate</div>
+                                            <div className="text-2xl font-bold text-green-400">{platformStats.successRate}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs opacity-75">Approval Time</div>
+                                        <div className="text-lg font-semibold">{platformStats.avgApprovalTime}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1034,13 +1057,13 @@ export default function Login() {
                                     <Shield className="w-4 h-4 mr-1" />
                                     SSL Secured
                                 </div>
-                                <div className="flex items-center">
+                                {/* <div className="flex items-center">
                                     <CheckCircle className="w-4 h-4 mr-1" />
                                     RBI Approved
-                                </div>
+                                </div> */}
                                 <div className="flex items-center">
                                     <Users className="w-4 h-4 mr-1" />
-                                    10K+ Users
+                                    {platformStats.studentsHelped} Users
                                 </div>
                             </div>
                         </div>

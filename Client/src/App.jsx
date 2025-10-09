@@ -6,7 +6,6 @@ import { SocketProvider } from "./contexts/SocketContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { NotificationProvider } from "./Components/NotificationSystem";
 import Home from "./Components/Home";
-import Login from "./Components/Login";
 import LoginEnhanced from "./Components/LoginEnhanced";
 import About from "./Components/About";
 import HowItWorks from "./Components/HowItWorks";
@@ -66,7 +65,7 @@ function App() {
               <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/login" element={<LoginEnhanced />} />
-              <Route path="/login-old" element={<Login />} />
+              
               <Route path="/borrower" element={<ProtectedRoute element={BorrowerDashboard} requiredRole="borrower" />} />
               <Route path="/lender" element={<ProtectedRoute element={LenderDashboard} requiredRole="lender" />} />
               <Route path="/kyc" element={<ProtectedRoute element={EnhancedKYCPage} requiredRole="borrower" />} />

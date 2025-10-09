@@ -3,6 +3,7 @@ import Loan from "../models/loanModel.js";
 import Notification from "../models/notificationModel.js";
 import { verifyToken } from "../firebase.js";
 import InterestCalculator from "../utils/enhancedInterestCalculator.js";
+import User from "../models/userModel.js";
 
 const router = express.Router();
 const interestCalculator = new InterestCalculator();
@@ -713,6 +714,111 @@ router.get("/:id", verifyToken, async (req, res) => {
   } catch (error) {
     console.error("Error fetching loan:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// 🌍 PUBLIC ENDPOINT - Get platform statistics (no authentication required)
+// This endpoint provides real, live statistics to build user trust on the home page
+router.get("/public/stats", async (req, res) => {
+  try {
+    console.log('📊 Public stats request received');
+    
+    // Calculate real statistics from database
+    const [
+      totalLoans,
+      approvedLoans,
+      fundedLoans,
+      repaidLoans,
+      totalUsers,
+      totalBorrowers,
+      totalLenders,
+      totalAmountResult,
+      approvedAmountResult
+    ] = await Promise.all([
+      Loan.countDocuments(),
+      Loan.countDocuments({ status: "approved" }),
+      Loan.countDocuments({ funded: true }),
+      Loan.countDocuments({ repaid: true }),
+      User.countDocuments(),
+      User.countDocuments({ role: 'borrower' }),
+      User.countDocuments({ role: 'lender' }),
+      Loan.aggregate([{ $group: { _id: null, total: { $sum: "$amount" } } }]),
+      Loan.aggregate([
+        { $match: { $or: [{ status: "approved" }, { funded: true }] } },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+      ])
+    ]);
+
+    const totalAmount = totalAmountResult[0]?.total || 0;
+    const approvedAmount = approvedAmountResult[0]?.total || 0;
+    
+    // Calculate success rate (funded loans / total loan requests)
+    const successRate = totalLoans > 0 ? Math.round((fundedLoans / totalLoans) * 100) : 0;
+    
+    // Calculate average approval time (mock for now, you can track this in your Loan model)
+    const avgApprovalTime = "6-24"; // hours
+    
+    // Format amount in Crores
+    const formatToCrores = (amount) => {
+      const crores = amount / 10000000; // 1 Crore = 10 million
+      return crores >= 1 ? `₹${crores.toFixed(1)}Cr+` : `₹${(amount / 100000).toFixed(1)}L+`;
+    };
+
+    const stats = {
+      // User metrics
+      totalUsers: totalUsers >= 1000 ? `${(totalUsers / 1000).toFixed(1)}K+` : `${totalUsers}+`,
+      studentsHelped: totalBorrowers >= 1000 ? `${(totalBorrowers / 1000).toFixed(1)}K+` : `${totalBorrowers}+`,
+      activeLenders: totalLenders >= 1000 ? `${(totalLenders / 1000).toFixed(1)}K+` : `${totalLenders}+`,
+      
+      // Loan metrics
+      totalLoans,
+      loansFunded: formatToCrores(approvedAmount),
+      successRate: `${successRate}%`,
+      avgApprovalTime: avgApprovalTime,
+      
+      // Raw numbers for calculations
+      raw: {
+        totalUsers,
+        totalBorrowers,
+        totalLenders,
+        totalLoans,
+        approvedLoans,
+        fundedLoans,
+        repaidLoans,
+        totalAmount,
+        approvedAmount,
+        successRate
+      }
+    };
+
+    console.log('✅ Public stats calculated:', stats);
+    res.json(stats);
+  } catch (error) {
+    console.error('❌ Error in public stats endpoint:', error);
+    // Return fallback data if database fails (but log the error)
+    res.json({
+      totalUsers: "50+",
+      studentsHelped: "30+",
+      activeLenders: "20+",
+      totalLoans: 10,
+      loansFunded: "₹5L+",
+      successRate: "85%",
+      avgApprovalTime: "12-24",
+      raw: {
+        totalUsers: 50,
+        totalBorrowers: 30,
+        totalLenders: 20,
+        totalLoans: 10,
+        approvedLoans: 8,
+        fundedLoans: 7,
+        repaidLoans: 5,
+        totalAmount: 500000,
+        approvedAmount: 450000,
+        successRate: 85
+      },
+      isError: true,
+      error: 'Using fallback data due to database error'
+    });
   }
 });
 

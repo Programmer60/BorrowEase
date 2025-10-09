@@ -26,7 +26,9 @@ const BYPASS_VERIFICATION_ROUTES = [
   '/users/setup',
   '/users/me', 
   '/users/verify',
-  '/users/resend-verification'
+  '/users/resend-verification',
+  '/users/all-borrowers', // Lenders need this to assess borrowers
+  '/ai/assess-borrower' // Assessment endpoint should also work for verified lenders
 ];
 
 // Check if the current route should bypass verification
@@ -80,16 +82,28 @@ export const verifyToken = async (req, res, next) => {
       
       console.log('✅ User found in database:', user.name || user.email, 'Role:', user.role || 'borrower', 'Verified:', user.verified);
       
-      // SECURITY CHECK: Enforce email verification for email-based accounts
-      const isEmailBasedAccount = !user.firebaseUids || user.firebaseUids.length === 1;
+      // SECURITY CHECK: Enforce email verification ONLY for email/password accounts
+      // OAuth providers (Google, etc.) already verify emails, so skip verification for them
+      const signInProvider = decodedToken.firebase?.sign_in_provider || decodedToken.sign_in_provider;
+      const isOAuthAccount = signInProvider && ['google.com', 'facebook.com', 'apple.com'].includes(signInProvider);
+      const isEmailPasswordAccount = signInProvider === 'password';
       const isEmailVerified = decodedToken.email_verified;
       const isDatabaseVerified = user.verified;
       const bypassVerification = shouldBypassVerification(req.path);
       
-      // For email-based accounts, both Firebase and database verification must be true
+      console.log('🔐 Auth check:', {
+        signInProvider,
+        isOAuthAccount,
+        isEmailPasswordAccount,
+        firebaseEmailVerified: isEmailVerified,
+        databaseVerified: isDatabaseVerified,
+        bypassVerification
+      });
+      
+      // Only enforce verification for email/password accounts (OAuth accounts are pre-verified)
       // Skip verification check for specific routes that need to work for unverified users
-      if (isEmailBasedAccount && (!isEmailVerified || !isDatabaseVerified) && !bypassVerification) {
-        console.log('❌ Email verification required. Firebase verified:', isEmailVerified, 'Database verified:', isDatabaseVerified, 'Route:', req.path);
+      if (isEmailPasswordAccount && (!isEmailVerified || !isDatabaseVerified) && !bypassVerification) {
+        console.log('❌ Email verification required for email/password account. Firebase verified:', isEmailVerified, 'Database verified:', isDatabaseVerified, 'Route:', req.path);
         return res.status(403).json({ 
           error: "Email verification required. Please verify your email to continue.",
           code: "EMAIL_VERIFICATION_REQUIRED",

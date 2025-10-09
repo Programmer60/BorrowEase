@@ -10,7 +10,9 @@ import {
   Clock,
   Shield,
   TrendingUp,
-  Target
+  Target,
+  X,
+  AlertCircle
 } from 'lucide-react';
 import Navbar from './Navbar';
 import API from '../api/api';
@@ -104,6 +106,21 @@ const BorrowerAssessment = () => {
   const [assessment, setAssessment] = useState(null);
   const [loading, setLoading] = useState(false);
   const [availableBorrowers, setAvailableBorrowers] = useState([]);
+  
+  // Toast notification state
+  const [toast, setToast] = useState({
+    show: false,
+    message: '',
+    type: 'info' // 'success', 'error', 'warning', 'info'
+  });
+
+  // Helper function to show toast
+  const showToast = (message, type = 'info', duration = 5000) => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'info' });
+    }, duration);
+  };
 
   useEffect(() => {
     console.log('🚀 BorrowerAssessment component mounted, fetching borrowers...');
@@ -141,25 +158,46 @@ const BorrowerAssessment = () => {
       }
     } catch (error) {
       console.error('❌ Error fetching borrowers:', error);
+      console.error('❌ Error response:', error.response);
+      console.error('❌ Error status:', error.response?.status);
+      console.error('❌ Error data:', error.response?.data);
       
       // Set empty array on error to prevent undefined issues
       setAvailableBorrowers([]);
       
-      // Check if it's an authentication error
+      // Check if it's an authentication error with detailed message
       if (error.response?.status === 401 || error.response?.status === 403) {
-        alert('Authentication error. Please make sure you are logged in as a lender.');
+        const errorMessage = error.response?.data?.error || 'Authentication error';
+        const errorCode = error.response?.data?.code || 'AUTH_ERROR';
+        
+        console.log('🔐 Auth error details:', {
+          status: error.response?.status,
+          message: errorMessage,
+          code: errorCode,
+          fullData: error.response?.data
+        });
+        
+        // Show specific error message from backend
+        if (errorCode === 'EMAIL_VERIFICATION_REQUIRED') {
+          showToast('Email verification required. Please verify your email to access this feature.', 'warning', 7000);
+        } else if (errorCode === 'USER_NOT_FOUND') {
+          showToast('User account not found. Please complete your profile setup.', 'error');
+        } else {
+          showToast(`Authentication error: ${errorMessage}`, 'error', 7000);
+        }
         return;
       } else if (error.response?.status === 404) {
-        alert('Borrower data endpoint not found. Please check if the server is running.');
+        showToast('Borrower data endpoint not found. Please check if the server is running.', 'error');
       } else {
-        alert('Failed to load borrowers. Please check your connection and try again.');
+        const errorMsg = error.response?.data?.error || error.message || 'Failed to load borrowers';
+        showToast(`Failed to load borrowers: ${errorMsg}`, 'error');
       }
     }
   };
 
   const handleAssessment = async () => {
     if (!borrowerData.borrowerId || !borrowerData.loanAmount) {
-      alert('Please select a borrower and enter loan amount');
+      showToast('Please select a borrower and enter loan amount', 'warning');
       return;
     }
 
@@ -173,7 +211,7 @@ const BorrowerAssessment = () => {
       console.log('👤 Current user:', user ? user.email : 'Not authenticated');
       
       if (!user) {
-        alert('Please login to assess borrowers');
+        showToast('Please login to assess borrowers', 'warning');
         setLoading(false);
         return;
       }
@@ -191,13 +229,13 @@ const BorrowerAssessment = () => {
       console.error('❌ Error data:', error.response?.data);
       
       if (error.response?.status === 401) {
-        alert('Authentication failed. Please login again.');
+        showToast('Authentication failed. Please login again.', 'error');
       } else if (error.response?.status === 404) {
-        alert('Assessment service not found. Please contact support.');
+        showToast('Assessment service not found. Please contact support.', 'error');
       } else if (error.response?.status === 403) {
-        alert('You do not have permission to assess borrowers.');
+        showToast('You do not have permission to assess borrowers.', 'error');
       } else {
-        alert(`Failed to assess borrower: ${error.response?.data?.error || error.message}`);
+        showToast(`Failed to assess borrower: ${error.response?.data?.error || error.message}`, 'error');
       }
     } finally {
       setLoading(false); 
@@ -220,6 +258,41 @@ const BorrowerAssessment = () => {
   return (
     <div className={`min-h-screen ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <Navbar />
+      
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-20 right-4 z-50 animate-fade-in">
+          <div className={`rounded-lg shadow-2xl p-4 flex items-center space-x-3 min-w-[300px] max-w-md ${
+            isDark 
+              ? toast.type === 'success' ? 'bg-gray-800 border border-green-700' :
+                toast.type === 'error' ? 'bg-gray-800 border border-red-700' :
+                toast.type === 'warning' ? 'bg-gray-800 border border-yellow-700' :
+                'bg-gray-800 border border-blue-700'
+              : toast.type === 'success' ? 'bg-white border border-green-300' :
+                toast.type === 'error' ? 'bg-white border border-red-300' :
+                toast.type === 'warning' ? 'bg-white border border-yellow-300' :
+                'bg-white border border-blue-300'
+          }`}>
+            <div className="flex-shrink-0">
+              {toast.type === 'success' && <CheckCircle className="w-6 h-6 text-green-500" />}
+              {toast.type === 'error' && <XCircle className="w-6 h-6 text-red-500" />}
+              {toast.type === 'warning' && <AlertCircle className="w-6 h-6 text-yellow-500" />}
+              {toast.type === 'info' && <CheckCircle className="w-6 h-6 text-blue-500" />}
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast({ show: false, message: '', type: 'info' })}
+              className={`flex-shrink-0 ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
       
       <div className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${isDark ? 'bg-gray-900' : ''}`}>
         {/* Header */}

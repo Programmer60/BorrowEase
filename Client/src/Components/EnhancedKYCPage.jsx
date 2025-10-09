@@ -416,11 +416,38 @@ const EnhancedKYCPage = () => {
   const [hasError, setHasError] = useState(false);
   const [errorInfo, setErrorInfo] = useState(null);
   
+  // Helper function to load initial data from localStorage
+  const loadInitialData = () => {
+    try {
+      const savedData = localStorage.getItem('kycFormData');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        const lastSaved = new Date(parsed.lastSaved);
+        const now = new Date();
+        const hoursDiff = (now - lastSaved) / (1000 * 60 * 60);
+        
+        if (hoursDiff < 24) {
+          console.log('🔄 Loading initial data from localStorage');
+          return parsed;
+        } else {
+          console.log('⏰ Saved data expired, clearing');
+          localStorage.removeItem('kycFormData');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading initial data:', error);
+      localStorage.removeItem('kycFormData');
+    }
+    return null;
+  };
+  
+  const initialSavedData = loadInitialData();
+  
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(initialSavedData?.currentStep || 1);
   const [kycData, setKycData] = useState({
-    personalInfo: {
+    personalInfo: initialSavedData?.personalInfo || {
       fullName: '',
       dateOfBirth: '',
       phoneNumber: '',
@@ -431,14 +458,52 @@ const EnhancedKYCPage = () => {
       occupation: '',
       monthlyIncome: '',
     },
-    documents: {
+    documents: initialSavedData?.documents ? {
+      aadharCard: {
+        file: initialSavedData.documents.aadharCard?.cloudinaryUrl || null,
+        number: initialSavedData.documents.aadharCard?.number || '',
+        preview: initialSavedData.documents.aadharCard?.cloudinaryUrl || null,
+        cloudinaryUrl: initialSavedData.documents.aadharCard?.cloudinaryUrl,
+        publicId: initialSavedData.documents.aadharCard?.publicId,
+        fileInfo: initialSavedData.documents.aadharCard?.fileInfo || null
+      },
+      panCard: {
+        file: initialSavedData.documents.panCard?.cloudinaryUrl || null,
+        number: initialSavedData.documents.panCard?.number || '',
+        preview: initialSavedData.documents.panCard?.cloudinaryUrl || null,
+        cloudinaryUrl: initialSavedData.documents.panCard?.cloudinaryUrl,
+        publicId: initialSavedData.documents.panCard?.publicId,
+        fileInfo: initialSavedData.documents.panCard?.fileInfo || null
+      },
+      bankStatement: {
+        file: initialSavedData.documents.bankStatement?.cloudinaryUrl || null,
+        preview: initialSavedData.documents.bankStatement?.cloudinaryUrl || null,
+        cloudinaryUrl: initialSavedData.documents.bankStatement?.cloudinaryUrl,
+        publicId: initialSavedData.documents.bankStatement?.publicId,
+        fileInfo: initialSavedData.documents.bankStatement?.fileInfo || null
+      },
+      salarySlip: {
+        file: initialSavedData.documents.salarySlip?.cloudinaryUrl || null,
+        preview: initialSavedData.documents.salarySlip?.cloudinaryUrl || null,
+        cloudinaryUrl: initialSavedData.documents.salarySlip?.cloudinaryUrl,
+        publicId: initialSavedData.documents.salarySlip?.publicId,
+        fileInfo: initialSavedData.documents.salarySlip?.fileInfo || null
+      },
+      selfie: {
+        file: initialSavedData.documents.selfie?.cloudinaryUrl || null,
+        preview: initialSavedData.documents.selfie?.cloudinaryUrl || null,
+        cloudinaryUrl: initialSavedData.documents.selfie?.cloudinaryUrl,
+        publicId: initialSavedData.documents.selfie?.publicId,
+        fileInfo: initialSavedData.documents.selfie?.fileInfo || null
+      }
+    } : {
       aadharCard: { file: null, number: '', preview: null },
       panCard: { file: null, number: '', preview: null },
       bankStatement: { file: null, preview: null },
       salarySlip: { file: null, preview: null },
       selfie: { file: null, preview: null },
     },
-    verification: {
+    verification: initialSavedData?.verification || {
       otpVerification: false,
       biometricVerification: false,
       addressVerification: false,
@@ -455,7 +520,7 @@ const EnhancedKYCPage = () => {
   const [authorized, setAuthorized] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
-  const [formattedAadhar, setFormattedAadhar] = useState('');
+  const [formattedAadhar, setFormattedAadhar] = useState(initialSavedData?.formattedAadhar || '');
   const [previewModal, setPreviewModal] = useState({
     open: false,
     image: null,
@@ -465,6 +530,24 @@ const EnhancedKYCPage = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
   const [showRestoredNotification, setShowRestoredNotification] = useState(false);
+  const [showOtpSentNotification, setShowOtpSentNotification] = useState(false);
+  const [showPhoneVerifiedNotification, setShowPhoneVerifiedNotification] = useState(false);
+  const [dataRestored, setDataRestored] = useState(!!initialSavedData);
+  
+  // General toast notification state
+  const [toast, setToast] = useState({
+    show: false,
+    message: '',
+    type: 'success' // 'success', 'error', 'warning', 'info'
+  });
+
+  // Helper function to show toast
+  const showToast = (message, type = 'info', duration = 5000) => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'info' });
+    }, duration);
+  };
 
   // Missing steps definition - ADD this:
   const steps = [
@@ -816,8 +899,8 @@ const EnhancedKYCPage = () => {
             if (res.data.role === "borrower") {
               setAuthorized(true);
               setUser(res.data);
-              // Pre-fill basic info if available
-              if (res.data.name) {
+              // Only pre-fill basic info if NO data was restored from localStorage
+              if (res.data.name && !dataRestored) {
                 setKycData(prev => ({
                   ...prev,
                   personalInfo: {
@@ -839,7 +922,7 @@ const EnhancedKYCPage = () => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [dataRestored]); // Add dataRestored as dependency
 
   // Sync phone number from personal info to verification state
   useEffect(() => {
@@ -932,111 +1015,23 @@ const EnhancedKYCPage = () => {
 
   // Load saved form data on component mount (Enhanced to restore all progress)
   useEffect(() => {
-    try {
-      const savedData = localStorage.getItem('kycFormData');
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        const lastSaved = new Date(parsed.lastSaved);
-        const now = new Date();
-        const hoursDiff = (now - lastSaved) / (1000 * 60 * 60);
-        
-        // Only restore if saved within last 24 hours
-        if (hoursDiff < 24) {
-          // Restore personal info
-          if (parsed.personalInfo) {
-            setKycData(prev => ({
-              ...prev,
-              personalInfo: { ...prev.personalInfo, ...parsed.personalInfo }
-            }));
-          }
-          
-          // Restore document metadata (URLs from Cloudinary)
-          if (parsed.documents) {
-            setKycData(prev => ({
-              ...prev,
-              documents: {
-                aadharCard: {
-                  ...prev.documents.aadharCard,
-                  number: parsed.documents.aadharCard?.number || '',
-                  file: parsed.documents.aadharCard?.cloudinaryUrl || null,
-                  preview: parsed.documents.aadharCard?.cloudinaryUrl || null,
-                  cloudinaryUrl: parsed.documents.aadharCard?.cloudinaryUrl,
-                  publicId: parsed.documents.aadharCard?.publicId,
-                  fileInfo: parsed.documents.aadharCard?.fileInfo || null
-                },
-                panCard: {
-                  ...prev.documents.panCard,
-                  number: parsed.documents.panCard?.number || '',
-                  file: parsed.documents.panCard?.cloudinaryUrl || null,
-                  preview: parsed.documents.panCard?.cloudinaryUrl || null,
-                  cloudinaryUrl: parsed.documents.panCard?.cloudinaryUrl,
-                  publicId: parsed.documents.panCard?.publicId,
-                  fileInfo: parsed.documents.panCard?.fileInfo || null
-                },
-                bankStatement: {
-                  ...prev.documents.bankStatement,
-                  file: parsed.documents.bankStatement?.cloudinaryUrl || null,
-                  preview: parsed.documents.bankStatement?.cloudinaryUrl || null,
-                  cloudinaryUrl: parsed.documents.bankStatement?.cloudinaryUrl,
-                  publicId: parsed.documents.bankStatement?.publicId,
-                  fileInfo: parsed.documents.bankStatement?.fileInfo || null
-                },
-                salarySlip: {
-                  ...prev.documents.salarySlip,
-                  file: parsed.documents.salarySlip?.cloudinaryUrl || null,
-                  preview: parsed.documents.salarySlip?.cloudinaryUrl || null,
-                  cloudinaryUrl: parsed.documents.salarySlip?.cloudinaryUrl,
-                  publicId: parsed.documents.salarySlip?.publicId,
-                  fileInfo: parsed.documents.salarySlip?.fileInfo || null
-                },
-                selfie: {
-                  ...prev.documents.selfie,
-                  file: parsed.documents.selfie?.cloudinaryUrl || null,
-                  preview: parsed.documents.selfie?.cloudinaryUrl || null,
-                  cloudinaryUrl: parsed.documents.selfie?.cloudinaryUrl,
-                  publicId: parsed.documents.selfie?.publicId,
-                  fileInfo: parsed.documents.selfie?.fileInfo || null
-                }
-              }
-            }));
-          }
-          
-          // Restore verification status
-          if (parsed.verification) {
-            setKycData(prev => ({
-              ...prev,
-              verification: { ...prev.verification, ...parsed.verification }
-            }));
-          }
-          
-          // Restore formatted Aadhar
-          if (parsed.formattedAadhar) {
-            setFormattedAadhar(parsed.formattedAadhar);
-          }
-          
-          // Restore step
-          if (parsed.currentStep && parsed.currentStep > 1) {
-            setCurrentStep(parsed.currentStep);
-            
-            // Show a notification that progress was restored
-            console.log('✅ KYC form progress restored from', new Date(lastSaved).toLocaleString());
-            setShowRestoredNotification(true);
-            
-            // Hide notification after 5 seconds
-            setTimeout(() => {
-              setShowRestoredNotification(false);
-            }, 5000);
-          }
-        } else {
-          // Data is too old, clear it
-          localStorage.removeItem('kycFormData');
-        }
-      }
-    } catch (error) {
-      console.log('Error loading saved data:', error);
-      localStorage.removeItem('kycFormData');
+    // Show notification if data was restored
+    if (initialSavedData) {
+      console.log('✅ KYC form progress restored from', new Date(initialSavedData.lastSaved).toLocaleString());
+      console.log('📊 Restored data:', {
+        step: initialSavedData.currentStep,
+        hasPersonalInfo: !!initialSavedData.personalInfo,
+        personalInfoKeys: initialSavedData.personalInfo ? Object.keys(initialSavedData.personalInfo) : [],
+        personalInfoValues: initialSavedData.personalInfo
+      });
+      setShowRestoredNotification(true);
+      
+      // Hide notification after 5 seconds
+      setTimeout(() => {
+        setShowRestoredNotification(false);
+      }, 5000);
     }
-  }, []);
+  }, []); // Run once on mount
 
   // Cleanup object URLs on component unmount
   useEffect(() => {
@@ -1064,7 +1059,7 @@ const EnhancedKYCPage = () => {
   useEffect(() => {
     if (!auth) {
       console.error('Firebase auth not initialized');
-      alert('Authentication service unavailable. Please refresh the page.');
+      showToast('Authentication service unavailable. Please refresh the page.', 'error');
       return;
     }
   }, []);
@@ -1148,11 +1143,11 @@ const EnhancedKYCPage = () => {
       }
       
       if (error.response?.status >= 500) {
-        alert('Server error. Please try again later.');
+        showToast('Server error. Please try again later.', 'error');
         return;
       }
       
-      alert(error.response?.data?.error || errorMessage);
+      showToast(error.response?.data?.error || errorMessage, 'error');
       throw error;
     }
   };
@@ -1350,7 +1345,8 @@ const EnhancedKYCPage = () => {
       };
 
       if (!hasValidDocuments()) {
-        alert('Please upload all required documents before submitting.');
+        showToast('Please upload all required documents before submitting.', 'warning');
+        setUploading(false);
         return;
       }
       
@@ -1407,17 +1403,20 @@ const EnhancedKYCPage = () => {
 
       // Validate required fields on frontend
       if (!submissionData.documents.aadhar.frontImage || !submissionData.documents.pan.image || !submissionData.documents.selfie) {
-        alert('Please upload all required documents (Aadhar Card, PAN Card, and Selfie)');
+        showToast('Please upload all required documents (Aadhar Card, PAN Card, and Selfie)', 'warning');
+        setUploading(false);
         return;
       }
       
       if (!submissionData.documents.aadhar.number) {
-        alert('Please enter your Aadhar card number');
+        showToast('Please enter your Aadhar card number', 'warning');
+        setUploading(false);
         return;
       }
       
       if (!submissionData.documents.pan.number) {
-        alert('Please enter your PAN card number');
+        showToast('Please enter your PAN card number', 'warning');
+        setUploading(false);
         return;
       }
       
@@ -1441,7 +1440,7 @@ const EnhancedKYCPage = () => {
       
       // Show success message with attempt information
       const attemptMsg = response.data.attempts ? ` (Attempt ${response.data.attempts}/3)` : '';
-      alert(`KYC submitted successfully${attemptMsg}! Your documents will be reviewed within 24-48 hours.`);
+      showToast(`KYC submitted successfully${attemptMsg}! Your documents will be reviewed within 24-48 hours.`, 'success', 7000);
       
       // Clear saved form data from localStorage after successful submission
       localStorage.removeItem('kycFormData');
@@ -1462,9 +1461,9 @@ const EnhancedKYCPage = () => {
             submissionAttempts: error.response.data.attempts || 3
           }
         }));
-        alert('Maximum KYC submission attempts reached. Please contact support for assistance.');
+        showToast('Maximum KYC submission attempts reached. Please contact support for assistance.', 'error', 7000);
       } else {
-        alert(`Failed to submit KYC: ${error.response?.data?.error || 'Please try again.'}`);
+        showToast(`Failed to submit KYC: ${error.response?.data?.error || 'Please try again.'}`, 'error');
       }
     } finally {
       setUploading(false);
@@ -1738,13 +1737,11 @@ const EnhancedKYCPage = () => {
 
       console.log('📝 Verification data stored:', { verificationId });
 
-      // Show toast instead of alert
-      if (window && window.toast) {
-        window.toast.success('OTP sent successfully!');
-      } else {
-        // fallback if toast not available
-        alert('OTP sent successfully!');
-      }
+      // Show toast notification
+      setShowOtpSentNotification(true);
+      setTimeout(() => {
+        setShowOtpSentNotification(false);
+      }, 5000);
     } catch (error) {
       console.error('OTP error:', error);
       let errorMessage = 'Failed to send OTP. ';
@@ -1844,7 +1841,12 @@ const EnhancedKYCPage = () => {
 
         localStorage.setItem('phoneVerified', 'true');
         console.log('✅ Phone verification completed (already linked)');
-        alert('Phone number already verified for this account!');
+        
+        // Show toast notification
+        setShowPhoneVerifiedNotification(true);
+        setTimeout(() => {
+          setShowPhoneVerifiedNotification(false);
+        }, 5000);
         return;
       }
 
@@ -1878,7 +1880,12 @@ const EnhancedKYCPage = () => {
 
           localStorage.setItem('phoneVerified', 'true');
           console.log('✅ Phone verification completed (session verified)');
-          alert('Phone number verified successfully!');
+          
+          // Show toast notification
+          setShowPhoneVerifiedNotification(true);
+          setTimeout(() => {
+            setShowPhoneVerifiedNotification(false);
+          }, 5000);
           return;
         } else {
           // Re-throw other errors
@@ -1907,7 +1914,11 @@ const EnhancedKYCPage = () => {
       localStorage.setItem('phoneVerified', 'true');
       console.log('✅ Phone verification completed successfully');
 
-      alert('Phone number verified successfully!');
+      // Show toast notification
+      setShowPhoneVerifiedNotification(true);
+      setTimeout(() => {
+        setShowPhoneVerifiedNotification(false);
+      }, 5000);
 
     } catch (error) {
       console.error('❌ OTP verification error:', error);
@@ -1944,7 +1955,12 @@ const EnhancedKYCPage = () => {
           }
         }));
         localStorage.setItem('phoneVerified', 'true');
-        alert('Phone number verified successfully!');
+        
+        // Show toast notification
+        setShowPhoneVerifiedNotification(true);
+        setTimeout(() => {
+          setShowPhoneVerifiedNotification(false);
+        }, 5000);
         return;
       } else if (error.code === 'auth/credential-already-in-use') {
         errorMessage = 'This phone number is already linked to another account.';
@@ -1965,7 +1981,12 @@ const EnhancedKYCPage = () => {
           }
         }));
         localStorage.setItem('phoneVerified', 'true');
-        alert('Phone number already verified!');
+        
+        // Show toast notification
+        setShowPhoneVerifiedNotification(true);
+        setTimeout(() => {
+          setShowPhoneVerifiedNotification(false);
+        }, 5000);
         return;
       } else if (error.message && error.message.includes('verification session')) {
         errorMessage = 'Verification session expired. Please request OTP again.';
@@ -2411,6 +2432,95 @@ const EnhancedKYCPage = () => {
         </div>
       )}
       
+      {/* OTP Sent Notification Toast */}
+      {showOtpSentNotification && (
+        <div className="fixed top-20 right-4 z-50 animate-fade-in">
+          <div className={`rounded-lg shadow-2xl p-4 flex items-center space-x-3 ${
+            isDark ? 'bg-gray-800 border border-blue-700' : 'bg-white border border-blue-300'
+          }`}>
+            <div className="flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-blue-500" />
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                OTP Sent Successfully
+              </p>
+              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Check your phone for the verification code
+              </p>
+            </div>
+            <button
+              onClick={() => setShowOtpSentNotification(false)}
+              className={`flex-shrink-0 ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Phone Verified Notification Toast */}
+      {showPhoneVerifiedNotification && (
+        <div className="fixed top-20 right-4 z-50 animate-fade-in">
+          <div className={`rounded-lg shadow-2xl p-4 flex items-center space-x-3 ${
+            isDark ? 'bg-gray-800 border border-green-700' : 'bg-white border border-green-300'
+          }`}>
+            <div className="flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-green-500" />
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Phone Verified Successfully
+              </p>
+              <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                Your phone number has been verified
+              </p>
+            </div>
+            <button
+              onClick={() => setShowPhoneVerifiedNotification(false)}
+              className={`flex-shrink-0 ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* General Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-20 right-4 z-50 animate-fade-in">
+          <div className={`rounded-lg shadow-2xl p-4 flex items-center space-x-3 min-w-[300px] max-w-md ${
+            isDark 
+              ? toast.type === 'success' ? 'bg-gray-800 border border-green-700' :
+                toast.type === 'error' ? 'bg-gray-800 border border-red-700' :
+                toast.type === 'warning' ? 'bg-gray-800 border border-yellow-700' :
+                'bg-gray-800 border border-blue-700'
+              : toast.type === 'success' ? 'bg-white border border-green-300' :
+                toast.type === 'error' ? 'bg-white border border-red-300' :
+                toast.type === 'warning' ? 'bg-white border border-yellow-300' :
+                'bg-white border border-blue-300'
+          }`}>
+            <div className="flex-shrink-0">
+              {toast.type === 'success' && <CheckCircle className="w-6 h-6 text-green-500" />}
+              {toast.type === 'error' && <X className="w-6 h-6 text-red-500" />}
+              {toast.type === 'warning' && <AlertCircle className="w-6 h-6 text-yellow-500" />}
+              {toast.type === 'info' && <CheckCircle className="w-6 h-6 text-blue-500" />}
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {toast.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setToast({ show: false, message: '', type: 'info' })}
+              className={`flex-shrink-0 ${isDark ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Main Content Container */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
@@ -2481,15 +2591,6 @@ const EnhancedKYCPage = () => {
             ))}
           </div>
           
-          {/* Auto-save Indicator */}
-          <div className="mt-4 flex items-center justify-center">
-            <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs ${
-              isDark ? 'bg-green-900/30 text-green-400' : 'bg-green-50 text-green-700'
-            }`}>
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span className="font-medium">Progress Auto-saved</span>
-            </div>
-          </div>
         </div>
 
         {/* Step Content */}
@@ -2929,19 +3030,6 @@ const EnhancedKYCPage = () => {
                           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                         >
                           {phoneVerification.loading ? 'Verifying...' : 'Verify OTP'}
-                        </button>
-                        
-                        <button 
-                          onClick={() => {
-                            console.log('🔍 DEBUG INFO:');
-                            console.log('Phone verification state:', phoneVerification);
-                            console.log('Confirmation result:', phoneVerification.confirmationResult);
-                            console.log('Current user:', auth.currentUser);
-                            console.log('OTP entered:', phoneVerification.otp);
-                          }}
-                          className="px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-xs"
-                        >
-                          Debug
                         </button>
                         
                         <button 

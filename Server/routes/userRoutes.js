@@ -541,6 +541,13 @@ router.get("/all-borrowers", verifyToken, async (req, res) => {
   try {
     console.log('🔍 Fetching all borrowers for assessment');
     console.log('👤 Request from user:', req.user?.email, 'Role:', req.user?.role);
+    console.log('🔐 Auth header:', req.headers.authorization ? 'Present' : 'Missing');
+    console.log('✅ Middleware passed, user authenticated:', {
+      email: req.user?.email,
+      role: req.user?.role,
+      verified: req.user?.verified,
+      uid: req.user?.uid
+    });
     
     const borrowers = await User.find({ role: 'borrower' })
       .select('_id name email kycStatus createdAt')
