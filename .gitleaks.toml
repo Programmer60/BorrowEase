@@ -1,0 +1,54 @@
+# GitLeaks Configuration for BorrowEase
+# Prevents committing secrets to Git
+
+title = "BorrowEase Secret Detection"
+
+[[rules]]
+id = "twilio-account-sid"
+description = "Twilio Account SID"
+regex = '''AC[a-z0-9]{32}'''
+tags = ["twilio", "api-key"]
+
+[[rules]]
+id = "twilio-auth-token"
+description = "Twilio Auth Token"
+regex = '''SK[a-z0-9]{32}'''
+tags = ["twilio", "api-key"]
+
+[[rules]]
+id = "redis-password"
+description = "Redis Connection String with Password"
+regex = '''redis://[^:]+:([^@]+)@'''
+tags = ["redis", "password"]
+
+[[rules]]
+id = "firebase-private-key"
+description = "Firebase Private Key"
+regex = '''-----BEGIN PRIVATE KEY-----'''
+tags = ["firebase", "private-key"]
+
+[[rules]]
+id = "mongodb-connection"
+description = "MongoDB Connection String"
+regex = '''mongodb(\+srv)?://[^:]+:[^@]+@'''
+tags = ["mongodb", "password"]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(api[_-]?key|apikey|api[_-]?secret)\s*[:=]\s*['"]?[a-z0-9]{20,}'''
+tags = ["api-key"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key"
+regex = '''AKIA[0-9A-Z]{16}'''
+tags = ["aws", "access-key"]
+
+[allowlist]
+description = "Allowlist for template and example files"
+paths = [
+  '''\.template$''',
+  '''\.example$''',
+  '''\.sample$''',
+]

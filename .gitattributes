@@ -1,0 +1,25 @@
+# Git Attributes for BorrowEase
+
+# Mark documentation files as documentation
+*.md linguist-documentation
+
+# Mark sensitive files (templates should not contain real secrets)
+*.env.* filter=git-crypt diff=git-crypt
+.env filter=git-crypt diff=git-crypt
+serviceAccountKey.json filter=git-crypt diff=git-crypt
+
+# Line ending normalization
+* text=auto
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
