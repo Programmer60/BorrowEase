@@ -24,6 +24,9 @@ import User from "./models/userModel.js";
 import { auth } from "./firebase.js";
 import cloudinaryRoutes from "./routes/cloudinaryRoutes.js";
 import legalRoutes from "./routes/legalRoutes.js";
+import { connectRedis, getRedisClient } from './config/redis.js';
+import { initRedis } from './services/otpService.js';
+import otpRoutes from './routes/otpRoutes.js';
 
 
 dotenv.config();
@@ -119,6 +122,24 @@ app.use(express.urlencoded({ extended: true }));
 // Connect DB
 connectDB();
 
+// Initialize Redis for OTP service
+const initializeRedis = async () => {
+  try {
+    const redisClient = await connectRedis();
+    if (redisClient) {
+      initRedis(redisClient);
+      console.log('✅ OTP Service initialized with Redis');
+    } else {
+      console.log('⚠️ OTP Service running without Redis (caching disabled)');
+    }
+  } catch (error) {
+    console.error('❌ Failed to initialize OTP Service:', error.message);
+    console.log('⚠️ OTP Service will continue without Redis');
+  }
+};
+
+initializeRedis();
+
 // Routes
 app.use("/api/loans", loanRoutes);
 app.use("/api/users", userRoutes);
@@ -135,6 +156,7 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api", cloudinaryRoutes);
 app.use("/legal", legalRoutes); // PDF legal docs
+app.use("/api/otp", otpRoutes); // Phone OTP verification
 
 // Health check (for Render and other PaaS)
 app.get("/health", (req, res) => {

@@ -167,19 +167,45 @@ export default function Login() {
             // Check if user exists or create new user
             let userRole;
             let isExistingUser = false;
+            let phoneVerified = false;
             
             try {
                 const userData = await API.get("/users/me");
                 userRole = userData.data.role;
+                phoneVerified = userData.data.phoneVerified;
                 isExistingUser = true;
-                console.log("Existing Google user found with role:", userRole);
+                console.log("Existing Google user found:", { role: userRole, phoneVerified });
+                
+                // Check if user completed phone verification
+                if (!phoneVerified) {
+                    console.log("User needs phone verification - redirecting to onboarding");
+                    showInfo('Please complete your phone verification');
+                    navigate('/onboarding', {
+                        state: {
+                            email: user.email,
+                            name: user.displayName,
+                            uid: user.uid,
+                            role: userRole
+                        }
+                    });
+                    setLoading(false);
+                    return;
+                }
+                
             } catch (err) {
                 if (err.response?.status === 404) {
-                    console.log("New Google user, setting up account...");
-                    await API.post("/users/setup", { role });
-                    userRole = role;
-                    console.log("User role saved:", userRole);
-                    showSuccess(`Welcome! Your ${role} account has been created successfully.`);
+                    console.log("New Google user - redirecting to onboarding");
+                    showSuccess('Welcome! Let\'s set up your account.');
+                    navigate('/onboarding', {
+                        state: {
+                            email: user.email,
+                            name: user.displayName,
+                            uid: user.uid,
+                            verified: true
+                        }
+                    });
+                    setLoading(false);
+                    return;
                 } else {
                     throw err;
                 }
@@ -266,19 +292,12 @@ export default function Login() {
             const token = await getIdToken(result.user, true);
             API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
             
-            await API.post("/users/setup", { 
-                role,
-                verified: false, // Mark as unverified initially
-                email: result.user.email,
-                uid: result.user.uid
-            });
-            
             // Step 4: Show verification UI
             setVerificationEmail(email);
             setAwaitingVerification(true);
             setIsSignUp(false); // Hide signup form
             
-            showSuccess('Account created! Please check your email to verify your account before logging in.');
+            showSuccess('Account created! Please check your email to verify, then complete phone verification.');
             
         } catch (error) {
             console.error('Email signup failed:', error);

@@ -12,7 +12,10 @@ const userSchema = new mongoose.Schema({
   loansTaken: { type: Number, default: 0 },
   creditScore: { type: Number, default: 750 }, // Credit score field
   phone: { type: String }, // Phone number field
+  phoneVerified: { type: Boolean, default: false }, // Phone verification status (mandatory for P2P)
   location: { type: String }, // Location field
+  city: { type: String }, // City field
+  occupation: { type: String }, // Occupation field
   bio: { type: String }, // Bio field
   university: { type: String }, // University field (for borrowers)
   graduationYear: { type: String }, // Graduation year field (for borrowers)

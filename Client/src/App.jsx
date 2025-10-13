@@ -29,6 +29,8 @@ import ProfilePage from "./Components/ProfilePage";
 import EnhancedChatRoom from "./Components/EnhancedChatRoom";
 import ComprehensiveAIDashboard from "./Components/ComprehensiveAIDashboard";
 import EnhancedKYCPage from "./Components/EnhancedKYCPage";
+import PhoneVerificationPage from "./Components/PhoneVerificationPage";
+import UserOnboarding from "./Components/UserOnboarding";
 
 
 function App() {
@@ -65,6 +67,8 @@ function App() {
               <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/login" element={<LoginEnhanced />} />
+              <Route path="/verify-phone" element={<PhoneVerificationPage />} />
+              <Route path="/onboarding" element={<UserOnboarding />} />
               
               <Route path="/borrower" element={<ProtectedRoute element={BorrowerDashboard} requiredRole="borrower" />} />
               <Route path="/lender" element={<ProtectedRoute element={LenderDashboard} requiredRole="lender" />} />

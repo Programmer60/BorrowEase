@@ -271,6 +271,9 @@ router.get("/me", verifyTokenAllowUnverified, async (req, res) => {
       profilePicture: user.profilePicture,
       // Expose profile fields so ProfilePage can render saved data
       phone: user.phone || '',
+      phoneVerified: user.phoneVerified || false,
+      city: user.city || '',
+      occupation: user.occupation || '',
       location: user.location || '',
       bio: user.bio || '',
       university: user.university || '',
@@ -432,6 +435,83 @@ router.patch("/me", verifyToken, async (req, res) => {
     };
     
     res.json(response);
+  } catch (error) {
+    console.error('❌ Error updating profile:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update phone number and verification status (after OTP verification)
+router.post("/update-phone", verifyToken, async (req, res) => {
+  const { email } = req.user;
+  const { phone, phoneVerified } = req.body;
+  
+  try {
+    console.log('📱 Updating phone for', email, ':', phone, 'verified:', phoneVerified);
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Update phone and verification status
+    user.phone = phone;
+    user.phoneVerified = phoneVerified || false;
+    
+    await user.save();
+
+    console.log('✅ Phone updated for', email);
+    
+    res.json({ 
+      success: true,
+      message: "Phone number updated successfully",
+      phone: user.phone,
+      phoneVerified: user.phoneVerified
+    });
+  } catch (error) {
+    console.error('❌ Error updating phone:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update profile (extended with city, occupation, onboardingComplete)
+router.patch("/profile", verifyToken, async (req, res) => {
+  const { email } = req.user;
+  const { name, bio, occupation, city, onboardingComplete } = req.body;
+  
+  try {
+    console.log('📝 Updating profile for', email);
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Update fields if provided
+    if (name) user.name = name.trim();
+    if (bio !== undefined) user.bio = bio.trim();
+    if (occupation) user.occupation = occupation.trim();
+    if (city) user.city = city.trim();
+    if (onboardingComplete !== undefined) user.onboardingComplete = onboardingComplete;
+    
+    await user.save();
+
+    console.log('✅ Profile updated for', email);
+    
+    res.json({ 
+      success: true,
+      message: "Profile updated successfully",
+      user: {
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        city: user.city,
+        occupation: user.occupation,
+        bio: user.bio,
+        role: user.role,
+        phoneVerified: user.phoneVerified
+      }
+    });
   } catch (error) {
     console.error('❌ Error updating profile:', error);
     res.status(500).json({ error: error.message });
