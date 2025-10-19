@@ -38,7 +38,7 @@ const initTwilio = () => {
 
         twilioClient = twilio(accountSid, authToken);
         console.log('✅ Twilio Verify API initialized');
-        console.log(`   Verify Service SID: ${verifySid}`);
+        console.log(`   Verify Service SID: ${verifySid.substring(0, 4)}...${verifySid.substring(verifySid.length - 4)}`);
         return true;
     } catch (error) {
         console.error('❌ Failed to initialize Twilio:', error.message);
