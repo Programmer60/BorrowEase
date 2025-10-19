@@ -675,50 +675,9 @@ router.get("/interest-tiers", verifyToken, async (req, res) => {
   }
 });
 
-// Get single loan by ID (for chat access verification) - MUST BE LAST
-router.get("/:id", verifyToken, async (req, res) => {
-  try {
-    const loan = await Loan.findById(req.params.id)
-      .populate('borrowerId', 'name email _id')
-      .populate('lenderId', 'name email _id');
-    
-    if (!loan) {
-      return res.status(404).json({ error: "Loan not found" });
-    }
-
-    // Check if user is authorized to view this loan
-    const userId = req.user.id.toString();
-    const borrowerId = loan.borrowerId._id.toString();
-    const lenderId = loan.lenderId?._id?.toString();
-    
-    console.log('Authorization check:', {
-      userId,
-      borrowerId,
-      lenderId,
-      userRole: req.user.role
-    });
-
-    // Allow access if user is borrower, lender, or admin
-    const isAuthorized = userId === borrowerId || 
-                        (lenderId && userId === lenderId) || 
-                        req.user.role === 'admin';
-
-    if (!isAuthorized) {
-      return res.status(403).json({ 
-        error: "Unauthorized to view this loan",
-        details: "You can only access loans where you are the borrower or lender"
-      });
-    }
-
-    res.json(loan);
-  } catch (error) {
-    console.error("Error fetching loan:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // 🌍 PUBLIC ENDPOINT - Get platform statistics (no authentication required)
 // This endpoint provides real, live statistics to build user trust on the home page
+// IMPORTANT: This route MUST be before the /:id route to prevent route collision
 router.get("/public/stats", async (req, res) => {
   try {
     console.log('📊 Public stats request received');
@@ -819,6 +778,48 @@ router.get("/public/stats", async (req, res) => {
       isError: true,
       error: 'Using fallback data due to database error'
     });
+  }
+});
+
+// Get single loan by ID (for chat access verification) - MUST BE LAST
+router.get("/:id", verifyToken, async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.id)
+      .populate('borrowerId', 'name email _id')
+      .populate('lenderId', 'name email _id');
+    
+    if (!loan) {
+      return res.status(404).json({ error: "Loan not found" });
+    }
+
+    // Check if user is authorized to view this loan
+    const userId = req.user.id.toString();
+    const borrowerId = loan.borrowerId._id.toString();
+    const lenderId = loan.lenderId?._id?.toString();
+    
+    console.log('Authorization check:', {
+      userId,
+      borrowerId,
+      lenderId,
+      userRole: req.user.role
+    });
+
+    // Allow access if user is borrower, lender, or admin
+    const isAuthorized = userId === borrowerId || 
+                        (lenderId && userId === lenderId) || 
+                        req.user.role === 'admin';
+
+    if (!isAuthorized) {
+      return res.status(403).json({ 
+        error: "Unauthorized to view this loan",
+        details: "You can only access loans where you are the borrower or lender"
+      });
+    }
+
+    res.json(loan);
+  } catch (error) {
+    console.error("Error fetching loan:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

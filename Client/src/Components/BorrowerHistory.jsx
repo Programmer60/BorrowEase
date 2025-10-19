@@ -94,28 +94,28 @@ export default function BorrowerHistory () {
                 <div className={`shadow-sm border-b ${
                   isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                 }`}>
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h1 className={`text-3xl font-bold ${
-                                  isDark ? 'text-gray-100' : 'text-gray-900'
-                                }`}>My Loan Requests</h1>
-                                <p className={`mt-2 ${
-                                  isDark ? 'text-gray-300' : 'text-gray-600'
-                                }`}>Track your loan requests and repayment status</p>
-                            </div>
-                            <div className="hidden md:flex items-center space-x-4">
+                    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+                        <div>
+                            <h1 className={`text-2xl sm:text-3xl font-bold ${
+                              isDark ? 'text-gray-100' : 'text-gray-900'
+                            }`}>My Loan Requests</h1>
+                            <p className={`mt-1 sm:mt-2 text-sm sm:text-base ${
+                              isDark ? 'text-gray-300' : 'text-gray-600'
+                            }`}>Track your loan requests and repayment status</p>
+                            
+                            {/* Mobile stats - show inline */}
+                            <div className="flex md:hidden items-center gap-4 mt-3">
                                 <div className="text-center">
-                                    <div className="text-2xl font-bold text-blue-600">{loans.length}</div>
-                                    <div className={`text-sm ${
+                                    <div className="text-lg font-bold text-blue-600">{loans.length}</div>
+                                    <div className={`text-xs ${
                                       isDark ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>Total Requests</div>
+                                    }`}>Requests</div>
                                 </div>
                                 <div className="text-center">
-                                    <div className="text-2xl font-bold text-purple-600">₹{totalRequested.toLocaleString()}</div>
-                                    <div className={`text-sm ${
+                                    <div className="text-lg font-bold text-purple-600">₹{totalRequested.toLocaleString()}</div>
+                                    <div className={`text-xs ${
                                       isDark ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>Total Requested</div>
+                                    }`}>Requested</div>
                                 </div>
                             </div>
                         </div>
@@ -123,8 +123,8 @@ export default function BorrowerHistory () {
                 </div>
 
                 {/* Stats Cards */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+                    <div className="hidden md:grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
                         <div className={`rounded-lg shadow-sm p-6 border ${
                           isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                         }`}>
@@ -278,12 +278,12 @@ export default function BorrowerHistory () {
                                                                             else relativeStr = ` (${days} days ago)`;
                                                                         }
                                     return (
-                                        <div key={loan._id} className={`p-6 transition-colors ${
+                                        <div key={loan._id} className={`p-3 sm:p-6 transition-colors ${
                                           isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
                                         }`}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center space-x-3">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start sm:items-center space-x-3">
                                                         <div className="flex-shrink-0">
                                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                                                               isDark ? 'bg-purple-900' : 'bg-purple-100'
@@ -294,14 +294,14 @@ export default function BorrowerHistory () {
                                                             </div>
                                                         </div>
                                                         <div className="min-w-0 flex-1">
-                                                                                                                        <div className="flex items-center space-x-3">
-                                                                                                                                <h3 className={`text-lg font-medium truncate ${
+                                                                                                                        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3">
+                                                                                                                                <h3 className={`text-base sm:text-lg font-medium truncate ${
                                                                                                                                     isDark ? 'text-gray-200' : 'text-gray-900'
                                                                                                                                 }`}>{loan.purpose}</h3>
                                                                                                                                 {loan.amount !== undefined && loan.amount !== null ? (
                                                                                                                                     <span
                                                                                                                                         aria-label={`Loan amount ₹${Number(loan.amount).toLocaleString('en-IN')}`}
-                                                                                                                                        className="text-sm sm:text-base font-semibold text-purple-600"
+                                                                                                                                        className="text-lg sm:text-xl font-semibold text-purple-600 mt-1 sm:mt-0"
                                                                                                                                     >
                                                                                                                                         ₹{Number(loan.amount).toLocaleString('en-IN')}
                                                                                                                                     </span>
@@ -309,14 +309,14 @@ export default function BorrowerHistory () {
                                                                                                                                     <span className="text-xs italic opacity-60" aria-label="Loan amount unavailable">—</span>
                                                                                                                                 )}
                                                                                                                         </div>
-                                                                                                                        <div className={`mt-1 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm ${
+                                                                                                                        <div className={`mt-1 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1 sm:gap-x-6 sm:gap-y-2 text-xs sm:text-sm ${
                                                               isDark ? 'text-gray-400' : 'text-gray-500'
                                                             }`}>
                                                                 <span className="flex items-center">
-                                                                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                                     </svg>
-                                                                                                                                        Requested:&nbsp;
+                                                                                                                                        <span className="hidden sm:inline">Requested:&nbsp;</span>
                                                                                                                                         {requestedDateStr ? (
                                                                                                                                             <span
                                                                                                                                                 aria-label={"Requested date " + requestedDateStr}
@@ -330,8 +330,8 @@ export default function BorrowerHistory () {
                                                                                                                                         )}
                                                                                                                                 </span>
                                                                 {loan.funded && loan.lender && (
-                                                                    <span className="flex items-center">
-                                                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <span className="flex items-center truncate">
+                                                                        <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                                                         </svg>
                                                                         Lender: {loan.lender}
@@ -341,42 +341,53 @@ export default function BorrowerHistory () {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex-shrink-0 ml-4 flex items-center space-x-2">
+                                                <div className="flex items-center space-x-2 sm:flex-shrink-0">
                                                     {loan.funded && (
                                                         <button
                                                             onClick={() => navigate(`/chat/${loan._id}`)}
-                                                            className="relative inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
+                                                            className={`relative inline-flex items-center px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-initial justify-center ${
+                                                              isDark 
+                                                                ? 'bg-blue-900 text-blue-200 hover:bg-blue-800' 
+                                                                : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                                                            }`}
                                                         >
-                                                            <MessageCircle className="w-4 h-4 mr-1" />
-                                                            Chat
+                                                            <MessageCircle className="w-4 h-4 sm:mr-1" />
+                                                            <span className="hidden sm:inline">Chat</span>
                                                             {chatUnreadCounts[loan._id] > 0 && (
-                                                                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                                                                <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
                                                                     {chatUnreadCounts[loan._id] > 99 ? '99+' : chatUnreadCounts[loan._id]}
                                                                 </span>
                                                             )}
                                                         </button>
                                                     )}
-                                                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                                                        statusInfo.color === 'green' ? 'bg-green-100 text-green-800' :
-                                                        statusInfo.color === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-red-100 text-red-800'
+                                                    <div className={`inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium ${
+                                                        statusInfo.color === 'green' 
+                                                          ? (isDark ? 'bg-green-900 text-green-200' : 'bg-green-100 text-green-800')
+                                                          : statusInfo.color === 'yellow' 
+                                                            ? (isDark ? 'bg-yellow-900 text-yellow-200' : 'bg-yellow-100 text-yellow-800')
+                                                            : (isDark ? 'bg-red-900 text-red-200' : 'bg-red-100 text-red-800')
                                                     }`}>
                                                         {statusInfo.icon === 'check-circle' && (
-                                                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <svg className="w-4 h-4 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                             </svg>
                                                         )}
                                                         {statusInfo.icon === 'clock' && (
-                                                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <svg className="w-4 h-4 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                             </svg>
                                                         )}
                                                         {statusInfo.icon === 'x-circle' && (
-                                                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <svg className="w-4 h-4 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                             </svg>
                                                         )}
-                                                        {statusInfo.status}
+                                                        <span className="hidden sm:inline">{statusInfo.status}</span>
+                                                        <span className="sm:hidden">
+                                                          {statusInfo.status === 'Repaid' ? '✓' : 
+                                                           statusInfo.status === 'Repayment Pending' ? '⏳' : 
+                                                           '✗'}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -388,11 +399,11 @@ export default function BorrowerHistory () {
                         
                         {/* Pagination Controls */}
                         {pagination && pagination.totalPages > 1 && (
-                            <div className="mt-8 flex justify-center items-center space-x-4">
+                            <div className="mt-6 sm:mt-8 flex justify-center items-center space-x-3 sm:space-x-4 px-3 pb-3">
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     disabled={!pagination.hasPrev}
-                                    className={`px-4 py-2 rounded-lg ${
+                                    className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base ${
                                         pagination.hasPrev
                                             ? 'bg-blue-600 text-white hover:bg-blue-700'
                                             : isDark 
@@ -400,17 +411,18 @@ export default function BorrowerHistory () {
                                                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                     }`}
                                 >
-                                    Previous
+                                    <span className="hidden sm:inline">Previous</span>
+                                    <span className="sm:hidden">Prev</span>
                                 </button>
                                 
-                                <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
-                                    Page {pagination.currentPage} of {pagination.totalPages}
+                                <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    <span className="hidden sm:inline">Page </span>{pagination.currentPage} of {pagination.totalPages}
                                 </span>
                                 
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
                                     disabled={!pagination.hasNext}
-                                    className={`px-4 py-2 rounded-lg ${
+                                    className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base ${
                                         pagination.hasNext
                                             ? 'bg-blue-600 text-white hover:bg-blue-700'
                                             : isDark 

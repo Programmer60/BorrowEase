@@ -1,7 +1,7 @@
 // Enhanced Login component with industrial-level implementation
 import { useState, useEffect } from 'react';
 import { Eye, EyeOff, Mail, Lock, CreditCard, Users, TrendingUp, Shield, CheckCircle, ArrowRight, Star, MessageCircle, Zap, DollarSign, Clock } from 'lucide-react';
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useTheme } from '../contexts/ThemeContext';
 import { useNotifications } from '../Components/NotificationSystem';
 import { auth, provider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken, sendEmailVerification, sendPasswordResetEmail } from '../firebase';
@@ -1063,9 +1063,9 @@ export default function Login() {
                         <div className="mt-6 text-center">
                             <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 By signing in, you agree to our{' '}
-                                <a href="#" className="text-blue-600 hover:text-blue-700">Terms of Service</a>
+                                <Link to="/legal/terms-of-service" className="text-blue-600 hover:text-blue-700">Terms of Service</Link>
                                 {' '}and{' '}
-                                <a href="#" className="text-blue-600 hover:text-blue-700">Privacy Policy</a>
+                                <Link to="/legal/privacy-policy" className="text-blue-600 hover:text-blue-700">Privacy Policy</Link>
                             </p>
                         </div>
 

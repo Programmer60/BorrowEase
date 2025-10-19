@@ -86,54 +86,55 @@ export default function LenderHistory() {
                 <div className={`shadow-sm border-b ${
                   isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                 }`}>
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h1 className={`text-3xl font-bold ${
-                                  isDark ? 'text-gray-100' : 'text-gray-900'
-                                }`}>Lending History</h1>
-                                <p className={`mt-2 ${
-                                  isDark ? 'text-gray-300' : 'text-gray-600'
-                                }`}>Track your funded loans and their repayment status</p>
+                    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+                        <div>
+                            <h1 className={`text-2xl sm:text-3xl font-bold ${
+                              isDark ? 'text-gray-100' : 'text-gray-900'
+                            }`}>Lending History</h1>
+                            <p className={`mt-1 sm:mt-2 text-sm sm:text-base ${
+                              isDark ? 'text-gray-300' : 'text-gray-600'
+                            }`}>Track your funded loans and their repayment status</p>
+                            
+                            {/* Mobile stats - show inline */}
+                            <div className="flex md:hidden items-center gap-4 mt-3">
+                                <div className="text-center">
+                                    <div className="text-lg font-bold text-blue-600">{loans.length}</div>
+                                    <div className={`text-xs ${
+                                      isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>Total</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-lg font-bold text-green-600">₹{totalFunded.toLocaleString()}</div>
+                                    <div className={`text-xs ${
+                                      isDark ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>Funded</div>
+                                </div>
                             </div>
-                            <div className="hidden md:flex items-center space-x-4">
-                                <div className="text-center">
-                                    <div className="text-2xl font-bold text-blue-600">{loans.length}</div>
-                                    <div className={`text-sm ${
-                                      isDark ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>Total Loans</div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-2xl font-bold text-green-600">₹{totalFunded.toLocaleString()}</div>
-                                    <div className={`text-sm ${
-                                      isDark ? 'text-gray-400' : 'text-gray-500'
-                                    }`}>Total Funded</div>
-                                </div>
-                                {/* Search box */}
-                                <div className="relative">
-                                    <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
-                                      isDark ? 'text-gray-500' : 'text-gray-400'
-                                    }`} />
-                                    <input
-                                        type="text"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        placeholder="Search by borrower, email, purpose"
-                                        className={`pl-9 pr-3 py-2 w-72 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${
-                                          isDark 
-                                            ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
-                                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                                        }`}
-                                    />
-                                </div>
+                            
+                            {/* Search box - full width on mobile */}
+                            <div className="relative mt-3 md:mt-0 md:absolute md:right-4 md:top-6">
+                                <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                                  isDark ? 'text-gray-500' : 'text-gray-400'
+                                }`} />
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Search loans..."
+                                    className={`pl-9 pr-3 py-2 w-full md:w-72 rounded-lg border focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${
+                                      isDark 
+                                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
+                                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                                    }`}
+                                />
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {/* Stats Cards */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+                    <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
                         <div className={`rounded-lg shadow-sm p-6 border ${
                           isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                         }`}>
@@ -264,12 +265,12 @@ export default function LenderHistory() {
                               isDark ? 'divide-gray-700' : 'divide-gray-200'
                             }`}>
                                 {filteredLoans.map((loan) => (
-                                    <div key={loan._id} className={`p-6 transition-colors ${
+                                    <div key={loan._id} className={`p-3 sm:p-6 transition-colors ${
                                       isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
                                     }`}>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex-1">
-                                                <div className="flex items-center space-x-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-start sm:items-center space-x-3">
                                                     <div className="flex-shrink-0">
                                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                                                           isDark ? 'bg-blue-900' : 'bg-blue-100'
@@ -280,13 +281,13 @@ export default function LenderHistory() {
                                                         </div>
                                                     </div>
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center space-x-2">
-                                                            <h3 className={`text-lg font-medium truncate ${
+                                                        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+                                                            <h3 className={`text-base sm:text-lg font-medium truncate ${
                                                               isDark ? 'text-gray-200' : 'text-gray-900'
                                                             }`}>{loan.purpose}</h3>
-                                                            <span className="text-xl font-bold text-blue-600">₹{loan.amount.toLocaleString()}</span>
+                                                            <span className="text-lg sm:text-xl font-bold text-blue-600 mt-1 sm:mt-0">₹{loan.amount.toLocaleString()}</span>
                                                         </div>
-                                                        <div className={`mt-1 flex items-center space-x-4 text-sm ${
+                                                        <div className={`mt-1 flex flex-col sm:flex-row sm:items-center sm:space-x-4 gap-1 sm:gap-0 text-xs sm:text-sm ${
                                                           isDark ? 'text-gray-400' : 'text-gray-500'
                                                         }`}>
                                                             <span className="flex items-center">
@@ -295,8 +296,8 @@ export default function LenderHistory() {
                                                                 </svg>
                                                                 {loan.name}
                                                             </span>
-                                                            <span className="flex items-center">
-                                                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <span className="flex items-center truncate">
+                                                                <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                                                 </svg>
                                                                 {loan.collegeEmail}
@@ -305,44 +306,44 @@ export default function LenderHistory() {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex-shrink-0 ml-4 flex items-center space-x-2">
+                                            <div className="flex items-center space-x-2 sm:flex-shrink-0">
                                                 <button
                                                     onClick={() => navigate(`/chat/${loan._id}`)}
-                                                    className={`relative inline-flex items-center px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                                                    className={`relative inline-flex items-center px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-initial justify-center ${
                                                       isDark 
                                                         ? 'bg-blue-900 text-blue-200 hover:bg-blue-800' 
                                                         : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
                                                     }`}
                                                 >
-                                                    <MessageCircle className="w-4 h-4 mr-1" />
-                                                    Chat
+                                                    <MessageCircle className="w-4 h-4 sm:mr-1" />
+                                                    <span className="hidden sm:inline">Chat</span>
                                                     {chatUnreadCounts[loan._id] > 0 && (
-                                                        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                                                        <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
                                                             {chatUnreadCounts[loan._id] > 99 ? '99+' : chatUnreadCounts[loan._id]}
                                                         </span>
                                                     )}
                                                 </button>
                                                 {loan.repaid ? (
-                                                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                                                    <div className={`inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium ${
                                                       isDark 
                                                         ? 'bg-green-900 text-green-200' 
                                                         : 'bg-green-100 text-green-800'
                                                     }`}>
-                                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <svg className="w-4 h-4 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                         </svg>
-                                                        Repaid
+                                                        <span className="hidden sm:inline">Repaid</span>
                                                     </div>
                                                 ) : (
-                                                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                                                    <div className={`inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium ${
                                                       isDark 
                                                         ? 'bg-yellow-900 text-yellow-200' 
                                                         : 'bg-yellow-100 text-yellow-800'
                                                     }`}>
-                                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <svg className="w-4 h-4 sm:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                         </svg>
-                                                        Pending
+                                                        <span className="hidden sm:inline">Pending</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -354,11 +355,11 @@ export default function LenderHistory() {
                         
                         {/* Pagination Controls */}
                         {pagination && pagination.totalPages > 1 && (
-                            <div className="mt-8 flex justify-center items-center space-x-4">
+                            <div className="mt-6 sm:mt-8 flex justify-center items-center space-x-3 sm:space-x-4 px-3 pb-3">
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     disabled={!pagination.hasPrev}
-                                    className={`px-4 py-2 rounded-lg ${
+                                    className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base ${
                                         pagination.hasPrev
                                             ? 'bg-blue-600 text-white hover:bg-blue-700'
                                             : isDark 
@@ -366,17 +367,18 @@ export default function LenderHistory() {
                                                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                     }`}
                                 >
-                                    Previous
+                                    <span className="hidden sm:inline">Previous</span>
+                                    <span className="sm:hidden">Prev</span>
                                 </button>
                                 
-                                <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>
-                                    Page {pagination.currentPage} of {pagination.totalPages}
+                                <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    <span className="hidden sm:inline">Page </span>{pagination.currentPage} of {pagination.totalPages}
                                 </span>
                                 
                                 <button
                                     onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
                                     disabled={!pagination.hasNext}
-                                    className={`px-4 py-2 rounded-lg ${
+                                    className={`px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base ${
                                         pagination.hasNext
                                             ? 'bg-blue-600 text-white hover:bg-blue-700'
                                             : isDark 

@@ -34,13 +34,27 @@ function setPdfHeaders(res, fileName, etag){
 
 function addFooter(doc){
   const range = doc.bufferedPageRange();
-  for (let i = 0; i < range.count; i++) {
+  const totalPages = range.count;
+  
+  for (let i = 0; i < totalPages; i++) {
     doc.switchToPage(i);
     const pageNumber = i + 1;
-    doc.fontSize(8)
+    
+    // Footer at 30 points from bottom
+    const footerY = doc.page.height - 30;
+    
+    doc.fontSize(7)
       .fillColor('#666')
-      .text(`BorrowEase Legal • Page ${pageNumber} of ${range.count}`,
-        50, doc.page.height - 50, { align: 'center', width: doc.page.width - 100 });
+      .text(
+        `BorrowEase Legal • Page ${pageNumber} of ${totalPages}`,
+        doc.page.margins.left,
+        footerY,
+        { 
+          align: 'center', 
+          width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+          lineBreak: false
+        }
+      );
   }
 }
 
@@ -53,26 +67,28 @@ function startDoc(title){
       Keywords: 'BorrowEase, lending, student loans, compliance',
     },
     bufferPages: true,
-    margins: { top: 60, bottom: 60, left: 60, right: 60 }
+    margins: { top: 40, bottom: 50, left: 50, right: 50 },
+    autoFirstPage: true,
+    size: 'A4'
   });
   return doc;
 }
 
 function heading(doc, text){
-  doc.moveDown(1).fontSize(18).fillColor('#111').text(text, { underline: true });
-  doc.moveDown(0.5).fontSize(11).fillColor('#222');
+  doc.moveDown(0.3).fontSize(16).fillColor('#111').text(text, { underline: true });
+  doc.moveDown(0.2).fontSize(10).fillColor('#222');
 }
 
 function subheading(doc, text){
-  doc.moveDown(0.8).fontSize(14).fillColor('#111').text(text);
-  doc.moveDown(0.3).fontSize(11).fillColor('#222');
+  doc.moveDown(0.3).fontSize(12).fillColor('#111').text(text);
+  doc.moveDown(0.15).fontSize(10).fillColor('#222');
 }
 
 function bullet(doc, items){
   items.forEach(i => {
-    doc.text(`• ${i}`, { indent: 10 });
+    doc.fontSize(9).text(`• ${i}`, { indent: 10, lineGap: 1 });
   });
-  doc.moveDown(0.5);
+  doc.moveDown(0.15);
 }
 // ------- Content Builders (i18n ready) ---------
 function buildPrivacySections(lang){
@@ -184,7 +200,7 @@ function buildTermsSections(lang){
 }
 
 function renderPdfSections(doc, sections){
-  sections.forEach(sec => {
+  sections.forEach((sec, index) => {
     if (sec.h) {
       heading(doc, sec.h);
     }
@@ -192,10 +208,15 @@ function renderPdfSections(doc, sections){
       subheading(doc, sec.sh);
     }
     if (sec.p){
-      doc.text(sec.p);
+      doc.fontSize(9).text(sec.p, { lineGap: 1 });
     }
     if (sec.bullets){
       bullet(doc, sec.bullets);
+    }
+    
+    // Minimal spacing between sections
+    if (index < sections.length - 1) {
+      doc.moveDown(0.2);
     }
   });
 }
@@ -222,6 +243,7 @@ function getOrBuild(docType, lang){
   const pdfDoc = startDoc(docType==='privacy'?'BorrowEase Privacy Policy':'BorrowEase Terms of Service');
   renderPdfSections(pdfDoc, sections);
   addFooter(pdfDoc);
+  
   const chunks=[]; let size=0;
   return new Promise(resolve => {
     pdfDoc.on('data', c=>{chunks.push(c); size+=c.length;});

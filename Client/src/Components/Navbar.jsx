@@ -154,16 +154,6 @@ export default function Navbar() {
       show: user && userRole === "lender",
     },
     {
-      label: "KYC Verification",
-      path: "/kyc",
-      icon: <Shield className="w-4 h-4" />,
-      show: user && userRole === "borrower",
-      className: user?.kycStatus === 'verified' ? "text-green-600 hover:text-green-700 font-semibold" : 
-                 user?.kycStatus === 'pending' ? "text-yellow-600 hover:text-yellow-700 font-semibold" :
-                 user?.kycStatus === 'rejected' ? "text-red-600 hover:text-red-700 font-semibold" :
-                 "text-blue-600 hover:text-blue-700 font-semibold",
-    },
-    {
       label: "My Loans",
       path: "/borrower-history",
       icon: <CreditCard className="w-4 h-4" />,
@@ -508,147 +498,262 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu: overlay + slide-out panel */}
-      {isMenuOpen && (
-        <>
-          <div 
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] md:hidden"
-            onClick={() => setIsMenuOpen(false)}
-            aria-hidden="true"
-          />
-          <div
-            ref={mobileMenuRef}
-            className={`fixed top-[env(safe-area-inset-top)] right-0 h-[calc(100vh-env(safe-area-inset-top))] w-72 max-w-[85vw] z-50 overflow-y-auto border-l shadow-xl md:hidden ${
-              isDark 
-                ? 'bg-gray-800 border-gray-700' 
-                : 'bg-white border-gray-200'
-            }`}
-            role="dialog"
-            aria-label="Mobile navigation"
-          >
-            {navLinks
-              .filter((link) => link.show && link.label !== "Admin Panel")
-              .map((link) => (
-                <button
-                  key={link.path}
-                  onClick={() => {
-                    navigate(link.path);
-                    setIsMenuOpen(false);
-                  }}
-                  className={`relative w-full px-4 py-3 text-left text-sm flex items-center cursor-pointer transition-colors ${
-                    isDark ? 'hover:bg-gray-700 active:bg-gray-600' : 'hover:bg-gray-50 active:bg-gray-100'
-                  } ${
-                    link.className || (isDark ? "text-gray-300" : "text-gray-700")
-                  }`}
-                >
-                  {link.icon}
-                  <span className="ml-2 font-medium">{link.label}</span>
-                  {link.badge && (
-                    <span className="ml-auto inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full shadow-lg animate-pulse">
-                      {link.badge > 99 ? '99+' : link.badge}
-                    </span>
-                  )}
-                  {link.label === "KYC Verification" && user?.kycStatus === 'verified' && (
-                    <CheckCircle className="w-4 h-4 ml-auto text-green-600" />
-                  )}
-                  {link.label === "KYC Verification" && user?.kycStatus === 'pending' && (
-                    <Clock className="w-4 h-4 ml-auto text-yellow-600" />
-                  )}
-                  {link.label === "KYC Verification" && user?.kycStatus === 'rejected' && (
-                    <X className="w-4 h-4 ml-auto text-red-600" />
-                  )}
-                </button>
-              ))}
+      {/* Mobile Menu: overlay + slide-out panel with animations */}
+      <div className={`fixed inset-0 z-40 md:hidden transition-opacity duration-300 ${
+        isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      }`}>
+        {/* Overlay */}
+        <div 
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-all duration-300"
+          onClick={() => setIsMenuOpen(false)}
+          aria-hidden="true"
+        />
+        
+        {/* Slide-out panel */}
+        <div
+          ref={mobileMenuRef}
+          className={`absolute top-0 right-0 h-full w-80 max-w-[85vw] shadow-2xl transform transition-transform duration-300 ease-out ${
+            isMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          } ${
+            isDark 
+              ? 'bg-gray-900' 
+              : 'bg-white'
+          }`}
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
+          role="dialog"
+          aria-label="Mobile navigation"
+        >
+          {/* Close button at top-right */}
+          <div className={`flex items-center justify-between px-4 py-4 border-b ${
+            isDark ? 'border-gray-800' : 'border-gray-100'
+          }`}>
+            <div className="flex items-center">
+              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-2 mr-2">
+                <Wallet className="w-5 h-5 text-white" />
+              </div>
+              <span className={`text-lg font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                BorrowEase
+              </span>
+            </div>
+            <button
+              onClick={() => setIsMenuOpen(false)}
+              className={`p-2 rounded-lg transition-all hover:rotate-90 ${
+                isDark 
+                  ? 'hover:bg-gray-800 text-gray-400 hover:text-gray-200' 
+                  : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+              }`}
+              aria-label="Close menu"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-            {/* Conditional Mobile Navigation: Public OR Authenticated, never both */}
-            {authReady && !user && (
-              <>
-                {/* Public Navigation Links - Only for guests */}
-                {publicNavLinks
-                  .filter((link) => link.show)
-                  .map((link) => (
-                    <Link
-                      key={link.label}
-                      to={link.path}
-                      onClick={() => setIsMenuOpen(false)}
-                      className={`block w-full px-4 py-3 text-left text-sm font-medium cursor-pointer transition-colors ${
-                        isDark 
-                          ? 'text-gray-300 hover:bg-gray-700 active:bg-gray-600' 
-                          : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100'
-                      }`}
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-              </>
-            )}
-
-            {authReady && user && (
-              <>
-                {/* Quick Dashboard Access for Authenticated Users */}
-                {authenticatedNavLinks
-                  .filter((link) => link.show)
-                  .map((link) => (
-                    <Link
-                      key={link.label}
-                      to={link.path}
-                      onClick={() => setIsMenuOpen(false)}
-                      className={`block w-full px-4 py-3 text-left text-sm flex items-center space-x-2 font-medium cursor-pointer transition-colors ${
-                        link.className || (isDark 
-                          ? 'text-gray-300 hover:bg-gray-700 active:bg-gray-600' 
-                          : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100')
-                      }`}
-                    >
-                      {link.icon}
-                      <span>{link.label}</span>
-                    </Link>
-                  ))}
-              </>
-            )}
-
-            <div className={`border-t px-4 py-2 ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-              {user ? (
-                <div className="flex items-center justify-between">
+          {/* Menu content with smooth scroll */}
+          <div className="overflow-y-auto h-[calc(100%-12rem)] pb-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700">
+            {/* Navigation links */}
+            <div className="py-2">
+              {navLinks
+                .filter((link) => link.show && link.label !== "Admin Panel")
+                .map((link, index) => (
                   <button
+                    key={link.path}
                     onClick={() => {
-                      navigate('/profile');
+                      navigate(link.path);
                       setIsMenuOpen(false);
                     }}
-                    className={`text-sm cursor-pointer transition-colors ${
+                    style={{
+                      animationDelay: `${index * 50}ms`
+                    }}
+                    className={`relative w-full px-5 py-3.5 text-left text-sm flex items-center gap-3 cursor-pointer transition-all duration-200 animate-slideIn ${
                       isDark 
-                        ? 'text-indigo-300 hover:text-indigo-200' 
-                        : 'text-indigo-600 hover:text-indigo-700'
+                        ? 'hover:bg-gray-800 active:bg-gray-700 text-gray-200 hover:text-white' 
+                        : 'hover:bg-gray-50 active:bg-gray-100 text-gray-700 hover:text-gray-900'
+                    } ${
+                      link.className && 'font-semibold'
                     }`}
                   >
-                    Profile Settings
+                    <div className={`flex-shrink-0 ${
+                      link.className 
+                        ? 'text-red-500' 
+                        : isDark ? 'text-indigo-400' : 'text-indigo-600'
+                    }`}>
+                      {link.icon}
+                    </div>
+                    <span className="flex-1 font-medium">{link.label}</span>
+                    {link.badge && (
+                      <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                        {link.badge > 99 ? '99+' : link.badge}
+                      </span>
+                    )}
+                    {link.label === "KYC Verification" && user?.kycStatus === 'verified' && (
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                    )}
+                    {link.label === "KYC Verification" && user?.kycStatus === 'pending' && (
+                      <Clock className="w-4 h-4 text-yellow-500" />
+                    )}
                   </button>
-                  <button
-                    onClick={handleLogout}
-                    className={`text-sm font-medium cursor-pointer transition-colors flex items-center space-x-1 ${
+                ))}
+
+              {/* Public Navigation Links - Only for guests */}
+              {authReady && !user && publicNavLinks
+                .filter((link) => link.show)
+                .map((link, index) => (
+                  <Link
+                    key={link.label}
+                    to={link.path}
+                    onClick={() => setIsMenuOpen(false)}
+                    style={{
+                      animationDelay: `${index * 50}ms`
+                    }}
+                    className={`block w-full px-5 py-3.5 text-left text-sm font-medium cursor-pointer transition-all duration-200 animate-slideIn ${
                       isDark 
-                        ? 'text-red-400 hover:text-red-300' 
-                        : 'text-red-600 hover:text-red-700'
+                        ? 'text-gray-200 hover:bg-gray-800 hover:text-white' 
+                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <LogOut className="w-4 h-4" />
-                    <span>Logout</span>
-                  </button>
-                </div>
-              ) : (
-                <Link to="/login" className="block">
-                  <button className={`w-full px-4 py-2 text-center text-sm font-semibold rounded-lg cursor-pointer transition-all transform active:scale-95 ${
-                    isDark 
-                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white' 
-                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white'
-                  } shadow-lg hover:shadow-xl`}>
-                    Sign In
-                  </button>
-                </Link>
+                    {link.label}
+                  </Link>
+                ))}
+
+              {/* KYC Verification for Borrowers */}
+              {authReady && user && userRole === "borrower" && (
+                <button
+                  onClick={() => {
+                    navigate('/kyc');
+                    setIsMenuOpen(false);
+                  }}
+                  className={`w-full px-5 py-3.5 text-left text-sm flex items-center gap-3 font-medium cursor-pointer transition-all duration-200 ${
+                    user.kycStatus === 'verified' 
+                      ? (isDark ? 'text-green-400 hover:bg-gray-800' : 'text-green-600 hover:bg-green-50')
+                      : user.kycStatus === 'pending' 
+                      ? (isDark ? 'text-yellow-400 hover:bg-gray-800' : 'text-yellow-600 hover:bg-yellow-50')
+                      : user.kycStatus === 'rejected' 
+                      ? (isDark ? 'text-red-400 hover:bg-gray-800' : 'text-red-600 hover:bg-red-50')
+                      : (isDark ? 'text-blue-400 hover:bg-gray-800' : 'text-blue-600 hover:bg-blue-50')
+                  }`}
+                >
+                  <Shield className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1">KYC Verification</span>
+                  {user.kycStatus === 'verified' && <CheckCircle className="w-4 h-4 text-green-500" />}
+                  {user.kycStatus === 'pending' && <Clock className="w-4 h-4 text-yellow-500" />}
+                </button>
+              )}
+
+              {/* Admin Section */}
+              {authReady && user && userRole === "admin" && (
+                <>
+                  <div className={`my-2 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`} />
+                  <div className={`px-5 py-2 text-xs font-semibold tracking-wider ${
+                    isDark ? 'text-gray-500' : 'text-gray-400'
+                  }`}>
+                    ADMIN PANEL
+                  </div>
+                  {[
+                    { path: '/admin', icon: Shield, label: 'Admin Dashboard' },
+                    { path: '/admin/loans', icon: CreditCard, label: 'Loan Moderation' },
+                    { path: '/admin/kyc', icon: User, label: 'KYC Management' },
+                    { path: '/admin/users', icon: Settings, label: 'User Management' },
+                  ].map((link, index) => (
+                    <button
+                      key={link.path}
+                      onClick={() => {
+                        navigate(link.path);
+                        setIsMenuOpen(false);
+                      }}
+                      style={{
+                        animationDelay: `${index * 50}ms`
+                      }}
+                      className={`w-full px-5 py-3.5 text-left text-sm flex items-center gap-3 font-medium cursor-pointer transition-all duration-200 animate-slideIn ${
+                        isDark 
+                          ? 'text-red-400 hover:bg-red-900/20' 
+                          : 'text-red-600 hover:bg-red-50'
+                      }`}
+                    >
+                      <link.icon className="w-4 h-4 flex-shrink-0" />
+                      <span>{link.label}</span>
+                    </button>
+                  ))}
+                </>
               )}
             </div>
           </div>
-        </>
-      )}
+
+          {/* Bottom Section - Profile & Logout */}
+          <div className={`absolute bottom-0 left-0 right-0 border-t ${
+            isDark ? 'border-gray-800 bg-gray-900' : 'border-gray-100 bg-white'
+          }`}>
+            {user ? (
+                <div className="p-4 space-y-2">
+                  {/* User info */}
+                  <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                    isDark ? 'bg-gray-800' : 'bg-gray-50'
+                  }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      isDark ? 'bg-indigo-900' : 'bg-indigo-100'
+                    }`}>
+                      <User className={`w-5 h-5 ${
+                        isDark ? 'text-indigo-400' : 'text-indigo-600'
+                      }`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-semibold truncate ${
+                        isDark ? 'text-gray-100' : 'text-gray-900'
+                      }`}>
+                        {user.name || 'User'}
+                      </p>
+                      <p className={`text-xs truncate ${
+                        isDark ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Action buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        navigate('/profile');
+                        setIsMenuOpen(false);
+                      }}
+                      className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-lg cursor-pointer transition-all flex items-center justify-center gap-2 ${
+                        isDark 
+                          ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Settings className="w-4 h-4" />
+                      <span>Profile</span>
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-lg cursor-pointer transition-all flex items-center justify-center gap-2 ${
+                        isDark 
+                          ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50' 
+                          : 'bg-red-50 text-red-600 hover:bg-red-100'
+                      }`}
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                </div>
+            ) : (
+              <div className="p-4">
+                <Link to="/login" className="block" onClick={() => setIsMenuOpen(false)}>
+                  <button className={`w-full px-4 py-3 text-center text-sm font-semibold rounded-lg cursor-pointer transition-all transform active:scale-95 shadow-lg hover:shadow-xl ${
+                    isDark 
+                      ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white' 
+                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white'
+                  }`}>
+                    Sign In / Register
+                  </button>
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </header>
   );
 }
