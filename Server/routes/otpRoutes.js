@@ -12,16 +12,40 @@ import {
 const router = express.Router();
 
 /**
+ * @route   GET /api/otp/health
+ * @desc    Check OTP service health
+ * @access  Public
+ */
+router.get('/health', (req, res) => {
+    const twilioConfigured = !!(
+        process.env.TWILIO_ACCOUNT_SID && 
+        process.env.TWILIO_AUTH_TOKEN && 
+        process.env.TWILIO_VERIFY_SID
+    );
+    
+    res.status(200).json({
+        success: true,
+        message: 'OTP service is running',
+        twilioConfigured,
+        redisConnected: !!require('../config/redis.js').getRedisClient
+    });
+});
+
+/**
  * @route   POST /api/otp/send
  * @desc    Send OTP to phone number
  * @access  Public
  */
 router.post('/send', async (req, res) => {
     try {
+        console.log('📱 Received OTP send request');
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
+        
         const { phone } = req.body;
 
         // Validation
         if (!phone) {
+            console.log('❌ No phone number provided');
             return res.status(400).json({
                 success: false,
                 message: 'Phone number is required'
@@ -35,9 +59,12 @@ router.post('/send', async (req, res) => {
         }
 
         console.log(`📱 OTP request for: ${normalizedPhone}`);
+        console.log(`📱 Twilio configured: ${!!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_VERIFY_SID)}`);
 
         // Generate and send OTP
         const result = await generateAndSendOTP(normalizedPhone);
+
+        console.log('✅ OTP sent successfully:', result);
 
         res.status(200).json({
             success: true,
@@ -51,9 +78,11 @@ router.post('/send', async (req, res) => {
 
     } catch (error) {
         console.error('❌ Send OTP error:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({
             success: false,
-            message: error.message || 'Failed to send OTP'
+            message: error.message || 'Failed to send OTP',
+            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 });
