@@ -139,7 +139,7 @@ async function loop() {
 
 async function main() {
   await mongoose.connect(MONGO_URI, { autoIndex: true });
-  console.log(`[WORKER ${WORKER_ID}] Connected to MongoDB at ${MONGO_URI}`);
+  console.log(`[WORKER ${WORKER_ID}] Connected to MongoDB`);
   if (process.env.EMAIL_WORKER_DEBUG === 'true') {
     console.log(`[WORKER ${WORKER_ID}] Debug logging enabled`);
   }

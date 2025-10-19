@@ -339,6 +339,11 @@ export default function Login() {
                 return;
             }
             
+            // CRITICAL: Clear any existing session data before login
+            console.log('🧹 Clearing existing session data...');
+            localStorage.removeItem('token');
+            delete API.defaults.headers.common["Authorization"];
+            
             showInfo('Signing you in...');
             
             // Step 1: Firebase authentication
