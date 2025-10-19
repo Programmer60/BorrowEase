@@ -296,7 +296,7 @@ const Contact = () => {
     {
       icon: <MapPin className="w-6 h-6" />,
       title: "Visit Us",
-      details: "123 Education Hub, Mumbai, India",
+      details: "Srinagar, Uttarakhand, India",
       subtext: "Schedule an appointment"
     },
     {
@@ -327,7 +327,7 @@ const Contact = () => {
       description: 'Issues with your account, login problems, or profile updates',
       faqs: [
         { q: 'I forgot my password. What do I do?', a: 'Use the “Forgot Password” link. If still locked out, contact support with your registered email.', keywords: ['forgot password','reset password'] },
-        { q: 'Can I change my registered email?', a: 'Yes. Go to Account Settings > Profile. A verification link is sent to the new address.', keywords: ['change email','update email','new email'] }
+        { q: 'Can I change my registered email?', a: 'No, you cannot change your registered email.', keywords: ["change email","update email","new email"] }
       ]
     },
     {
@@ -719,7 +719,6 @@ const Contact = () => {
                           <p className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-sm`}>{highlight(cat.description)}</p>
                         </div>
                       </div>
-                      <span className={`ml-4 text-xs font-medium px-2 py-1 rounded ${expanded ? 'bg-blue-600 text-white' : isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-700'}`}>{expanded ? 'Hide' : 'View'}</span>
                     </button>
                     <AnimatePresence initial={false}>
                       {expanded && (
@@ -747,7 +746,7 @@ const Contact = () => {
                                   id={`faq-btn-${idx}-${fIdx}`}
                                 >
                                   <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{highlight(faq.q)}</span>
-                                  <span className="ml-4 text-xs text-blue-600">{open ? '−' : '+'}</span>
+                                  <span className="ml-4 text-xl text-blue-600">{open ? '−' : '+'}</span>
                                 </button>
                                 <AnimatePresence initial={false}>
                                   {open && (
@@ -763,26 +762,6 @@ const Contact = () => {
                                       className={`px-4 py-3 text-sm ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-700'}`}
                                     >
                                       <p className="mb-3 leading-relaxed">{highlight(faq.a)}</p>
-                                      <div className="flex flex-wrap gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setMatchedFAQ({ ...faq, category: cat.title });
-                                            setSubmitMessage('Answer loaded below – let us know if you still need help.');
-                                            setSubmitType('info');
-                                            toast.success('FAQ answer loaded');
-                                          }}
-                                          className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
-                                        >Use This Answer</button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setFormData(prev => ({ ...prev, category: cat.key, subject: faq.q }));
-                                            toast('Subject set to FAQ question', { icon: '✍️' });
-                                          }}
-                                          className="px-3 py-1 text-xs rounded bg-gray-600 text-white hover:bg-gray-700"
-                                        >Ask Human About It</button>
-                                      </div>
                                     </motion.div>
                                   )}
                                 </AnimatePresence>
