@@ -147,7 +147,7 @@ function buildPrivacySections(lang){
     { sh:'11. Automated Decision-Making', p:'Risk scoring & fraud heuristics influence review priority but do not alone deny legitimate loan access; manual escalation path preserved.' },
     { sh:'12. Third-Party Processors', p:'A maintained internal register evaluates vendors on confidentiality, integrity, availability (CIA), breach history, and regulatory posture (SOC2 / ISO27001 where applicable).' },
     { sh:'13. Policy Changes', p:'Change log maintained; prior versions available on request. Material changes notified with a minimum 15-day lead unless security-critical.' },
-    { sh:'14. Contact', p:'Questions: privacy@borrowease.example (monitored with SLA < 72h).' },
+    { sh:'14. Contact', p:'Questions: mishrashivam7465@gmail.com (monitored with SLA < 72h).' },
     { sh:'15. Disclaimer', p:'This document is for transparency and does not constitute legal advice. Where local law conflicts, statutory requirements prevail.' }
   ];
 }
