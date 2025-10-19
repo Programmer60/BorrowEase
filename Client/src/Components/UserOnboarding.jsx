@@ -392,9 +392,15 @@ export default function UserOnboarding() {
           <div className="animate-fade-in">
             <PhoneVerification
               onVerificationComplete={handlePhoneVerificationComplete}
-              showSkip={false}
+              onSkip={() => {
+                showInfo('Phone verification skipped for demo purposes');
+                setPhoneVerified(true);
+                setPhoneNumber('Demo - Not Verified');
+                setCurrentStep(3);
+              }}
+              showSkip={true}
               title="Verify Your Phone Number"
-              description="For security and compliance, we need to verify your phone number (Required for P2P lending)"
+              description="For security and compliance, we need to verify your phone number (⚠️ Demo: Skip available for testing)"
             />
             
             {/* Why Phone Verification */}
@@ -450,6 +456,18 @@ export default function UserOnboarding() {
                   isDark ? 'text-blue-400' : 'text-blue-700'
                 }`}>
                   🔒 Your phone number is encrypted and will never be shared with third parties
+                </p>
+              </div>
+              
+              {/* Demo Mode Notice */}
+              <div className={`mt-4 p-4 rounded-lg border-2 border-dashed ${
+                isDark ? 'bg-yellow-900/20 border-yellow-600' : 'bg-yellow-50 border-yellow-400'
+              }`}>
+                <p className={`text-sm font-medium ${
+                  isDark ? 'text-yellow-400' : 'text-yellow-700'
+                }`}>
+                  ⚠️ <strong>DEMO MODE:</strong> Due to Twilio trial limitations, you can skip phone verification for testing. 
+                  In production, all users would be required to verify their phone numbers.
                 </p>
               </div>
             </div>
