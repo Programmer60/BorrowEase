@@ -401,15 +401,16 @@ export default function Login() {
                 console.error('❌ API Error:', apiError);
                 
                 if (apiError.response?.status === 404) {
-                    console.log('👤 User not found in database - redirecting to setup');
-                    // User not found in database - redirect to setup
+                    console.log('👤 User not found in database - redirecting to onboarding');
+                    // User not found in database - redirect to onboarding
                     showInfo('Please complete your account setup');
-                    navigate('/setup', { 
+                    navigate('/onboarding', { 
                         state: { 
                             email: result.user.email,
                             name: result.user.displayName || '',
                             uid: result.user.uid,
-                            verified: true
+                            phoneVerified: false,
+                            emailVerified: true
                         }
                     });
                 } else {
