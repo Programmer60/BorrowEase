@@ -23,7 +23,7 @@ export default function LenderDashboard() {
   const [activeTab, setActiveTab] = useState('browse'); // browse, recommendations, investment, disputes
   const [redirecting, setRedirecting] = useState(false); // show overlay while creating order and redirecting
   const [paymentBanner, setPaymentBanner] = useState(null); // { type, message }
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   const API_BASE = API?.defaults?.baseURL || '';
     // Derive backend origin from configured API base
     const BACKEND_ORIGIN = (() => { try { return new URL(API_BASE).origin; } catch { return window.location.origin; } })();

@@ -50,7 +50,7 @@ export default function UserOnboarding() {
   // Check if user is already logged in
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       if (!token) {
         showError('Please login first');
         navigate('/login');

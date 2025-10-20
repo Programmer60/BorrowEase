@@ -53,15 +53,18 @@ export const verifyToken = async (req, res, next) => {
 
   const idToken = authHeader.split(" ")[1];
   console.log('🎫 Token extracted, length:', idToken?.length);
+  console.log('🎫 Token (first 20 chars):', idToken?.substring(0, 20));
 
   try {
-    console.log('🔍 Verifying Firebase token...');
+    console.log('🔍 [verifyToken] Verifying Firebase token...');
     const decodedToken = await auth.verifyIdToken(idToken);
-    console.log('✅ Token verified for user:', decodedToken.email);
+    console.log('✅ [verifyToken] Token verified successfully!');
+    console.log('📧 [verifyToken] Token contains email:', decodedToken.email);
+    console.log('🆔 [verifyToken] Token contains UID:', decodedToken.uid);
     
     // Only check user in database for non-setup routes
     if (!req.path.endsWith('/setup')) {
-      console.log('👤 Looking up user in database...');
+      console.log('👤 [verifyToken] Looking up user in database for email:', decodedToken.email);
       
       // First try to find by email (primary identifier)
       let user = await User.findOne({ email: decodedToken.email });

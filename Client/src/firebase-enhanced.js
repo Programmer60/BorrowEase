@@ -75,7 +75,7 @@ class TokenManager {
       }
       
       // Store in localStorage
-      localStorage.setItem('token', token);
+      sessionStorage.setItem('token', token);
       
       return token;
     } catch (error) {
@@ -124,7 +124,7 @@ class AuthStateManager {
         try {
           // Get fresh token when user signs in
           const token = await getIdToken(user, true);
-          localStorage.setItem('token', token);
+          sessionStorage.setItem('token', token);
           
           // Update API headers if available
           if (window.API && window.API.defaults) {
@@ -135,7 +135,7 @@ class AuthStateManager {
         }
       } else {
         // Clear token when user signs out
-        localStorage.removeItem('token');
+        sessionStorage.removeItem('token');
         if (window.API && window.API.defaults) {
           delete window.API.defaults.headers.common["Authorization"];
         }

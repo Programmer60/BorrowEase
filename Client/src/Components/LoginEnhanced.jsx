@@ -4,7 +4,7 @@ import { Eye, EyeOff, Mail, Lock, CreditCard, Users, TrendingUp, Shield, CheckCi
 import { useNavigate, Link } from "react-router-dom";
 import { useTheme } from '../contexts/ThemeContext';
 import { useNotifications } from '../Components/NotificationSystem';
-import { auth, provider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken, sendEmailVerification, sendPasswordResetEmail } from '../firebase';
+import { auth, provider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken, sendEmailVerification, sendPasswordResetEmail, browserSessionPersistence, setPersistence } from '../firebase';
 import API from '../api/api';
 import Navbar from './Navbar';
 import usePlatformStats from '../hooks/usePlatformStats';
@@ -27,6 +27,7 @@ export default function Login() {
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [awaitingVerification, setAwaitingVerification] = useState(false);
     const [verificationEmail, setVerificationEmail] = useState('');
+    const [verificationPassword, setVerificationPassword] = useState(''); // Store password for resend
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -60,6 +61,23 @@ export default function Login() {
     useEffect(() => {
         const initAuth = async () => {
             try {
+                // CRITICAL: Ensure Firebase uses SESSION persistence (expires on tab close)
+                console.log('🔐 Setting Firebase Auth to SESSION persistence...');
+                await setPersistence(auth, browserSessionPersistence);
+                console.log('✅ Firebase persistence set to SESSION mode');
+                
+                // CRITICAL: Clear any stale session on login page mount
+                console.log('🧹 Initializing login page - clearing stale session...');
+                sessionStorage.removeItem('token');
+                sessionStorage.removeItem('user_email');
+                delete API.defaults.headers.common["Authorization"];
+                
+                // Sign out any lingering Firebase session from other tabs
+                if (auth.currentUser) {
+                    console.log('👋 Logging out stale Firebase session:', auth.currentUser.email);
+                    await auth.signOut();
+                }
+                
                 // Set up auth state listener
                 const unsubscribe = auth.onAuthStateChanged((user) => {
                     console.log('Auth state changed:', user ? user.email : 'No user');
@@ -144,6 +162,19 @@ export default function Login() {
         setLoading(true);
 
         try {
+            // CRITICAL: Clear any existing session data before login
+            console.log('🧹 Clearing existing session for Google login...');
+            
+            // Sign out any existing Firebase session first
+            if (auth.currentUser) {
+                console.log('👋 Signing out previous user:', auth.currentUser.email);
+                await auth.signOut();
+            }
+            
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('user_email');
+            delete API.defaults.headers.common["Authorization"];
+            
             showInfo('Signing in with Google...');
             
             // Configure Google provider
@@ -160,9 +191,14 @@ export default function Login() {
             // Get fresh token
             const token = await getIdToken(user, true);
             
+            console.log('💾 Storing session for Google user:', user.email);
+            console.log('🔑 Token (first 20 chars):', token.substring(0, 20));
+            
             // Set up API headers
             API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-            localStorage.setItem('token', token);
+            sessionStorage.setItem('token', token);
+            sessionStorage.setItem('user_email', user.email); // 🔥 Tab-specific session
+            console.log('✅ API headers set for:', user.email);
 
             // Check if user exists or create new user
             let userRole;
@@ -171,10 +207,23 @@ export default function Login() {
             
             try {
                 const userData = await API.get("/users/me");
+                
+                // 🔒 CRITICAL SECURITY CHECK: Verify the response matches logged-in user
+                console.log('🔍 Security Check - Expected:', user.email, '| Got:', userData.data.email);
+                if (userData.data.email !== user.email) {
+                    console.error('🚨 SECURITY ALERT: Email mismatch detected in Google login!');
+                    await auth.signOut();
+                    sessionStorage.clear();
+                    delete API.defaults.headers.common["Authorization"];
+                    showError('Session validation failed. Please try again.');
+                    setLoading(false);
+                    return;
+                }
+                
                 userRole = userData.data.role;
                 phoneVerified = userData.data.phoneVerified;
                 isExistingUser = true;
-                console.log("Existing Google user found:", { role: userRole, phoneVerified });
+                console.log("✅ Existing Google user validated:", { role: userRole, phoneVerified });
                 
                 // Check if user completed phone verification
                 if (!phoneVerified) {
@@ -294,6 +343,7 @@ export default function Login() {
             
             // Step 4: Show verification UI
             setVerificationEmail(email);
+            setVerificationPassword(password); // Store password for resend functionality
             setAwaitingVerification(true);
             setIsSignUp(false); // Hide signup form
             
@@ -341,7 +391,15 @@ export default function Login() {
             
             // CRITICAL: Clear any existing session data before login
             console.log('🧹 Clearing existing session data...');
-            localStorage.removeItem('token');
+            
+            // Sign out any existing Firebase session first
+            if (auth.currentUser) {
+                console.log('👋 Signing out previous user:', auth.currentUser.email);
+                await auth.signOut();
+            }
+            
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('user_email');
             delete API.defaults.headers.common["Authorization"];
             
             showInfo('Signing you in...');
@@ -359,6 +417,7 @@ export default function Login() {
                 await auth.signOut();
                 
                 setVerificationEmail(email);
+                setVerificationPassword(password); // Store password for resend functionality
                 setAwaitingVerification(true);
                 
                 showWarning('Please verify your email to continue', {
@@ -374,9 +433,14 @@ export default function Login() {
             // Step 3: Get token and set up API
             console.log('🎫 Step 3: Getting Firebase token...');
             const token = await getIdToken(result.user, true);
-            localStorage.setItem('token', token);
+            
+            console.log('💾 Storing session for user:', email);
+            console.log('🔑 Token (first 20 chars):', token.substring(0, 20));
+            
+            sessionStorage.setItem('token', token);
+            sessionStorage.setItem('user_email', email); // 🔥 Tab-specific session
             API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-            console.log('✅ Token obtained and API headers set');
+            console.log('✅ Token obtained and API headers set for:', email);
             
             // Step 4: Check if user exists in database with verified status
             console.log('👤 Step 4: Checking user in database...');
@@ -386,9 +450,29 @@ export default function Login() {
                 await API.patch("/users/verify", { verified: true });
                 console.log('✅ Verification status updated');
                 
-                console.log('� Making API call to /users/me...');
+                console.log('📋 Making API call to /users/me...');
                 const userData = await API.get("/users/me");
                 console.log('✅ User found in database:', userData.data);
+                
+                // 🔒 CRITICAL SECURITY CHECK: Verify the response matches logged-in user
+                const responseEmail = userData.data.email;
+                console.log('🔍 Security Check - Expected:', email, '| Got:', responseEmail);
+                
+                if (responseEmail !== email) {
+                    console.error('🚨 SECURITY ALERT: Email mismatch detected!');
+                    console.error('   Logged in as:', email);
+                    console.error('   API returned data for:', responseEmail);
+                    
+                    // Sign out immediately
+                    await auth.signOut();
+                    sessionStorage.clear();
+                    delete API.defaults.headers.common["Authorization"];
+                    
+                    showError('Session validation failed. Please try logging in again.');
+                    setLoading(false);
+                    return;
+                }
+                console.log('✅ Security check passed - user data matches logged-in user');
                 
                 showSuccess('Successfully signed in!');
                 
@@ -512,12 +596,19 @@ export default function Login() {
 
     // Resend verification email
     const handleResendVerification = async () => {
-        if (loading || !verificationEmail) return;
+        if (loading || !verificationEmail || !verificationPassword) {
+            if (!verificationPassword) {
+                showError('Session expired. Please try logging in again.');
+            }
+            return;
+        }
         setLoading(true);
         
         try {
+            console.log('📧 Resending verification email to:', verificationEmail);
+            
             // Sign in temporarily to resend verification
-            const result = await signInWithEmailAndPassword(auth, verificationEmail, formData.password);
+            const result = await signInWithEmailAndPassword(auth, verificationEmail, verificationPassword);
             
             await sendEmailVerification(result.user, {
                 url: `${window.location.origin}/login?verified=true`,
@@ -531,7 +622,18 @@ export default function Login() {
             
         } catch (error) {
             console.error('Resend verification failed:', error);
-            showError('Failed to resend verification email. Please try again.');
+            
+            let errorMessage = 'Failed to resend verification email. Please try again.';
+            if (error.code === 'auth/wrong-password') {
+                errorMessage = 'Session expired. Please try logging in again.';
+                setAwaitingVerification(false);
+                setVerificationEmail('');
+                setVerificationPassword('');
+            } else if (error.code === 'auth/too-many-requests') {
+                errorMessage = 'Too many attempts. Please wait a few minutes and try again.';
+            }
+            
+            showError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -868,6 +970,7 @@ export default function Login() {
                                             onClick={() => {
                                                 setAwaitingVerification(false);
                                                 setVerificationEmail('');
+                                                setVerificationPassword(''); // Clear stored password
                                             }}
                                             className={`text-sm ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}
                                         >

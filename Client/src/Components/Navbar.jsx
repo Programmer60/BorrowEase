@@ -135,6 +135,10 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     await auth.signOut();
+    // 🔥 Clear all session data (tab-specific)
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user_email');
+    delete API.defaults.headers.common["Authorization"];
     setUser(null);
     setUserRole("");
     navigate("/");

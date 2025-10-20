@@ -38,11 +38,11 @@ function App() {
   useEffect(() => {
     // Initialize authentication state
     const initializeAuth = () => {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       if (token) {
         // Set token in API headers on app startup
         API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-        console.log('🔑 Token loaded from localStorage on app startup');
+        console.log('🔑 Token loaded from sessionStorage on app startup');
       }
     };
 

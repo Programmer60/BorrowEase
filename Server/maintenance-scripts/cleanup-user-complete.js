@@ -15,8 +15,8 @@
 
 import admin from "firebase-admin";
 import { createRequire } from "module";
-import connectDB from "./config/db.js";
-import User from "./models/userModel.js";
+import connectDB from "../config/db.js";
+import User from "../models/userModel.js";
 import dotenv from "dotenv";
 
 // Import other models
@@ -25,7 +25,7 @@ let KYC, ChatMessage, Loan, Notification;
 dotenv.config();
 
 const require = createRequire(import.meta.url);
-const serviceAccount = require("./serviceAccountKey.json");
+const serviceAccount = require("../serviceAccountKey.json");
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -38,16 +38,16 @@ const auth = admin.auth();
 
 async function loadModels() {
     try {
-        const kycModule = await import("./models/kycModel.js");
+        const kycModule = await import("../models/kycModel.js");
         KYC = kycModule.default;
         
-        const chatModule = await import("./models/chatModel.js");
+        const chatModule = await import("../models/chatModel.js");
         ChatMessage = chatModule.default;
         
-        const loanModule = await import("./models/loanModel.js");
+        const loanModule = await import("../models/loanModel.js");
         Loan = loanModule.default;
         
-        const notificationModule = await import("./models/notificationModel.js");
+        const notificationModule = await import("../models/notificationModel.js");
         Notification = notificationModule.default;
         
         console.log('✅ All models loaded successfully');

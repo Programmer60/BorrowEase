@@ -58,7 +58,7 @@ const TokenManager = {
         window.API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       }
       
-      localStorage.setItem('token', token);
+      sessionStorage.setItem('token', token);
       return token;
     } catch (error) {
       console.error('Token refresh failed:', error);
@@ -139,7 +139,7 @@ class AuthenticationService {
       
       // Set up API headers
       API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      localStorage.setItem('token', token);
+      sessionStorage.setItem('token', token);
 
       // Check if user exists or create new user
       const userData = await this.setupUserAccount(role);
@@ -188,7 +188,7 @@ class AuthenticationService {
       
       // Set up API headers
       API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      localStorage.setItem('token', token);
+      sessionStorage.setItem('token', token);
 
       // Create user account in database
       const userData = await this.setupUserAccount(role, 'email');
@@ -234,7 +234,7 @@ class AuthenticationService {
       
       // Set up API headers
       API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      localStorage.setItem('token', token);
+      sessionStorage.setItem('token', token);
 
       // Get user data from database
       const userData = await this.getUserData();
@@ -312,7 +312,7 @@ class AuthenticationService {
       await signOut(auth);
       
       // Clear local storage
-      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
       
       // Clear API headers
       delete API.defaults.headers.common["Authorization"];
@@ -361,7 +361,7 @@ class AuthenticationService {
 
   // Get current authentication status
   isAuthenticated() {
-    return !!this.currentUser && !!localStorage.getItem('token');
+    return !!this.currentUser && !!sessionStorage.getItem('token');
   }
 
   // Get current user
@@ -379,7 +379,7 @@ class AuthenticationService {
     try {
       const token = await TokenManager.refreshTokenIfNeeded();
       if (token) {
-        localStorage.setItem('token', token);
+        sessionStorage.setItem('token', token);
         return token;
       }
       return null;

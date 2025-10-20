@@ -1,6 +1,21 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, RecaptchaVerifier, signInWithPhoneNumber, signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken, fetchSignInMethodsForEmail, sendEmailVerification, sendPasswordResetEmail } from "firebase/auth";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  getIdToken, 
+  fetchSignInMethodsForEmail, 
+  sendEmailVerification, 
+  sendPasswordResetEmail,
+  browserSessionPersistence,
+  setPersistence 
+} from "firebase/auth";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -19,6 +34,32 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+
+// 🔒 CRITICAL: Set Firebase Auth to use SESSION persistence instead of LOCAL (IndexedDB)
+// This ensures auth state expires when browser tab closes, matching our sessionStorage approach
+setPersistence(auth, browserSessionPersistence)
+  .then(() => {
+    console.log('🔐 Firebase Auth persistence set to SESSION mode');
+  })
+  .catch((error) => {
+    console.error('❌ Failed to set Firebase persistence:', error);
+  });
+
 const provider = new GoogleAuthProvider();
 
-export { auth, provider, signInWithPopup, signOut, RecaptchaVerifier, signInWithPhoneNumber, signInWithEmailAndPassword, createUserWithEmailAndPassword, getIdToken, fetchSignInMethodsForEmail, sendEmailVerification, sendPasswordResetEmail };
+export { 
+  auth, 
+  provider, 
+  signInWithPopup, 
+  signOut, 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  getIdToken, 
+  fetchSignInMethodsForEmail, 
+  sendEmailVerification, 
+  sendPasswordResetEmail,
+  browserSessionPersistence,
+  setPersistence 
+};

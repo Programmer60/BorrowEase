@@ -754,6 +754,6 @@ For support and questions:
 
 ---
 
-**Built with ❤️ Shivam Mishra**
+**Built with ❤️ by Shivam Mishra**
 
 *BorrowEase - Making peer-to-peer lending simple, secure, and transparent.*
