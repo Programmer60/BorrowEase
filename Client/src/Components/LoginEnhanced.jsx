@@ -1,5 +1,5 @@
 // Enhanced Login component with industrial-level implementation
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, Mail, Lock, CreditCard, Users, TrendingUp, Shield, CheckCircle, ArrowRight, Star, MessageCircle, Zap, DollarSign, Clock } from 'lucide-react';
 import { useNavigate, Link } from "react-router-dom";
 import { useTheme } from '../contexts/ThemeContext';
@@ -34,6 +34,9 @@ export default function Login() {
         confirmPassword: ''
     });
     const [authInitialized, setAuthInitialized] = useState(false);
+    
+    // Use ref instead of state for loginInProgress to avoid useEffect dependency issues
+    const isLoginInProgress = useRef(false);
 
     // Test API connectivity
     const testAPIConnection = async () => {
@@ -80,7 +83,14 @@ export default function Login() {
                 
                 // Set up auth state listener
                 const unsubscribe = auth.onAuthStateChanged((user) => {
-                    console.log('Auth state changed:', user ? user.email : 'No user');
+                    console.log('🔔 Auth state changed:', user ? user.email : 'No user');
+                    
+                    // CRITICAL: Don't interfere if login/signup is in progress
+                    if (isLoginInProgress.current) {
+                        console.log('⏸️ [Auth Listener] Login in progress, skipping auto-navigation');
+                        return;
+                    }
+                    
                     if (user && !isLoggedIn) {
                         // User is signed in, check if they should be redirected
                         handleAuthStateChange(user);
@@ -107,6 +117,17 @@ export default function Login() {
         if (!user) return;
 
         try {
+            // 🔒 CRITICAL: For email/password accounts, ONLY proceed if email is verified
+            const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
+            
+            if (!isGoogleUser && !user.emailVerified) {
+                console.log('🚫 [Auth Listener] Blocking unverified email user from auto-login');
+                console.log('   Email:', user.email, 'Verified:', user.emailVerified);
+                // Don't set verification screen here - let the login/signup flow handle it
+                // Just prevent auto-navigation
+                return;
+            }
+            
             // Set up API with current user token
             const token = await getIdToken(user, true);
             API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -115,30 +136,29 @@ export default function Login() {
             const userRole = userData.data.role;
             const isVerified = userData.data.verified && user.emailVerified;
             
-            console.log('User authenticated - Role:', userRole, 'Verified:', isVerified, 'Email verified:', user.emailVerified, 'DB verified:', userData.data.verified);
+            console.log('✅ [Auth Listener] User authenticated - Role:', userRole, 'Verified:', isVerified);
             
-            // Check email verification for email-based accounts
-            if (!user.providerData.some(p => p.providerId === 'google.com') && !isVerified) {
-                console.log('❌ Email verification required for email-based account');
+            // Double-check verification for email-based accounts
+            if (!isGoogleUser && !isVerified) {
+                console.log('🚫 [Auth Listener] Email verification required (DB check failed)');
                 setVerificationEmail(user.email);
                 setAwaitingVerification(true);
-                showWarning('Please verify your email to continue accessing your dashboard.', {
-                    title: 'Email Verification Required',
-                    duration: 8000
-                });
+                // Sign out to prevent partial access
+                await auth.signOut();
                 return;
             }
             
             setIsLoggedIn(true);
             
             // Navigate based on role
+            console.log('🚀 [Auth Listener] Navigating to dashboard:', userRole);
             if (userRole === "borrower") navigate("/borrower");
             else if (userRole === "lender") navigate("/lender"); 
             else if (userRole === "admin") navigate("/admin");
             else navigate("/");
             
         } catch (error) {
-            console.error('Error handling auth state change:', error);
+            console.error('❌ [Auth Listener] Error handling auth state change:', error);
             
             // Handle verification required error
             if (error.response?.status === 403 && error.response?.data?.code === 'EMAIL_VERIFICATION_REQUIRED') {
@@ -295,7 +315,9 @@ export default function Login() {
     const handleEmailSignUp = async (e) => {
         e.preventDefault();
         if (loading || !authInitialized) return;
+        
         setLoading(true);
+        isLoginInProgress.current = true; // Set ref to prevent auth listener interference
         
         try {
             const { email, password, confirmPassword } = formData;
@@ -369,6 +391,7 @@ export default function Login() {
             showError(errorMessage);
         } finally {
             setLoading(false);
+            isLoginInProgress.current = false; // Clear ref to allow auth listener
         }
     };
 
@@ -376,7 +399,9 @@ export default function Login() {
     const handleEmailLogin = async (e) => {
         e.preventDefault();
         if (loading || !authInitialized) return;
+        
         setLoading(true);
+        isLoginInProgress.current = true; // Set ref to prevent auth listener interference
         
         try {
             const { email, password } = formData;
@@ -412,18 +437,52 @@ export default function Login() {
             // Step 2: Check email verification status (Industry Standard)
             console.log('📧 Step 2: Checking email verification status...');
             if (!result.user.emailVerified) {
-                console.log('❌ Email not verified, signing out user');
-                // Sign out the user immediately
-                await auth.signOut();
+                console.log('❌ Email not verified - will resend verification email');
                 
-                setVerificationEmail(email);
-                setVerificationPassword(password); // Store password for resend functionality
-                setAwaitingVerification(true);
-                
-                showWarning('Please verify your email to continue', {
-                    title: 'Email Verification Required',
-                    duration: 8000
-                });
+                try {
+                    // AUTOMATICALLY resend verification email
+                    console.log('📧 Auto-resending verification email...');
+                    await sendEmailVerification(result.user, {
+                        url: `${window.location.origin}/login?verified=true`,
+                        handleCodeInApp: false
+                    });
+                    console.log('✅ Verification email sent successfully');
+                    
+                    // Sign out the user immediately AFTER sending email
+                    await auth.signOut();
+                    
+                    setVerificationEmail(email);
+                    setVerificationPassword(password); // Store password for manual resend if needed
+                    setAwaitingVerification(true);
+                    
+                    showWarning('Verification email sent! Please check your inbox and verify to continue.', {
+                        title: 'Email Verification Required',
+                        duration: 10000
+                    });
+                    
+                } catch (emailError) {
+                    console.error('❌ Failed to send verification email:', emailError);
+                    
+                    // Sign out even if email send fails
+                    await auth.signOut();
+                    
+                    setVerificationEmail(email);
+                    setVerificationPassword(password);
+                    setAwaitingVerification(true);
+                    
+                    // Check if too many requests
+                    if (emailError.code === 'auth/too-many-requests') {
+                        showWarning('Too many verification emails sent. Please wait a few minutes or check your spam folder.', {
+                            title: 'Email Verification Required',
+                            duration: 10000
+                        });
+                    } else {
+                        showWarning('Please verify your email to continue. Click "Resend" if you didn\'t receive it.', {
+                            title: 'Email Verification Required',
+                            duration: 10000
+                        });
+                    }
+                }
                 
                 setLoading(false);
                 return;
@@ -534,6 +593,7 @@ export default function Login() {
             showError(errorMessage);
         } finally {
             setLoading(false);
+            isLoginInProgress.current = false; // Clear ref to allow auth listener
         }
     };
     //             errorMessage = 'Please enter a valid email address.';
