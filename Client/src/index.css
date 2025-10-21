@@ -98,6 +98,16 @@ img, video, canvas, svg {
   border-radius: 9999px;
 }
 
+/* Hide scrollbar for horizontal scroll on mobile tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
 .dark ::-webkit-scrollbar-thumb {
   background-color: #4b5563;
   border-radius: 9999px;

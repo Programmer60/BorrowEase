@@ -32,7 +32,14 @@ export default function Navbar() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [authReady, setAuthReady] = useState(false);
+  
+  // Fast initial render: Check if user has active session
+  const [authReady, setAuthReady] = useState(() => {
+    // If there's no token, we know immediately user is not logged in
+    const hasToken = !!sessionStorage.getItem('token');
+    return !hasToken; // If no token, auth is "ready" (user is logged out)
+  });
+  
   const navigate = useNavigate();
   const profileRef = useRef(null);
   const mobileMenuRef = useRef(null);
@@ -247,11 +254,23 @@ export default function Navbar() {
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-1">
-            {/* Auth Loading State */}
+            {/* Skeleton Loading State - Shows placeholder nav items */}
             {!authReady && (
-              <div className={`px-4 py-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                Loading...
-              </div>
+              <>
+                {/* Skeleton nav items */}
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className={`px-4 py-2 rounded-lg animate-pulse ${
+                      isDark ? 'bg-gray-800' : 'bg-gray-200'
+                    }`}
+                  >
+                    <div className={`h-4 w-20 rounded ${
+                      isDark ? 'bg-gray-700' : 'bg-gray-300'
+                    }`} />
+                  </div>
+                ))}
+              </>
             )}
 
             {/* Role-Based Navigation Links */}
@@ -473,8 +492,17 @@ export default function Navbar() {
                 </Link>
               </div>
             ) : (
-              // While auth is initializing, keep the area stable to avoid flicker
-              <div style={{ width: 160, height: 32 }} />
+              // Skeleton loader while auth is initializing
+              <div className="flex items-center space-x-3">
+                {/* Skeleton theme toggle */}
+                <div className={`w-10 h-10 rounded-lg animate-pulse ${
+                  isDark ? 'bg-gray-800' : 'bg-gray-200'
+                }`} />
+                {/* Skeleton login button */}
+                <div className={`w-20 h-10 rounded-lg animate-pulse ${
+                  isDark ? 'bg-gray-800' : 'bg-gray-200'
+                }`} />
+              </div>
             )}
           </div>
 

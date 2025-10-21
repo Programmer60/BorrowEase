@@ -197,12 +197,12 @@ export default function LenderDashboard() {
   };
 
   return (
-    <div className={`min-h-screen ${
+    <div className={`min-h-screen pb-safe ${
       isDark ? 'bg-gray-900' : 'bg-gray-50'
     }`}>
       {/* Payment status banner */}
       {paymentBanner && (
-        <div className={`px-4 py-3 text-sm flex items-center justify-between ${
+        <div className={`px-4 sm:px-6 py-3 text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 ${
           paymentBanner.type === 'success' 
             ? (isDark 
                 ? 'bg-green-900 border-b border-green-700 text-gray-200' 
@@ -214,12 +214,12 @@ export default function LenderDashboard() {
               )
         }`}
              role="status">
-          <span>{paymentBanner.message}</span>
+          <span className="flex-1">{paymentBanner.message}</span>
           <button 
-            className={`${
+            className={`flex-shrink-0 px-3 py-1 rounded ${
               isDark 
-                ? 'text-gray-400 hover:text-gray-300' 
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700' 
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
             }`} 
             onClick={() => setPaymentBanner(null)}
           >
@@ -243,95 +243,95 @@ export default function LenderDashboard() {
       {/* Header */}
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className={`rounded-xl shadow-sm p-6 ${
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className={`rounded-xl shadow-sm p-4 sm:p-6 ${
             isDark ? 'bg-gray-800' : 'bg-white'
           }`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm font-medium ${
+              <div className="min-w-0 flex-1">
+                <p className={`text-xs sm:text-sm font-medium ${
                   isDark ? 'text-gray-400' : 'text-gray-600'
                 }`}>Total Loans</p>
-                <p className={`text-2xl font-bold ${
+                <p className={`text-xl sm:text-2xl font-bold truncate ${
                   isDark ? 'text-gray-100' : 'text-gray-900'
                 }`}>{stats.totalLoans}</p>
               </div>
-              <div className={`p-3 rounded-full ${
+              <div className={`flex-shrink-0 p-2 sm:p-3 rounded-full ${
                 isDark ? 'bg-blue-900' : 'bg-blue-100'
               }`}>
-                <Users className="h-6 w-6 text-blue-600" />
+                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
               </div>
             </div>
           </div>
 
-          <div className={`rounded-xl shadow-sm p-6 ${
+          <div className={`rounded-xl shadow-sm p-4 sm:p-6 ${
             isDark ? 'bg-gray-800' : 'bg-white'
           }`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm font-medium ${
+              <div className="min-w-0 flex-1">
+                <p className={`text-xs sm:text-sm font-medium ${
                   isDark ? 'text-gray-400' : 'text-gray-600'
                 }`}>Unfunded</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.unfundedLoans}</p>
+                <p className="text-xl sm:text-2xl font-bold text-orange-600 truncate">{stats.unfundedLoans}</p>
               </div>
-              <div className={`p-3 rounded-full ${
+              <div className={`flex-shrink-0 p-2 sm:p-3 rounded-full ${
                 isDark ? 'bg-orange-900' : 'bg-orange-100'
               }`}>
-                <Clock className="h-6 w-6 text-orange-600" />
+                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
               </div>
             </div>
           </div>
 
-          <div className={`rounded-xl shadow-sm p-6 ${
+          <div className={`rounded-xl shadow-sm p-4 sm:p-6 ${
             isDark ? 'bg-gray-800' : 'bg-white'
           }`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm font-medium ${
+              <div className="min-w-0 flex-1">
+                <p className={`text-xs sm:text-sm font-medium ${
                   isDark ? 'text-gray-400' : 'text-gray-600'
                 }`}>Funded</p>
-                <p className="text-2xl font-bold text-green-600">{stats.fundedLoans}</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-600 truncate">{stats.fundedLoans}</p>
               </div>
-              <div className={`p-3 rounded-full ${
+              <div className={`flex-shrink-0 p-2 sm:p-3 rounded-full ${
                 isDark ? 'bg-green-900' : 'bg-green-100'
               }`}>
-                <CheckCircle className="h-6 w-6 text-green-600" />
+                <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
               </div>
             </div>
           </div>
 
-          <div className={`rounded-xl shadow-sm p-6 ${
+          <div className={`rounded-xl shadow-sm p-4 sm:p-6 ${
             isDark ? 'bg-gray-800' : 'bg-white'
           }`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className={`text-sm font-medium ${
+              <div className="min-w-0 flex-1">
+                <p className={`text-xs sm:text-sm font-medium ${
                   isDark ? 'text-gray-400' : 'text-gray-600'
                 }`}>Total Amount</p>
-                <p className="text-2xl font-bold text-purple-600">₹{stats.totalAmount.toLocaleString()}</p>
+                <p className="text-xl sm:text-2xl font-bold text-purple-600 truncate">₹{stats.totalAmount.toLocaleString()}</p>
               </div>
-              <div className={`p-3 rounded-full ${
+              <div className={`flex-shrink-0 p-2 sm:p-3 rounded-full ${
                 isDark ? 'bg-purple-900' : 'bg-purple-100'
               }`}>
-                <TrendingUp className="h-6 w-6 text-purple-600" />
+                <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className={`rounded-xl shadow-sm mb-8 ${
+        <div className={`rounded-xl shadow-sm mb-6 sm:mb-8 overflow-hidden ${
           isDark ? 'bg-gray-800' : 'bg-white'
         }`}>
           <div className={`border-b ${
             isDark ? 'border-gray-700' : 'border-gray-200'
           }`}>
-            <nav className="flex space-x-8 px-6">
+            <nav className="flex overflow-x-auto scrollbar-hide px-4 sm:px-6 -mb-px">
               <button
                 onClick={() => setActiveTab('browse')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`flex-shrink-0 py-3 sm:py-4 px-3 sm:px-4 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
                   activeTab === 'browse'
                     ? 'border-blue-500 text-blue-600'
                     : (isDark 
@@ -340,8 +340,9 @@ export default function LenderDashboard() {
                       )
                 }`}
               >
-                <Search className="w-4 h-4 mr-2 inline" />
-                Browse All Loans
+                <Search className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 inline" />
+                <span className="hidden sm:inline">Browse All Loans</span>
+                <span className="sm:hidden">Browse</span>
               </button>
               {/* <button
                 onClick={() => setActiveTab('recommendations')}
@@ -356,7 +357,7 @@ export default function LenderDashboard() {
               </button> */}
               <button
                 onClick={() => setActiveTab('investment')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`flex-shrink-0 py-3 sm:py-4 px-3 sm:px-4 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
                   activeTab === 'investment'
                     ? 'border-blue-500 text-blue-600'
                     : (isDark 
@@ -365,12 +366,13 @@ export default function LenderDashboard() {
                       )
                 }`}
               >
-                <BarChart3 className="w-4 h-4 mr-2 inline" />
-                Investment Tools
+                <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 inline" />
+                <span className="hidden sm:inline">Investment Tools</span>
+                <span className="sm:hidden">Invest</span>
               </button>
               <button
                 onClick={() => setActiveTab('disputes')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`flex-shrink-0 py-3 sm:py-4 px-3 sm:px-4 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
                   activeTab === 'disputes'
                     ? 'border-blue-500 text-blue-600'
                     : (isDark 
@@ -379,26 +381,27 @@ export default function LenderDashboard() {
                       )
                 }`}
               >
-                <AlertTriangle className="w-4 h-4 mr-2 inline" />
-                Dispute Overview
+                <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 inline" />
+                <span className="hidden sm:inline">Dispute Overview</span>
+                <span className="sm:hidden">Disputes</span>
               </button>
             </nav>
           </div>
 
           {/* Tab Content */}
           {activeTab === 'browse' && (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {/* Filters and Search */}
-              <div className="flex flex-col lg:flex-row gap-4 mb-6">
-                <div className="flex-1">
+              <div className="flex flex-col gap-3 sm:gap-4 mb-6">
+                <div className="w-full">
                   <div className="relative">
-                    <Search className={`absolute left-3 top-3 h-4 w-4 ${
+                    <Search className={`absolute left-3 top-2.5 sm:top-3 h-4 w-4 ${
                       isDark ? 'text-gray-500' : 'text-gray-400'
                     }`} />
                     <input
                       type="text"
-                      placeholder="Search by name, purpose, or college..."
-                      className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                      placeholder="Search by name, purpose..."
+                      className={`w-full pl-10 pr-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                         isDark 
                           ? 'border-gray-600 bg-gray-700 text-gray-100 placeholder-gray-400' 
                           : 'border-gray-300 bg-white text-gray-900 placeholder-gray-500'
@@ -409,9 +412,9 @@ export default function LenderDashboard() {
                   </div>
                 </div>
 
-                <div className="flex gap-4">
+                <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-4">
                   <select
-                    className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                    className={`px-3 sm:px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                       isDark 
                         ? 'border-gray-600 bg-gray-700 text-gray-100' 
                         : 'border-gray-300 bg-white text-gray-900'
@@ -419,13 +422,13 @@ export default function LenderDashboard() {
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
                   >
-                    <option value="all">All Loans</option>
+                    <option value="all">All</option>
                     <option value="unfunded">Unfunded</option>
                     <option value="funded">Funded</option>
                   </select>
 
                   <select
-                    className={`px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                    className={`px-3 sm:px-4 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                       isDark 
                         ? 'border-gray-600 bg-gray-700 text-gray-100' 
                         : 'border-gray-300 bg-white text-gray-900'
@@ -433,16 +436,16 @@ export default function LenderDashboard() {
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
                   >
-                    <option value="newest">Newest First</option>
-                    <option value="oldest">Oldest First</option>
-                    <option value="amount-high">Amount: High to Low</option>
-                    <option value="amount-low">Amount: Low to High</option>
+                    <option value="newest">Newest</option>
+                    <option value="oldest">Oldest</option>
+                    <option value="amount-high">High to Low</option>
+                    <option value="amount-low">Low to High</option>
                   </select>
                 </div>
               </div>
 
               {/* Loan Cards */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 {filteredLoans.map((loan) => (
                   <EnhancedLoanCard
                     key={loan._id}
@@ -455,13 +458,23 @@ export default function LenderDashboard() {
               </div>
 
               {/* Empty State */}
-              {filteredLoans.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="bg-gray-100 rounded-full p-4 w-16 h-16 mx-auto mb-4">
-                    <Search className="h-8 w-8 text-gray-400" />
+              {filteredLoans.length === 0 && !isLoading && (
+                <div className="text-center py-12 px-4">
+                  <div className={`rounded-full p-4 w-16 h-16 mx-auto mb-4 ${
+                    isDark ? 'bg-gray-700' : 'bg-gray-100'
+                  }`}>
+                    <Search className={`h-8 w-8 ${
+                      isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`} />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No loans found</h3>
-                  <p className="text-gray-600">
+                  <h3 className={`text-base sm:text-lg font-medium mb-2 ${
+                    isDark ? 'text-gray-200' : 'text-gray-900'
+                  }`}>
+                    No loans found
+                  </h3>
+                  <p className={`text-sm ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
                     Try adjusting your search terms or filters.
                   </p>
                 </div>
