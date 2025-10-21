@@ -19,7 +19,10 @@ const RZP_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
 if (!RZP_KEY_ID || !RZP_KEY_SECRET) {
-  console.warn("Razorpay keys are not set in environment. Payment routes will be disabled.");
+  console.error("❌ CRITICAL: Razorpay keys are not set in environment!");
+  console.error("RZP_KEY_ID:", RZP_KEY_ID ? "SET" : "MISSING");
+  console.error("RZP_KEY_SECRET:", RZP_KEY_SECRET ? "SET" : "MISSING");
+  console.error("Payment routes will NOT work without these keys!");
 }
 
 // Initialize Razorpay with environment variables
@@ -179,16 +182,29 @@ router.get("/health", (req, res) => {
 
 // Create order: require auth so we can embed user and loan context in order notes
 router.post("/create-order", verifyToken, async (req, res) => {
-  // Debug helpful headers to track CORS/abort issues
+  // Capture client origin from the request for reliable callback redirects later
+  let reqClientOrigin;
   try {
-    // Capture client origin from the request for reliable callback redirects later
-    const reqClientOrigin = getClientOrigin(req);
+    reqClientOrigin = getClientOrigin(req);
     console.log("➡️  /payment/create-order hit", {
       origin: req.headers.origin,
       referer: req.headers.referer,
       user: req.user?.email || req.user?.id || 'unknown',
     });
-  } catch (_) {}
+  } catch (_) {
+    // Fallback if getClientOrigin fails
+    reqClientOrigin = 'http://localhost:5173';
+  }
+  
+  // Check if Razorpay keys are configured
+  if (!RZP_KEY_ID || !RZP_KEY_SECRET) {
+    console.error("❌ Payment creation failed: Razorpay keys not configured");
+    return res.status(500).json({ 
+      error: "Payment system not configured",
+      details: "Razorpay API keys are missing. Please contact support."
+    });
+  }
+  
   const { amount, loanId, isRepayment } = req.body;
 
   // Parse amount robustly: accept numbers or formatted strings like "1,000.50" or "₹1,000"
