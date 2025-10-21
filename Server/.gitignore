@@ -1,13 +1,27 @@
-# Environment variables
+# Ignore node_modules
+node_modules/
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+
+# Environment files
 .env
 .env.local
 .env.development
-.env.test
 .env.production
-.env.example
+.env.test
 
-# Node modules
-node_modules/
+# Firebase credentials (CRITICAL - never commit these!)
+serviceAccountKey.json
+*serviceAccountKey*.json
 
 # Logs
 logs
@@ -16,137 +30,21 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+pnpm-debug.log*
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# nyc test coverage
-.nyc_output
-
-# Grunt intermediate storage
-.grunt
-
-# Bower dependency directory
-bower_components
-
-# node-waf configuration
-.lock-wscript
-
-# Compiled binary addons
-build/Release
-
-# Dependency directories
-node_modules/
-jspm_packages/
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache
-.cache
-.parcel-cache
-
-# Build output
-build/
-dist/
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Uploads directory
-uploads/
-temp/
-public/uploads/
-
-# Firebase service account keys
-serviceAccountKey.json
-firebase-adminsdk-*.json
-
-# SSL certificates
-*.pem
-*.key
-*.crt
-*.csr
-
-# Backup files
-*.backup
-*.bak
-*.old
-
-# Test files
-test-results/
-coverage/
-
-# Security files
-*.p12
-*.pfx
-
-# Local development files
-.local
-local.json
-
-# PM2 ecosystem file (if contains sensitive data)
-ecosystem.config.js
-
-# Docker files with secrets
-docker-compose.override.yml
-
 # Temporary files
-tmp/
-temp/
+*.tmp
+*.temp
+.cache
 
-# Session files
-sessions/
+# Coverage directory used by testing tools
+coverage
+*.lcov
 
-# Error logs
-error.log
-access.log
-
-# Development database dumps
-*.dump
-*.sql
-
-#Service Account keys
-serviceAccountKey.json
-firebase-adminsdk-*.json
-# End of .gitignore
+# Build artifacts
+build/
+dist/
